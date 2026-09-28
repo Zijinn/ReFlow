@@ -110,6 +110,29 @@
     0 1px 2px rgb(20 22 26 / 0.12),
     0 3px 8px rgb(20 22 26 / 0.07),
     0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+  /* 轨道 hover 加深一档：凹陷面没有阴影可依赖，只能靠底色本身回应。 */
+  --segment-track-hover: rgb(118 124 138 / 0.19);
+  /* 凸面玻璃（按钮/下拉/视图卡）与上面的凹面轨道是同一套材质的两面：
+     轨道/输入用 --segment-track*（上缘凹陷），控件用这组（内圈接光 + 接触影 + 环境影）。
+     底色必须半透明而不是实心 --surface——工作台工具条本身就是 82% 毛玻璃，
+     不吸光的实灰块压在毛玻璃上是一块死斑（与 6997 同一判断）。
+     压在白侧栏上实测合成 #f3f3f4，比轨道 #edeef0 亮三档，于是
+     "页面 < 轨道 < 控件 < 选中胶囊"四级高程成立。
+     二级墨实测（静置/悬停/按压）6.53 / 5.91 / 5.40:1，全部过正文级 AA。 */
+  --control-glass: rgb(118 124 138 / 0.09);
+  --control-glass-edge: color-mix(in srgb, var(--border-strong) 66%, transparent);
+  --control-glass-inset:
+    inset 0 1px 0 rgb(255 255 255 / 0.78),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.42);
+  --control-glass-shadow:
+    var(--control-glass-inset),
+    0 1px 2px rgb(20 22 26 / 0.08),
+    0 3px 8px rgb(20 22 26 / 0.05);
+  /* 密集排布（表格行、状态药丸）只留接触影：一行七八颗控件各拖一层环境影，
+     整表会糊成一片灰，行高也会被读成变高。 */
+  --control-glass-shadow-quiet:
+    var(--control-glass-inset),
+    0 1px 1.5px rgb(20 22 26 / 0.06);
   /* 列表行选中底：侧栏三类行（文件夹/订阅/移动抽屉）此前各写各的
      color-mix(accent-soft …)，四份配方叠在层叠里互相顶。收成一份，
      悬停要重述底色时也只有一处真相。 */
@@ -304,6 +327,24 @@
     0 4px 10px rgb(0 0 0 / 0.38),
     inset 0 0 0 0.5px rgb(255 255 255 / 0.1),
     0 0 0 1px rgb(255 255 255 / 0.06);
+  --segment-track-hover: rgb(255 255 255 / 0.11);
+  /* 凸面同样往白提：9% 白压在 chrome #0f1012 上合成 #252627，正好落在
+     轨道 #202123 与选中胶囊 #2b2c2e 之间，四级高程在深色下同样成立。
+     接光层在深档必须换弱白——浅档那层 78% 白压在深面上会把上缘画成一条亮边，
+     读起来像描边而不是玻璃高光。二级墨三档 6.25 / 4.72 / 4.13:1
+     （按压是瞬时态，加深量与既有 --fill-* 两档同量级）。 */
+  --control-glass: rgb(255 255 255 / 0.09);
+  --control-glass-edge: rgb(255 255 255 / 0.12);
+  --control-glass-inset:
+    inset 0 1px 0 rgb(255 255 255 / 0.1),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --control-glass-shadow:
+    var(--control-glass-inset),
+    0 1px 2px rgb(0 0 0 / 0.45),
+    0 4px 10px rgb(0 0 0 / 0.3);
+  --control-glass-shadow-quiet:
+    var(--control-glass-inset),
+    0 1px 1.5px rgb(0 0 0 / 0.4);
   --shadow-panel: 0 20px 54px rgb(0 0 0 / 0.38);
 }
 
@@ -9668,4 +9709,115 @@ button:disabled {
 }
 .wb-editable:active:not(:disabled) {
   background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* ── 玻璃控件落最后：凸面（按钮/下拉/图标泡）+ 凹面（输入/搜索）────────
+   必须写在文件末尾：这些控件的历史样式散落在 7000 / 8100 / 8400 / 9200
+   四处，同特异度靠文件顺序取胜，早写的每一份都会被后面顶掉。
+   每一档状态都要重述 background-color：早先的 :hover 规则把 --fill-hover
+   当成 background-color 用（9% 半透明灰），它顶掉静置底色后，
+   悬停反而比静置更亮——反馈方向就反了。灰蒙改走 background-image，
+   底色留在 background-color 上，与侧栏行、分段器选中档同一做法。 */
+
+/* 凹面：输入和搜索是"井"不是"块"——只有上缘凹陷，不给接触/环境影。 */
+.text-input,
+.select-input,
+.wb-search,
+.wb-email-input {
+  background-color: var(--segment-track);
+  border-color: var(--segment-track-edge);
+  box-shadow: var(--segment-track-inset);
+}
+.text-input:hover,
+.select-input:hover,
+.wb-search:hover,
+.wb-email-input:hover {
+  background-color: var(--segment-track-hover);
+}
+
+/* 凸面：静置。选中档用 :not() 排除，让它自己的底色与描边留在前面那几条里。 */
+.app-view-switch__item:not(.app-view-switch__item--active),
+.button--secondary,
+.wb-btn:not(.wb-btn--primary):not(.wb-flow-btn),
+.wb-menu-btn,
+.library-toolbar .icon-button {
+  background-color: var(--control-glass);
+  border-color: var(--control-glass-edge);
+  box-shadow: var(--control-glass-shadow);
+}
+/* 图标控件一上玻璃，圆角就从"看不见"变成形状语言的一部分：
+   纯图标的动作用圆（与 .wb-icon-btn、✕ 同一规则），带文字的才用 10px 方角。
+   视图卡原来是 --radius-control(6px)，而同一块玻璃面里 .button / .select-input /
+   .wb-btn 全是 10px——边框隐形时看不出，现在底色可见就是两种形状。 */
+.library-toolbar .icon-button {
+  border-radius: var(--radius-full);
+}
+.app-view-switch__item {
+  border-radius: var(--radius-lg);
+}
+.app-view-switch__item:not(.app-view-switch__item--active):hover,
+.button--secondary:hover,
+.wb-btn:not(.wb-btn--primary):not(.wb-flow-btn):hover,
+.wb-menu-btn:hover,
+.library-toolbar .icon-button:hover {
+  background-color: var(--control-glass);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.app-view-switch__item:not(.app-view-switch__item--active):active:not(:disabled),
+.button--secondary:active:not(:disabled),
+.wb-btn:not(.wb-btn--primary):not(.wb-flow-btn):active:not(:disabled),
+.wb-menu-btn:active:not(:disabled),
+.library-toolbar .icon-button:active:not(:disabled) {
+  background-color: var(--control-glass);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
+}
+/* 视图卡选中档保留主色淡底，只补一层凸面阴影，让它比静置的兄弟高一级。 */
+.app-view-switch__item--active {
+  box-shadow: var(--control-glass-shadow);
+}
+/* 表内按钮、筛选泡和状态/优先级药丸都在密排里：换接触影，不拖环境影。
+   药丸的色相底色由前面 (0,2,0)/(0,3,0) 那几条自己管理，这里只补材质。 */
+.wb-table .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn),
+.wb-filter-menu .wb-menu-btn,
+.wb-menu--sm .wb-menu-btn {
+  box-shadow: var(--control-glass-shadow-quiet);
+}
+.wb-status-pill .wb-menu-btn,
+.wb-priority-pill .wb-menu-btn {
+  box-shadow: var(--control-glass-shadow-quiet);
+}
+/* 药丸的反馈留在自己的色相里加深（见 9232 那段：状态色是信息，不能糊成灰），
+   所以上面通用 :hover/:active 叠的灰蒙必须在药丸上清掉。 */
+.wb-status-pill .wb-menu-btn:hover,
+.wb-priority-pill .wb-menu-btn:hover,
+.wb-status-pill .wb-menu-btn:active:not(:disabled),
+.wb-priority-pill .wb-menu-btn:active:not(:disabled) {
+  background-image: none;
+}
+/* 药丸自带 inset 描边与焦点环是同一条 box-shadow，焦点态两层一起写，
+   否则 Tab 到状态列时接光或焦点环必有一个被整条替换掉。 */
+.wb-status-pill .wb-menu-btn:focus-visible,
+.wb-priority-pill .wb-menu-btn:focus-visible {
+  box-shadow:
+    var(--focus-ring),
+    var(--control-glass-shadow-quiet);
+}
+
+/* 降低透明偏好：半透明材质换成实心灰面，层级关系靠颜色本身而不是透光维持。
+   选择器要同时列 :root 与 :root[data-theme="dark"]——后者特异度 (0,2,0)，
+   只写前者会被深色那组顶掉（与 8690 的高对比覆盖同一写法）。 */
+@media (prefers-reduced-transparency: reduce) {
+  :root,
+  :root[data-theme="dark"] {
+    --control-glass: var(--surface-muted);
+    --segment-track: var(--surface-muted);
+  }
+}
+/* 高对比：接光换成实描边，控件边界不再依赖透光与阴影。 */
+@media (prefers-contrast: more) {
+  :root,
+  :root[data-theme="dark"] {
+    --control-glass-edge: var(--border-strong);
+    --control-glass-inset: inset 0 0 0 1px var(--border-strong);
+  }
 }
