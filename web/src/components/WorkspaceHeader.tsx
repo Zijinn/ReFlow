@@ -48,7 +48,7 @@ export function WorkspaceHeader(props: WorkspaceHeaderProps) {
   return (
     <header className="workspace-header">
       <div className="workspace-breadcrumb" aria-label={t("currentLocation")}>
-        <span>Aurora</span>
+        <span>ReFlow</span>
         <i aria-hidden="true">/</i>
         <strong>{localizedScopeTitle(props.scope, locale)}</strong>
       </div>

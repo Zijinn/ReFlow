@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
 )
 
 type Message struct {

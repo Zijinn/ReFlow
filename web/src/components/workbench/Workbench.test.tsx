@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResearchKind, ResearchPaper } from "../../api/types"
@@ -80,8 +80,11 @@ function renderWorkbench() {
   )
 }
 
+// Scoped to the tab strip: the dashboard's stat cards carry the same labels and
+// are themselves navigation to those tabs.
 function goToTab(name: RegExp) {
-  fireEvent.click(screen.getByRole("button", { name }))
+  const nav = screen.getByRole("navigation")
+  fireEvent.click(within(nav).getByRole("button", { name }))
 }
 
 beforeEach(() => {
@@ -125,6 +128,34 @@ describe("Workbench load errors", () => {
   it("renders papers on success", async () => {
     renderWorkbench()
     await waitFor(() => expect(screen.getAllByText("Growth Regression").length).toBeGreaterThan(0))
+  })
+})
+
+describe("Workbench table column contract", () => {
+  // The tables run on `table-layout: fixed`, which only keeps its geometry while
+  // every column declares its width on the header cell. A bare <th> falls back to
+  // content sizing, so editing a title or picking a longer status re-flows the
+  // whole table — the horizontal jump the fixed layout exists to prevent.
+  // Body cells must carry the same class, because narrow screens shed whole
+  // columns with `display: none` on `.wb-col-*`: a header-only class would hide
+  // the label and leave its cells misaligned in the grid.
+  it("gives every column of every paper table an explicit width class", async () => {
+    papersByKind.submitted = [paper({ id: "s-1", kind: "submitted", title: "Under Review" })]
+    papersByKind.published = [paper({ id: "q-1", kind: "published", title: "Published" })]
+    renderWorkbench()
+    const column = (cell: Element) => cell.className.split(/\s+/)[0] ?? ""
+    for (const tab of [/Working papers/, /Submissions/, /Publications/]) {
+      goToTab(tab)
+      await waitFor(() => expect(document.querySelector(".wb-table thead")).not.toBeNull())
+      const headers = Array.from(document.querySelectorAll(".wb-table thead th"))
+      expect(headers.length).toBeGreaterThan(0)
+      const headerCells = headers.map(column)
+      expect(headerCells.every((name) => name.startsWith("wb-col-"))).toBe(true)
+      expect(document.querySelector(".wb-table")?.className).toMatch(/wb-table--/)
+      const rows = Array.from(document.querySelectorAll(".wb-table tbody .wb-row"))
+      expect(rows.length).toBe(1)
+      rows.forEach((row) => expect(Array.from(row.children).map(column)).toEqual(headerCells))
+    }
   })
 })
 

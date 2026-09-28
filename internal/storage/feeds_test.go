@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 func TestFeedEntryDedupSearchAndMutationIdempotency(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,7 +85,7 @@ func TestFeedEntryDedupSearchAndMutationIdempotency(t *testing.T) {
 
 func TestFeedEntryIdentityHashDeduplicatesEntriesWithoutStableGUIDOrURL(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +121,7 @@ func TestFeedEntryIdentityHashDeduplicatesEntriesWithoutStableGUIDOrURL(t *testi
 
 func TestSubscriptionRefreshPolicyReschedulesFeed(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestSubscriptionRefreshPolicyReschedulesFeed(t *testing.T) {
 
 func TestUpdateSubscriptionRollsBackWhenFeedRescheduleFails(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestUpdateSubscriptionRollsBackWhenFeedRescheduleFails(t *testing.T) {
 
 func TestUpdateSubscriptionNonRefreshPatchKeepsNextCheck(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestUpdateSubscriptionNonRefreshPatchKeepsNextCheck(t *testing.T) {
 
 func TestEmptySubscriptionHasZeroUnreadAndFailureBackoffUsesRFC3339(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

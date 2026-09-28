@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 	"github.com/google/uuid"
 )
 
 func TestReconcileEntryIdentitiesMergesHistoricalDuplicate(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

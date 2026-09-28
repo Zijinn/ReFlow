@@ -8,13 +8,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
 )
 
 func TestBackupRestoreRoundTrip(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestRestoreRejectsIncompleteDocumentsWithoutMutation(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+			db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -120,7 +120,7 @@ func TestRestoreRejectsIncompleteDocumentsWithoutMutation(t *testing.T) {
 
 func TestRestoreRejectsUnknownTablesBeforeMutation(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer source.Close()
-	aiCiphertext, err := box.Seal([]byte("ai-secret"), []byte("cairn:ai-profile:backup-ai-profile"))
+	aiCiphertext, err := box.Seal([]byte("ai-secret"), []byte("reflow:ai-profile:backup-ai-profile"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	syncCiphertext, err := box.Seal([]byte("sync-secret"), []byte("cairn:sync-account:backup-sync-account"))
+	syncCiphertext, err := box.Seal([]byte("sync-secret"), []byte("reflow:sync-account:backup-sync-account"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -189,7 +189,7 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decryptedAI, err := box.Open(aiRecord.EncryptedAPIKey, []byte("cairn:ai-profile:backup-ai-profile"))
+	decryptedAI, err := box.Open(aiRecord.EncryptedAPIKey, []byte("reflow:ai-profile:backup-ai-profile"))
 	if err != nil || !bytes.Equal(decryptedAI, []byte("ai-secret")) {
 		t.Fatalf("AI credential did not recover with the original key: %q %v", decryptedAI, err)
 	}
@@ -197,7 +197,7 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	decryptedSync, err := box.Open(syncRecord.EncryptedCredentials, []byte("cairn:sync-account:backup-sync-account"))
+	decryptedSync, err := box.Open(syncRecord.EncryptedCredentials, []byte("reflow:sync-account:backup-sync-account"))
 	if err != nil || !bytes.Equal(decryptedSync, []byte("sync-secret")) {
 		t.Fatalf("sync credential did not recover with the original key: %q %v", decryptedSync, err)
 	}
@@ -205,7 +205,7 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := otherBox.Open(aiRecord.EncryptedAPIKey, []byte("cairn:ai-profile:backup-ai-profile")); err == nil {
+	if _, err := otherBox.Open(aiRecord.EncryptedAPIKey, []byte("reflow:ai-profile:backup-ai-profile")); err == nil {
 		t.Fatal("encrypted backup credential unexpectedly opened with a different master key")
 	}
 }

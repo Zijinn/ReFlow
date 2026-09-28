@@ -5,7 +5,7 @@ import { useTranslation } from "../../lib/i18n"
 import { toast } from "../../store/toast"
 import { countStageLeaves, computeProgress } from "../../lib/research"
 import { ChipEditor, DragHandle, EmptyState, ExpandToggle, InlineText, MenuSelect, Row } from "./shared"
-import { displayID, matchesPaperQuery, priorityDotClass, reorderList } from "./utils"
+import { displayID, matchesPaperQuery, priorityBadgeClass, priorityDotClass, reorderList } from "./utils"
 import { StageTree } from "./StageTree"
 
 const PRIORITIES = [
@@ -89,15 +89,15 @@ export function ResearchPage(props: {
         </button>
       </div>
       <div className="wb-table-wrap">
-        <table className="wb-table">
+        <table className="wb-table wb-table--research">
           <thead>
             <tr>
               <th className="wb-col-grip" aria-label={t("colCode")} />
-              <th>{t("colTitle")}</th>
+              <th className="wb-col-title">{t("colTitle")}</th>
               <th className="wb-col-stage">{t("colStage")}</th>
               <th className="wb-col-priority">{t("colPriority")}</th>
-              <th>{t("targetJournal")}</th>
-              <th>{t("nextAction")}</th>
+              <th className="wb-col-text">{t("targetJournal")}</th>
+              <th className="wb-col-text wb-col-note">{t("nextAction")}</th>
               <th className="wb-col-date">{t("lastUpdatedLabel")}</th>
               <th className="wb-col-actions">{t("colActions")}</th>
             </tr>
@@ -132,7 +132,7 @@ export function ResearchPage(props: {
                         <DragHandle />
                         <span className="wb-code">{displayID("research", index)}</span>
                       </td>
-                      <td>
+                      <td className="wb-col-title">
                         <div className="wb-cell-title">
                           <InlineText
                             value={paper.title}
@@ -149,11 +149,6 @@ export function ResearchPage(props: {
                       </td>
                       <td className="wb-col-stage">
                         <div className="wb-stage-cell">
-                          <ExpandToggle
-                            expanded={expanded}
-                            label={expanded ? t("collapseRow") : t("expandRow")}
-                            onToggle={() => setExpandedID(expanded ? null : paper.id)}
-                          />
                           <span
                             className="wb-progress-track"
                             role="progressbar"
@@ -170,19 +165,19 @@ export function ResearchPage(props: {
                         <MenuSelect
                           value={paper.priority || "Medium"}
                           ariaLabel={t("colPriority")}
-                          className="wb-priority-pill"
+                          className={`wb-priority-pill ${priorityBadgeClass(paper.priority || "Medium")}`}
                           onChange={(value) => props.onUpdate(paper.id, { priority: value })}
                           options={priorityOptions}
                         />
                       </td>
-                      <td>
+                      <td className="wb-col-text">
                         <InlineText
                           value={paper.target_journal}
                           placeholder={t("fillPlaceholder")}
                           onCommit={(value) => props.onUpdate(paper.id, { target_journal: value })}
                         />
                       </td>
-                      <td>
+                      <td className="wb-col-text wb-col-note">
                         <InlineText
                           value={paper.next_action}
                           placeholder={t("fillPlaceholder")}
@@ -193,6 +188,11 @@ export function ResearchPage(props: {
                         {(paper.last_updated || "").slice(0, 10) || "—"}
                       </td>
                       <td className="wb-col-actions">
+                        <ExpandToggle
+                          expanded={expanded}
+                          label={expanded ? t("collapseRow") : t("expandRow")}
+                          onToggle={() => setExpandedID(expanded ? null : paper.id)}
+                        />
                         <button
                           type="button"
                           className="wb-btn wb-flow-btn"
@@ -204,7 +204,7 @@ export function ResearchPage(props: {
                         </button>
                         <button
                           type="button"
-                          className="wb-icon-btn"
+                          className="wb-icon-btn wb-icon-btn--danger"
                           title={t("delete")}
                           aria-label={`${t("delete")}: ${paper.title || displayID("research", index)}`}
                           disabled={props.offline}

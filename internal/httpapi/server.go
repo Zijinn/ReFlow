@@ -17,14 +17,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/event"
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
-	"github.com/Zijinn/Aurora/internal/job"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/service"
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/version"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/event"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
+	"github.com/Zijinn/ReFlow/internal/job"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/service"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/version"
 )
 
 type Server struct {
@@ -247,7 +247,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) apiRoot(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
-		"name":        "Aurora API",
+		"name":        "ReFlow API",
 		"api_version": version.APIVersion,
 	})
 }
@@ -375,7 +375,7 @@ func writeProblem(w http.ResponseWriter, r *http.Request, status int, code, titl
 	w.Header().Set("Content-Type", "application/problem+json; charset=utf-8")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"type":       "https://aurora.local/problems/" + code,
+		"type":       "https://reflow.local/problems/" + code,
 		"title":      title,
 		"status":     status,
 		"detail":     detail,

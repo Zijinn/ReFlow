@@ -1,10 +1,10 @@
-# Aurora
+# ReFlow
 
 [English](README.md) · 简体中文
 
-Aurora 是一款本地优先的 RSS 阅读器，支持 macOS、Windows、iPad 和 Web。它提供安静的三栏阅读流程，由 Go 服务负责订阅抓取、SQLite 存储、刷新调度、同步、搜索和可选的 AI 任务。
+ReFlow 是一款本地优先的 RSS 阅读器，支持 macOS、Windows、iPad 和 Web。它提供安静的三栏阅读流程，由 Go 服务负责订阅抓取、SQLite 存储、刷新调度、同步、搜索和可选的 AI 任务。
 
-![Aurora 图标](web/assets/brand/aurora-product-icon.png)
+![ReFlow 图标](web/assets/brand/reflow-product-icon.png)
 
 ## 功能
 
@@ -20,26 +20,26 @@ Aurora 是一款本地优先的 RSS 阅读器，支持 macOS、Windows、iPad �
 
 ## 截图
 
-![Aurora 阅读器](docs/images/aurora-library-zh.png)
+![ReFlow 阅读器](docs/images/reflow-library-zh.png)
 
-![文章阅读与 AI 工具](docs/images/aurora-reader-zh.png)
+![文章阅读与 AI 工具](docs/images/reflow-reader-zh.png)
 
-![自动翻译设置](docs/images/aurora-settings-zh.png)
+![自动翻译设置](docs/images/reflow-settings-zh.png)
 
 ## 安装
 
-从 [GitHub Releases](https://github.com/Zijinn/Aurora/releases) 下载最新安装包：
+从 [GitHub Releases](https://github.com/Zijinn/ReFlow/releases) 下载最新安装包：
 
-- `Aurora-<version>-macos-universal.dmg`：支持 Apple silicon 和 Intel Mac
-- `Aurora-<version>-windows-x64-setup.exe`：支持 Windows 10/11
+- `ReFlow-<version>-macos-universal.dmg`：支持 Apple silicon 和 Intel Mac
+- `ReFlow-<version>-windows-x64-setup.exe`：支持 Windows 10/11
 
 原生安装包由 GitHub Actions 构建。Web 版也可以直接作为 PWA 使用。
 
 ## 跨设备同步
 
-WebDAV 和 iCloud Drive 保存的是完整 Aurora 资料库快照。第一台设备先选择“以本地资料库覆盖云端”；其他 Mac 或 Windows 设备连接同一个 WebDAV 目录或登录同一 Apple ID 后，选择“从云端恢复资料库”。之后只有一端变更时会自动同步，两端同时变更则会停止并要求选择保留哪份。
+WebDAV 和 iCloud Drive 保存的是完整 ReFlow 资料库快照。第一台设备先选择“以本地资料库覆盖云端”；其他 Mac 或 Windows 设备连接同一个 WebDAV 目录或登录同一 Apple ID 后，选择“从云端恢复资料库”。之后只有一端变更时会自动同步，两端同时变更则会停止并要求选择保留哪份。
 
-iCloud 模式依赖操作系统将 `iCloud Drive/Aurora/aurora-library.json` 同步到本机，因此只支持已启用 iCloud Drive 的 macOS 和 Windows。iPad PWA 不会直接读取该文件，而是连接一台正在运行 Aurora 服务的电脑。
+iCloud 模式依赖操作系统将 `iCloud Drive/ReFlow/reflow-library.json` 同步到本机，因此只支持已启用 iCloud Drive 的 macOS 和 Windows。iPad PWA 不会直接读取该文件，而是连接一台正在运行 ReFlow 服务的电脑。
 
 ## 开发
 
@@ -75,4 +75,4 @@ SQLite 是资料库的权威存储。应用默认只绑定本机回环地址；�
 
 ## 许可证
 
-Aurora 使用 GPL-3.0-only，详见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+ReFlow 使用 GPL-3.0-only，详见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

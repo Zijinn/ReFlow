@@ -24,7 +24,7 @@ describe("SyncAccountDialog", () => {
     const onSave = vi.fn()
     const onTest = vi.fn().mockResolvedValue({
       ok: true,
-      endpoint: "https://dav.jianguoyun.com/dav/Aurora/aurora-library.json",
+      endpoint: "https://dav.jianguoyun.com/dav/ReFlow/reflow-library.json",
     })
     render(
       <SyncAccountDialog
@@ -42,7 +42,7 @@ describe("SyncAccountDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Use Nutstore" }))
     expect(screen.getByLabelText("Account name")).toHaveValue("Nutstore")
     expect(screen.getByLabelText("Snapshot file URL")).toHaveValue(
-      "https://dav.jianguoyun.com/dav/Aurora/",
+      "https://dav.jianguoyun.com/dav/ReFlow/",
     )
     fireEvent.change(screen.getByLabelText("Username"), {
       target: { value: "researcher@example.com" },
@@ -56,7 +56,7 @@ describe("SyncAccountDialog", () => {
     expect(onTest).toHaveBeenCalledWith({
       account_id: undefined,
       provider: "webdav",
-      endpoint: "https://dav.jianguoyun.com/dav/Aurora/",
+      endpoint: "https://dav.jianguoyun.com/dav/ReFlow/",
       credentials: {
         username: "researcher@example.com",
         password: "application-secret",
@@ -136,7 +136,7 @@ describe("SyncAccountDialog", () => {
       id: "webdav-account",
       provider: "webdav",
       name: "My Nutstore",
-      endpoint: "https://dav.jianguoyun.com/dav/aurora-library.json",
+      endpoint: "https://dav.jianguoyun.com/dav/reflow-library.json",
       enabled: true,
       allow_private_network: false,
       sync_interval_minutes: 180,

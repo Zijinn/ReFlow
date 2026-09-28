@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 
-import { Books, ChartPieSlice, NotePencil, PaperPlaneTilt } from "@phosphor-icons/react"
+import { Books, ChartPieSlice, CaretRight, NotePencil, PaperPlaneTilt } from "@phosphor-icons/react"
 
 import type { ResearchPaper } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
@@ -8,10 +8,13 @@ import { computeProgress } from "../../lib/research"
 import { EmptyState } from "./shared"
 import { relativeTime } from "./utils"
 
+export type DashboardTab = "research" | "submitted" | "published"
+
 export function Dashboard(props: {
   research: ResearchPaper[]
   submitted: ResearchPaper[]
   published: ResearchPaper[]
+  onNavigate: (tab: DashboardTab) => void
 }) {
   const { t, locale } = useTranslation()
   const { research, submitted, published } = props
@@ -45,6 +48,7 @@ export function Dashboard(props: {
           foot={t("researchCount")}
           Icon={NotePencil}
           tint="wb-tint--blue"
+          onSelect={() => props.onNavigate("research")}
         />
         <StatCard
           label={t("submissions")}
@@ -52,6 +56,7 @@ export function Dashboard(props: {
           foot={t("submittedCount")}
           Icon={PaperPlaneTilt}
           tint="wb-tint--orange"
+          onSelect={() => props.onNavigate("submitted")}
         />
         <StatCard
           label={t("publications")}
@@ -59,6 +64,7 @@ export function Dashboard(props: {
           foot={t("publishedCount")}
           Icon={Books}
           tint="wb-tint--green"
+          onSelect={() => props.onNavigate("published")}
         />
         <StatCard
           label={t("averageProgress")}
@@ -66,6 +72,7 @@ export function Dashboard(props: {
           foot={t("basedOnWorkingPapers")}
           Icon={ChartPieSlice}
           tint="wb-tint--violet"
+          onSelect={() => props.onNavigate("research")}
         />
       </div>
       <div className="wb-dashboard-grid">
@@ -165,17 +172,19 @@ function StatCard(props: {
   foot: string
   Icon: typeof Books
   tint: string
+  onSelect: () => void
 }) {
   return (
-    <div className="wb-stat-card">
+    <button type="button" className="wb-stat-card wb-stat-card--link" onClick={props.onSelect}>
       <div className="wb-stat-top">
         <span className={`wb-stat-icon ${props.tint}`} aria-hidden="true">
           <props.Icon size={16} weight="fill" />
         </span>
         <div className="wb-stat-label">{props.label}</div>
+        <CaretRight className="wb-stat-goto" size={14} weight="bold" aria-hidden="true" />
       </div>
       <div className="wb-stat-number">{props.value}</div>
       <div className="wb-stat-foot">{props.foot}</div>
-    </div>
+    </button>
   )
 }

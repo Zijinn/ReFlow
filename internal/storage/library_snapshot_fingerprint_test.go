@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 // A routine feed poll must not change the library snapshot fingerprint. When
@@ -14,7 +14,7 @@ import (
 // devices could never leave the both-sides-changed conflict state.
 func TestSnapshotFingerprintStableAcrossNoopRefresh(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSnapshotFingerprintStableAcrossNoopRefresh(t *testing.T) {
 // and new entries must still move the fingerprint.
 func TestSnapshotFingerprintDetectsRealChanges(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestSnapshotFingerprintDetectsRealChanges(t *testing.T) {
 // move when they change while feed polling noise stays invisible.
 func TestSnapshotFingerprintTracksResearchChanges(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

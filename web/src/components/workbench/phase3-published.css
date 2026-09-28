@@ -1,47 +1,52 @@
-/* Phase 3B：已发表页 Apple 精修（引用数字 + 参考文献双栏） */
+/* Phase 3B：已发表页 Apple 精修（引用数字 + 参考文献双栏）
+   main.tsx 里排在 styles.css 之后，改这一页的样式就改这份文件。 */
 
 .wb-col-year .wb-badge {
+  /* 4 位年份按 tabular 数字量出来的宽度，不是间距标尺上的值 */
   min-width: 52px;
   justify-content: center;
   font-variant-numeric: tabular-nums;
-  box-shadow: inset 0 0 0 0.5px rgb(20 22 26 / 0.05);
+  box-shadow: var(--ring-hairline);
 }
-.wb-col-doi {
-  max-width: 180px;
-}
-.wb-col-doi .wb-editable {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
+/* DOI 列不再单独 max-width + ellipsis：列宽由 styles.css 的"次要字段定宽"那一段统一给，
+   溢出方式跟标题/期刊一致换行（.wb-table .wb-editable 的 overflow-wrap:anywhere）。
+   这一列以前是表里唯一会把内容截掉的字段。 */
 .wb-col-citations .wb-citation-main {
-  gap: 8px;
+  gap: var(--space-4);
 }
 .wb-col-citations .wb-citation-number {
   font-variant-numeric: tabular-nums;
-  font-weight: 800;
-  font-size: 17px;
+  font-weight: var(--fw-bold);
+  font-size: var(--text-lg);
+  line-height: var(--leading-metric);
+  /* 16px 落在 micro 档：原来它吃 -0.01em，比同字号的 .wb-section-head h2 还紧，
+     等于引用数比它自己的标题更挤。 */
+  letter-spacing: var(--tracking-micro);
 }
 .wb-col-citations .wb-citation-fetch {
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border: 1px solid transparent;
   background: color-mix(in srgb, var(--accent) 10%, transparent);
   color: var(--accent-strong);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   transition:
     background-color var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
+    color var(--dur-fast) var(--ease);
 }
 .wb-col-citations .wb-citation-fetch:hover:not(:disabled) {
   background: color-mix(in srgb, var(--accent) 17%, transparent);
 }
+/* 与阶段树同一套按压语言：变色不变形，密集表格里没有行会跟着抖 */
 .wb-col-citations .wb-citation-fetch:active:not(:disabled) {
-  transform: scale(0.95);
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.wb-col-citations .wb-citation-fetch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 .wb-col-citations .wb-citation-label {
-  font-size: 11px;
+  font-size: var(--text-xs);
 }
 
 /* 参考文献双栏：图书式卡片 */
@@ -55,9 +60,9 @@
   box-shadow: var(--elev-raised);
 }
 .wb-reference-list li {
-  padding: 10px 12px;
-  border-radius: 10px;
-  line-height: 1.75;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
+  line-height: var(--leading-prose);
   transition: background-color var(--dur-fast) var(--ease);
 }
 .wb-reference-list li:hover {
@@ -67,34 +72,39 @@
   display: block;
 }
 .wb-reference-meta {
-  margin-top: 4px;
-  font-weight: 600;
+  margin-top: var(--space-2);
+  font-weight: var(--fw-semibold);
 }
 
-/* 邮箱行：分组行质感 */
+/* 邮箱行：分组行质感（静置只有鬓发线，没有阴影） */
 .wb-email-row {
-  padding: 10px 14px;
+  padding: var(--space-5) var(--space-7);
   border: 0.5px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   background: var(--surface-raised);
-  gap: 10px;
+  gap: var(--space-5);
 }
 .wb-email-input {
   border-color: transparent;
   background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
-  transition: box-shadow var(--dur-fast) var(--ease);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 .wb-email-input:focus {
   outline: none;
   background: var(--surface-raised);
-  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: var(--focus-ring);
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .wb-reference-column {
+    transition: none;
+  }
   .wb-reference-column:hover {
     transform: none;
   }
-  .wb-col-citations .wb-citation-fetch:active:not(:disabled) {
-    transform: none;
+  .wb-col-citations .wb-citation-fetch {
+    transition: none;
   }
 }

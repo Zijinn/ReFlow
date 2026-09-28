@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 func TestFolderCycleAndAutomationRules(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,16 +44,16 @@ func TestFolderCycleAndAutomationRules(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	conditions, _ := json.Marshal(map[string]string{"title_contains": "cairn"})
+	conditions, _ := json.Marshal(map[string]string{"title_contains": "reflow"})
 	actions, _ := json.Marshal(map[string]any{"star": true, "read_later": true, "add_tag_ids": []string{tag.ID}})
-	if _, err := CreateRule(ctx, db, domain.DefaultProfileID, "Save Cairn posts", true, 0, conditions, actions); err != nil {
+	if _, err := CreateRule(ctx, db, domain.DefaultProfileID, "Save ReFlow posts", true, 0, conditions, actions); err != nil {
 		t.Fatal(err)
 	}
 	guid := "rule-entry"
 	entryURL := "https://example.com/rule"
 	feed, err := SaveNewFeed(ctx, db, domain.DefaultProfileID, "https://example.com/feed", "https://example.com/feed", domain.ParsedFeed{
 		Title: "Rules", Format: "rss", Entries: []domain.ParsedEntry{{
-			GUID: &guid, CanonicalURL: &entryURL, Title: "Cairn automation",
+			GUID: &guid, CanonicalURL: &entryURL, Title: "ReFlow automation",
 			PublishedAt: time.Now().UTC(), ContentHash: "rule-hash", PlainText: "body",
 		}},
 	}, nil, nil, &child.ID, nil)
@@ -109,7 +109,7 @@ func TestFolderCycleAndAutomationRules(t *testing.T) {
 
 func TestMarkEntriesReadRespectsStateFilter(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestMarkEntriesReadRespectsStateFilter(t *testing.T) {
 
 func TestUpdateFolderAppendOrderAndProfileBoundary(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestUpdateFolderAppendOrderAndProfileBoundary(t *testing.T) {
 
 func TestUpdateFolderConcurrentOppositeMovesCannotCycle(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

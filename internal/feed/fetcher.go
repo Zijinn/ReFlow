@@ -18,7 +18,7 @@ import (
 const (
 	DefaultMaxResponseBytes int64 = 10 << 20
 	DefaultFetchTimeout           = 300 * time.Second
-	defaultUserAgent              = "Aurora/0.1 (+https://github.com/Zijinn/Aurora)"
+	defaultUserAgent              = "ReFlow/0.1 (+https://github.com/Zijinn/ReFlow)"
 )
 
 type Validators struct {

@@ -243,9 +243,9 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
             <div className="preferences-layout">
               <aside className="preferences-nav">
                 <div className="preferences-nav__brand">
-                  <img src="/icons/aurora-192.png" alt="" draggable={false} />
+                  <img src="/icons/reflow-mark-192.png" alt="" draggable={false} />
                   <span>
-                    <strong>Aurora</strong>
+                    <strong>ReFlow</strong>
                     <small>{t("preferencesTitle")}</small>
                   </span>
                 </div>
@@ -270,7 +270,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     )
                   })}
                 </nav>
-                <small>Aurora {props.status?.version ?? ""}</small>
+                <small>ReFlow {props.status?.version ?? ""}</small>
               </aside>
 
               <main className="preferences-main">

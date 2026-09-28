@@ -1,14 +1,14 @@
 {
-  "name": "aurora",
-  "version": "4.1.0",
+  "name": "reflow",
+  "version": "5.2.0",
   "private": true,
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "build": "pnpm --dir web build",
     "dev": "node scripts/dev.mjs",
-    "dev:server": "go run ./cmd/cairn-server",
+    "dev:server": "go run ./cmd/reflow-server",
     "dev:web": "pnpm --dir web dev",
-    "desktop:dev": "go run -tags desktop ./cmd/cairn-desktop",
+    "desktop:dev": "go run -tags desktop ./cmd/reflow-desktop",
     "format": "gofmt -w cmd internal && pnpm --dir web format",
     "lint": "go vet ./... && pnpm --dir web lint",
     "test": "go test ./... && pnpm --dir web test",

@@ -15,14 +15,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func TestAIServicePrivacyEncryptionCachingChatAndUsage(t *testing.T) {
 	ctx := context.Background()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +47,7 @@ func TestAIServicePrivacyEncryptionCachingChatAndUsage(t *testing.T) {
 			t.Errorf("AI request unexpectedly contains tools")
 		}
 		body, _ := json.Marshal(request["messages"])
-		if !bytes.Contains(body, []byte("Cairn article body")) {
+		if !bytes.Contains(body, []byte("ReFlow article body")) {
 			t.Errorf("article context missing: %s", body)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -198,7 +198,7 @@ func createAIServiceTestEntry(t *testing.T, db *sql.DB) string {
 		domain.ParsedFeed{Title: "AI feed", Format: "rss", Entries: []domain.ParsedEntry{{
 			GUID: &guid, CanonicalURL: &entryURL, Title: "AI article",
 			PublishedAt: time.Now().UTC(), ContentHash: "ai-entry-hash",
-			SanitizedHTML: "<p>Cairn article body</p>", PlainText: "Cairn article body with facts.",
+			SanitizedHTML: "<p>ReFlow article body</p>", PlainText: "ReFlow article body with facts.",
 		}}}, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)

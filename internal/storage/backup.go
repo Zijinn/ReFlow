@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const BackupFormat = "cairn-backup"
+const BackupFormat = "reflow-backup"
 
 type BackupDocument struct {
 	Format        string        `json:"format"`
@@ -83,7 +83,7 @@ func ExportBackup(ctx context.Context, db *sql.DB) (BackupDocument, error) {
 
 func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) error {
 	if document.Format != BackupFormat || document.Version != 1 {
-		return errors.New("unsupported Aurora backup format")
+		return errors.New("unsupported ReFlow backup format")
 	}
 
 	connection, err := db.Conn(ctx)
@@ -177,7 +177,7 @@ func validateBackupForRestore(ctx context.Context, tx *sql.Tx, document BackupDo
 		return fmt.Errorf("read current schema version: %w", err)
 	}
 	if document.SchemaVersion != currentSchema {
-		return fmt.Errorf("backup schema version %d does not match Aurora schema version %d", document.SchemaVersion, currentSchema)
+		return fmt.Errorf("backup schema version %d does not match ReFlow schema version %d", document.SchemaVersion, currentSchema)
 	}
 
 	allowed := make(map[string]struct{}, len(backupTables))

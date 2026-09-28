@@ -317,6 +317,7 @@ export function ReaderPane(props: ReaderPaneProps) {
     [preferReadability, props.detail],
   )
   const displayAuthors = formatAuthors(entry?.author)
+  const headline = entry?.title || t("untitled")
   // Abstract-only feeds repeat the abstract in both fields; the body already
   // shows it, so the header copy would duplicate the whole thing.
   const bodyShowsSummary = !safeHTML && !translatedContent
@@ -392,8 +393,8 @@ export function ReaderPane(props: ReaderPaneProps) {
 
   const scrollToAnnotation = (annotationID: string) => {
     const target = Array.from(
-      contentRef.current?.querySelectorAll<HTMLElement>("[data-aurora-annotation]") ?? [],
-    ).find((element) => element.dataset.auroraAnnotation === annotationID)
+      contentRef.current?.querySelectorAll<HTMLElement>("[data-reflow-annotation]") ?? [],
+    ).find((element) => element.dataset.reflowAnnotation === annotationID)
     target?.scrollIntoView({
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
       block: "center",
@@ -856,7 +857,7 @@ export function ReaderPane(props: ReaderPaneProps) {
               </div>
             </div>
           </div>
-          <h1>{entry.title || t("untitled")}</h1>
+          <h1 lang={textLang(headline)}>{headline}</h1>
           {entry.ai_translated_title && (
             <p className="article-header__translation">
               <Translate />
@@ -983,8 +984,13 @@ export function ReaderPane(props: ReaderPaneProps) {
   )
 }
 
-function AnnotationStyleIcon(props: { style: AnnotationStyle }) {
-  if (props.style === "underline") return <TextUnderline />
+// 标题的字距按标题自己的文字判定，不按界面 locale：中文期刊的标题在英文界面下仍是
+// 中文，反之亦然。CJK 区间命中就交给 zh-CN，:lang(en) 的负字距规则才不会套到中文上。
+function textLang(value: string) {
+  return /[\u3400-\u9fff]/.test(value) ? "zh-CN" : "en"
+}
+
+function AnnotationStyleIcon(props: { style: AnnotationStyle }) {  if (props.style === "underline") return <TextUnderline />
   if (props.style === "wavy") return <WaveSine />
   return <HighlighterCircle weight="fill" />
 }

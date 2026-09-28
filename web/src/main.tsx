@@ -16,19 +16,19 @@ import { registerSW } from "virtual:pwa-register"
 
 import App from "./App"
 import { applyDesktopPlatform } from "./lib/desktop"
+import { applyTheme } from "./lib/theme"
 
 applyDesktopPlatform()
 applyPersistedTheme()
 
 // Apply the persisted theme before first paint so a dark/light preference does
-// not flash the wrong palette while React boots. The AppShell effect owns the
-// attribute once mounted; "system" is resolved here via matchMedia and the
-// effect restores the media-query-driven behavior on mount.
+// not flash the wrong palette while React boots. AppShell takes the attribute over
+// on mount and keeps it in sync, so both use applyTheme.
 function applyPersistedTheme() {
   let persisted: { theme?: unknown; accentTheme?: unknown } | null
   try {
     persisted = (
-      JSON.parse(localStorage.getItem("cairn-reader-preferences") ?? "null") as {
+      JSON.parse(localStorage.getItem("reflow-reader-preferences") ?? "null") as {
         state?: { theme?: unknown; accentTheme?: unknown }
       } | null
     )?.state ?? null
@@ -36,14 +36,7 @@ function applyPersistedTheme() {
     persisted = null
   }
   const theme = persisted?.theme
-  const resolved =
-    theme === "light" || theme === "dark"
-      ? theme
-      : (window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false)
-        ? "dark"
-        : "light"
-  document.documentElement.dataset.theme = resolved
-  document.documentElement.style.colorScheme = resolved
+  applyTheme(theme === "light" || theme === "dark" || theme === "system" ? theme : "system")
   const accentThemes = [
     "academic-blue",
     "graphite",

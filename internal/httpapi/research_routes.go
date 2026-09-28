@@ -5,9 +5,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/service"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/service"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func (s *Server) listResearchPapers(w http.ResponseWriter, r *http.Request) {

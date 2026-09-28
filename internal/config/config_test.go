@@ -9,7 +9,7 @@ func TestValidateRejectsLANAddressWithoutLANMode(t *testing.T) {
 	cfg := Config{
 		Address:       "0.0.0.0:7381",
 		DataDir:       t.TempDir(),
-		DBPath:        t.TempDir() + "/cairn.db",
+		DBPath:        t.TempDir() + "/reflow.db",
 		MasterKeyPath: t.TempDir() + "/master.key",
 		LogLevel:      "info",
 	}
@@ -22,7 +22,7 @@ func TestValidateAllowsLoopback(t *testing.T) {
 	cfg := Config{
 		Address:       "127.0.0.1:7381",
 		DataDir:       t.TempDir(),
-		DBPath:        t.TempDir() + "/cairn.db",
+		DBPath:        t.TempDir() + "/reflow.db",
 		MasterKeyPath: t.TempDir() + "/master.key",
 		LogLevel:      "info",
 	}
@@ -35,7 +35,7 @@ func TestValidateAllowsLANAddressInLANMode(t *testing.T) {
 	cfg := Config{
 		Address:       "0.0.0.0:7381",
 		DataDir:       t.TempDir(),
-		DBPath:        t.TempDir() + "/cairn.db",
+		DBPath:        t.TempDir() + "/reflow.db",
 		MasterKeyPath: t.TempDir() + "/master.key",
 		LogLevel:      "info",
 		LANMode:       true,
@@ -47,7 +47,7 @@ func TestValidateAllowsLANAddressInLANMode(t *testing.T) {
 
 func TestValidateRequiresTLSCertificateAndKeyTogether(t *testing.T) {
 	cfg := Config{
-		Address: "0.0.0.0:7381", DataDir: t.TempDir(), DBPath: t.TempDir() + "/cairn.db",
+		Address: "0.0.0.0:7381", DataDir: t.TempDir(), DBPath: t.TempDir() + "/reflow.db",
 		MasterKeyPath: t.TempDir() + "/master.key", LogLevel: "info", LANMode: true,
 		TLSCertPath: t.TempDir() + "/server.crt",
 	}
@@ -84,8 +84,8 @@ func TestParseTrustedProxiesRejectsNamesAndNonCanonicalCIDRs(t *testing.T) {
 }
 
 func TestLoadParsesTrustedProxies(t *testing.T) {
-	t.Setenv("CAIRN_DATA_DIR", t.TempDir())
-	t.Setenv("CAIRN_TRUSTED_PROXIES", "127.0.0.1,10.0.0.0/8")
+	t.Setenv("REFLOW_DATA_DIR", t.TempDir())
+	t.Setenv("REFLOW_TRUSTED_PROXIES", "127.0.0.1,10.0.0.0/8")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)

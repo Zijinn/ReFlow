@@ -168,7 +168,7 @@ export const useReaderStore = create<ReaderStore>()(
       setSSEState: (sseState) => set({ sseState }),
     }),
     {
-      name: "cairn-reader-preferences",
+      name: "reflow-reader-preferences",
       partialize: (state) => ({
         viewMode: state.viewMode,
         shortcuts: state.shortcuts,

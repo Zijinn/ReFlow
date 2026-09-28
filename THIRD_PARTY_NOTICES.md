@@ -8,7 +8,7 @@ Upstream: https://github.com/WCY-dt/MrRSS
 
 License: GNU General Public License version 3
 
-Aurora selectively refactors feed parsing, scheduling, SQLite persistence, REST behavior, RSSHub integration, OPML behavior, synchronization, and AI provider concepts from MrRSS. Ported code must retain upstream copyright and license notices.
+ReFlow selectively refactors feed parsing, scheduling, SQLite persistence, REST behavior, RSSHub integration, OPML behavior, synchronization, and AI provider concepts from MrRSS. Ported code must retain upstream copyright and license notices.
 
 ## Folo
 
@@ -18,7 +18,7 @@ Upstream: https://github.com/RSSNext/Folo
 
 License: GNU Affero General Public License version 3
 
-Folo is used only as a product, information architecture, and interaction reference. Aurora must not copy Folo source files, generated SDK types, assets, or translations.
+Folo is used only as a product, information architecture, and interaction reference. ReFlow must not copy Folo source files, generated SDK types, assets, or translations.
 
 ## Fluent Reader
 
@@ -28,7 +28,7 @@ Upstream: https://github.com/yang991178/fluent-reader
 
 License: BSD 3-Clause
 
-Aurora may port sync adapter and interaction implementations when useful. Ported code must retain the BSD copyright notice and disclaimer.
+ReFlow may port sync adapter and interaction implementations when useful. Ported code must retain the BSD copyright notice and disclaimer.
 
 ## Dependency notices
 

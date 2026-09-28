@@ -2,7 +2,7 @@ import { spawn } from "node:child_process"
 
 const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm"
 const children = [
-  spawn("go", ["run", "./cmd/cairn-server"], { env: process.env, stdio: "inherit" }),
+  spawn("go", ["run", "./cmd/reflow-server"], { env: process.env, stdio: "inherit" }),
   spawn(pnpm, ["--dir", "web", "dev"], { env: process.env, stdio: "inherit" }),
 ]
 

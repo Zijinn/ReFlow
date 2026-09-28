@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func TestNormalizeCrossrefDOI(t *testing.T) {
@@ -43,7 +43,7 @@ func TestIsEnglishPaper(t *testing.T) {
 
 func TestFetchCitationMapsCrossrefStatusCodes(t *testing.T) {
 	ctx := context.Background()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

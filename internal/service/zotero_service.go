@@ -17,9 +17,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
+	"github.com/Zijinn/ReFlow/internal/storage"
 	"github.com/google/uuid"
 	"golang.org/x/net/html"
 )
@@ -141,7 +141,7 @@ func (s *ZoteroService) Save(ctx context.Context, entryID string) (ZoteroSaveRes
 		return ZoteroSaveResult{}, err
 	}
 
-	path := "/connector/import?session=" + url.QueryEscape("aurora-"+uuid.NewString())
+	path := "/connector/import?session=" + url.QueryEscape("reflow-"+uuid.NewString())
 	body, err := s.connector(ctx, path, []byte(metadata.ris()), "text/plain; charset=utf-8")
 	if err != nil {
 		return ZoteroSaveResult{}, err

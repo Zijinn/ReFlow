@@ -4,7 +4,7 @@ Status: accepted
 
 ## Decision
 
-The client uses React 19, TypeScript, Vite, TanStack Query, Zustand, Radix interaction primitives, Phosphor icons, and Aurora-owned CSS variables. The same client is embedded by desktop and installed as a PWA on iPad.
+The client uses React 19, TypeScript, Vite, TanStack Query, Zustand, Radix interaction primitives, Phosphor icons, and ReFlow-owned CSS variables. The same client is embedded by desktop and installed as a PWA on iPad.
 
 ## Rationale
 

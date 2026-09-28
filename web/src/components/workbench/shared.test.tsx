@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useReaderStore } from "../../store/reader"
-import { ChipEditor, InlineText } from "./shared"
+import { ChipEditor, InlineText, MenuSelect } from "./shared"
 
 beforeEach(() => {
   useReaderStore.setState({ locale: "en-US" })
@@ -101,5 +101,81 @@ describe("ChipEditor", () => {
     )
     fireEvent.click(screen.getByRole("button", { name: "Delete: Ada" }))
     expect(onChange).toHaveBeenCalledWith(["Bob"])
+  })
+})
+
+describe("MenuSelect", () => {
+  const options = [
+    { value: "High", label: "High priority", dotClass: "wb-dot--red" },
+    { value: "Medium", label: "Medium priority", dotClass: "wb-dot--amber" },
+  ]
+
+  // jsdom performs no layout, and src/test/setup.ts pins every measurement to a
+  // fixed box, so the popover placement maths is exercised by replacing those
+  // stubs with the geometry a real browser would report.
+  function stubGeometry(rect: { top: number; bottom: number; left: number; right: number }) {
+    const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(160)
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(160)
+    const bounds = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockReturnValue(rect as DOMRect)
+    return () => {
+      height.mockRestore()
+      width.mockRestore()
+      bounds.mockRestore()
+    }
+  }
+
+  it("flips up and right-aligns when the trigger hugs the bottom-right corner", () => {
+    // 768x1024 viewport: 36px below the trigger, 124px past the right edge.
+    const restore = stubGeometry({ top: 700, bottom: 732, left: 900, right: 1010 })
+    try {
+      render(
+        <MenuSelect value="Medium" options={options} onChange={() => {}} ariaLabel="Priority" />,
+      )
+      fireEvent.click(screen.getByRole("button", { name: "Priority" }))
+      const pop = screen.getByRole("listbox")
+      expect(pop).toHaveClass("wb-menu-pop--up")
+      expect(pop).toHaveClass("wb-menu-pop--right")
+      expect(pop.style.maxHeight).toBe("686px")
+    } finally {
+      restore()
+    }
+  })
+
+  it("drops down when there is room below", () => {
+    const restore = stubGeometry({ top: 120, bottom: 152, left: 40, right: 150 })
+    try {
+      render(
+        <MenuSelect value="Medium" options={options} onChange={() => {}} ariaLabel="Priority" />,
+      )
+      fireEvent.click(screen.getByRole("button", { name: "Priority" }))
+      const pop = screen.getByRole("listbox")
+      expect(pop).not.toHaveClass("wb-menu-pop--up")
+      expect(pop).not.toHaveClass("wb-menu-pop--right")
+    } finally {
+      restore()
+    }
+  })
+
+  it("marks the current option as the selected one", () => {
+    render(<MenuSelect value="Medium" options={options} onChange={() => {}} ariaLabel="Priority" />)
+    fireEvent.click(screen.getByRole("button", { name: "Priority" }))
+    expect(screen.getByRole("option", { name: "Medium priority" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+  })
+
+  // The menu lives inside the scrolling workbench: a focus() that also scrolls
+  // would slide the table out from under the reader every time they arrow
+  // through options, which is the "it jumps when I pick something" report.
+  it("moves the keyboard highlight without letting focus scroll the page", () => {
+    render(<MenuSelect value="Medium" options={options} onChange={() => {}} ariaLabel="Priority" />)
+    fireEvent.click(screen.getByRole("button", { name: "Priority" }))
+    const first = screen.getByRole("option", { name: "High priority" })
+    const focus = vi.spyOn(first, "focus")
+    fireEvent.keyDown(screen.getByRole("listbox"), { key: "ArrowDown" })
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
   })
 })

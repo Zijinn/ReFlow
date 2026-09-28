@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 func TestLibrarySnapshotIsPortableAndPreservesLocalAccounts(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestLibrarySnapshotIsPortableAndPreservesLocalAccounts(t *testing.T) {
 	}
 	if _, err := CreateSyncAccount(ctx, db, CreateSyncAccountParams{
 		ID: "local-webdav", Provider: "webdav", Name: "Local WebDAV",
-		Endpoint: "https://dav.example.test/aurora.json", EncryptedCredentials: []byte("ciphertext"),
+		Endpoint: "https://dav.example.test/reflow.json", EncryptedCredentials: []byte("ciphertext"),
 		Enabled: true, SyncIntervalMinutes: 30,
 	}); err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestLibrarySnapshotIsPortableAndPreservesLocalAccounts(t *testing.T) {
 
 func TestExportLibrarySnapshotClosesReadTransaction(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestExportLibrarySnapshotClosesReadTransaction(t *testing.T) {
 
 func TestRestoreLibrarySnapshotRejectsForeignKeyViolations(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +130,7 @@ func TestRestoreLibrarySnapshotRejectsForeignKeyViolations(t *testing.T) {
 
 func TestLibrarySnapshotFingerprintIgnoresExportTime(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func TestLibrarySnapshotFingerprintIgnoresExportTime(t *testing.T) {
 
 func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,7 +187,7 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 
 func TestLibrarySnapshotIsEmptyCountsResearchPapers(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

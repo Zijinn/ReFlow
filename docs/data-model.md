@@ -1,4 +1,4 @@
-# Aurora logical data model
+# ReFlow logical data model
 
 ## Identity and devices
 

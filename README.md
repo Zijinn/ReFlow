@@ -1,10 +1,10 @@
-# Aurora
+# ReFlow
 
 [简体中文](README.zh-CN.md) · English
 
-Aurora is a local-first personal RSS reader for macOS, Windows, iPad, and the web. It combines a quiet three-pane reading workflow with a Go service that owns feed fetching, SQLite storage, scheduling, synchronization, AI tasks, and a versioned REST API.
+ReFlow is a local-first personal RSS reader for macOS, Windows, iPad, and the web. It combines a quiet three-pane reading workflow with a Go service that owns feed fetching, SQLite storage, scheduling, synchronization, AI tasks, and a versioned REST API.
 
-![Aurora icon](web/assets/brand/aurora-product-icon.png)
+![ReFlow icon](web/assets/brand/reflow-product-icon.png)
 
 ## Highlights
 
@@ -21,28 +21,28 @@ Aurora is a local-first personal RSS reader for macOS, Windows, iPad, and the we
 
 ## Screenshots
 
-![Aurora reader](docs/images/aurora-reader-en.png)
+![ReFlow reader](docs/images/reflow-reader-en.png)
 
-![Automatic translation settings](docs/images/aurora-settings-en.png)
+![Automatic translation settings](docs/images/reflow-settings-en.png)
 
 ## Install
 
-Download the latest installer from [GitHub Releases](https://github.com/Zijinn/Aurora/releases):
+Download the latest installer from [GitHub Releases](https://github.com/Zijinn/ReFlow/releases):
 
-- `Aurora-<version>-macos-universal.dmg` for Apple silicon and Intel Macs
-- `Aurora-<version>-windows-x64-setup.exe` for Windows 10/11
+- `ReFlow-<version>-macos-universal.dmg` for Apple silicon and Intel Macs
+- `ReFlow-<version>-windows-x64-setup.exe` for Windows 10/11
 
 Each release contains only the DMG and EXE. GitHub automatically provides the matching source ZIP and TAR archives. Native installers are built by GitHub Actions; local packaging is intentionally not required.
 
 ## Sync
 
-Reader service accounts synchronize subscriptions and read/starred state through their native APIs. WebDAV and iCloud Drive synchronize a portable Aurora library snapshot containing feeds, articles, organization, reading state, and preferences.
+Reader service accounts synchronize subscriptions and read/starred state through their native APIs. WebDAV and iCloud Drive synchronize a portable ReFlow library snapshot containing feeds, articles, organization, reading state, and preferences.
 
-WebDAV and iCloud targets are independent and may be enabled together. Aurora records a fingerprint for each target: one-sided changes synchronize automatically, while independent changes on both sides stop with a conflict instead of silently overwriting data. The settings page then offers explicit upload-local and restore-from-cloud actions.
+WebDAV and iCloud targets are independent and may be enabled together. ReFlow records a fingerprint for each target: one-sided changes synchronize automatically, while independent changes on both sides stop with a conflict instead of silently overwriting data. The settings page then offers explicit upload-local and restore-from-cloud actions.
 
-iCloud Drive synchronization uses the system's local iCloud folder. On macOS the default file is `iCloud Drive/Aurora/aurora-library.json`; Windows can use the equivalent local iCloud Drive folder when iCloud for Windows is installed.
+iCloud Drive synchronization uses the system's local iCloud folder. On macOS the default file is `iCloud Drive/ReFlow/reflow-library.json`; Windows can use the equivalent local iCloud Drive folder when iCloud for Windows is installed.
 
-For a new device, connect the same WebDAV directory or sign in to the same Apple ID with iCloud Drive enabled, add the matching cloud target in Aurora, and choose **Restore library from cloud**. Use **Replace cloud with local library** on the first device to establish the initial snapshot. iPad PWA clients do not read iCloud Drive directly; they connect to a computer running the Aurora server.
+For a new device, connect the same WebDAV directory or sign in to the same Apple ID with iCloud Drive enabled, add the matching cloud target in ReFlow, and choose **Restore library from cloud**. Use **Replace cloud with local library** on the first device to establish the initial snapshot. iPad PWA clients do not read iCloud Drive directly; they connect to a computer running the ReFlow server.
 
 ## AI And Privacy
 
@@ -84,10 +84,10 @@ The REST contract is documented in [api/openapi.yaml](api/openapi.yaml). Archite
 
 ## Data And Security
 
-SQLite is authoritative. Existing installations continue to use the operating-system configuration directory named `Cairn` so upgrading to Aurora does not hide or duplicate the current library. The database and owner-only `master.key` must be kept together when restoring a full local backup.
+SQLite is authoritative. Library data lives in the operating-system configuration directory named `ReFlow`. The rename is complete and no legacy data directory is read, so an existing library must be restored from a full local backup or re-synced from the cloud. The database and owner-only `master.key` must be kept together when restoring a full local backup.
 
-Aurora binds to loopback by default. LAN access must be enabled explicitly and uses one-time device pairing, hashed bearer tokens, scoped origins, and optional TLS. Reverse proxies must be explicitly listed by exact IP or CIDR in `CAIRN_TRUSTED_PROXIES`; only the immediate peer is classified, forwarded-address headers are ignored for authorization, and protected APIs still require a paired device token. Feed, synchronization, WebDAV, and AI HTTP endpoints share redirect validation, response limits, and SSRF protections; private network access requires an account-level opt-in.
+ReFlow binds to loopback by default. LAN access must be enabled explicitly and uses one-time device pairing, hashed bearer tokens, scoped origins, and optional TLS. Reverse proxies must be explicitly listed by exact IP or CIDR in `REFLOW_TRUSTED_PROXIES`; only the immediate peer is classified, forwarded-address headers are ignored for authorization, and protected APIs still require a paired device token. Feed, synchronization, WebDAV, and AI HTTP endpoints share redirect validation, response limits, and SSRF protections; private network access requires an account-level opt-in.
 
 ## License
 
-Aurora is licensed under GPL-3.0-only. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The backend design builds on MrRSS; Folo is used as an information-architecture and interaction reference, and Fluent Reader informs synchronization and shortcut behavior.
+ReFlow is licensed under GPL-3.0-only. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The backend design builds on MrRSS; Folo is used as an information-architecture and interaction reference, and Fluent Reader informs synchronization and shortcut behavior.

@@ -11,12 +11,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func newTestServer(t *testing.T) *Server {
 	t.Helper()
-	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}

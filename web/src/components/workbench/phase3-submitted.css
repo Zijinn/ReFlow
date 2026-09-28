@@ -1,4 +1,6 @@
-/* Phase 3C：在投页详情 Apple 精修（历史时间线 + 元信息分组） */
+/* Phase 3C：在投页详情 Apple 精修（历史时间线 + 元信息分组）
+   main.tsx 里排在 styles.css 之后：文字颜色仍由 styles.css 的 --warning /
+   --danger 规则提供，这份只负责底色、圆角与几何。 */
 
 .wb-history {
   position: relative;
@@ -9,7 +11,7 @@
 }
 .wb-timeline-item {
   position: relative;
-  padding: 9px 0 9px 20px;
+  padding: var(--space-4) 0 var(--space-4) var(--space-9);
 }
 .wb-timeline-item::before {
   content: "";
@@ -18,7 +20,7 @@
   top: 15px;
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
@@ -39,29 +41,28 @@
   font-variant-numeric: tabular-nums;
 }
 .wb-timeline-content {
-  gap: 8px;
+  gap: var(--space-4);
 }
 .wb-timeline-content strong {
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
-/* 新增记录表单：分组输入 */
+/* 新增记录表单：分组输入（静置只有鬓发线，不起阴影） */
 .wb-history-add {
-  padding: 10px 12px;
+  padding: var(--space-5) var(--space-6);
   border: 0.5px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  box-shadow: 0 1px 2px rgb(20 22 26 / 0.04);
 }
 .wb-history-add .wb-inline-input {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 /* 右侧元信息：设置式行 */
 .wb-detail-side .wb-card-line,
 .wb-detail-side .wb-path-row {
-  padding: 8px 10px;
-  border-radius: 9px;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-md);
   transition: background-color var(--dur-fast) var(--ease);
 }
 .wb-detail-side .wb-card-line:hover,
@@ -69,31 +70,37 @@
   background: color-mix(in srgb, var(--surface-muted) 50%, transparent);
 }
 .wb-detail-side .wb-muted {
-  font-size: 12px;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
 }
 .wb-detail-side strong {
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 .wb-path-row .wb-btn {
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   flex: none;
 }
 
-/* 截止 urgency 胶囊 */
+/* 截止 urgency 胶囊：只画底，色相/浓度/字色由 styles.css 的 .wb-deadline--*
+   通过 --wb-badge-* 令牌挂上来（与日历事件条同一套色相）。
+   无紧急度时落主色的 10% 淡底，和日历里普通事件一致，不再是中性灰。 */
 .wb-deadline-hint {
   display: inline-block;
-  margin-top: 4px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
+  margin-top: var(--space-2);
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  background: color-mix(
+    in srgb,
+    var(--wb-badge-hue, var(--accent)) var(--wb-badge-tint, 10%),
+    transparent
+  );
 }
-.wb-deadline--soon {
-  background: rgb(217 119 6 / 0.14);
-}
-.wb-deadline--today,
-.wb-deadline--overdue {
-  background: rgb(220 38 38 / 0.12);
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-detail-side .wb-card-line,
+  .wb-detail-side .wb-path-row {
+    transition: none;
+  }
 }

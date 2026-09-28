@@ -12,15 +12,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/syncadapter"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/syncadapter"
 )
 
 func TestSyncServiceEncryptsCredentialsAndPreservesLocalConflictWinner(t *testing.T) {
 	ctx := context.Background()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

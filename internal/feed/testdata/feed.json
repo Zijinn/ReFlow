@@ -1,6 +1,6 @@
 {
   "version": "https://jsonfeed.org/version/1.1",
-  "title": "Cairn Test JSON Feed",
+  "title": "ReFlow Test JSON Feed",
   "home_page_url": "https://example.org/",
   "feed_url": "https://example.org/feed.json",
   "items": [

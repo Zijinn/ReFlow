@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Aurora API
+  title: ReFlow API
   version: 0.1.0
-  description: Versioned API shared by Aurora desktop, PWA, and future mobile clients.
+  description: Versioned API shared by ReFlow desktop, PWA, and future mobile clients.
   license:
     name: GPL-3.0-only
 servers:
@@ -757,7 +757,7 @@ paths:
       tags: [backup]
       responses:
         "200":
-          description: Complete logical Aurora backup.
+          description: Complete logical ReFlow backup.
           content:
             application/json:
               schema:
@@ -1254,7 +1254,7 @@ paths:
       tags: [entries, integrations]
       responses:
         "200":
-          description: Whether this Aurora entry has been mapped to Zotero.
+          description: Whether this ReFlow entry has been mapped to Zotero.
     post:
       operationId: saveEntryToZotero
       tags: [entries, integrations]
@@ -1498,7 +1498,7 @@ components:
     deviceToken:
       type: http
       scheme: bearer
-      bearerFormat: AuroraDeviceToken
+      bearerFormat: ReFlowDeviceToken
   parameters:
     FeedId:
       name: feedId
@@ -2038,7 +2038,7 @@ components:
           const: true
         endpoint:
           type: string
-          description: Normalized Aurora snapshot file URL.
+          description: Normalized ReFlow snapshot file URL.
     SyncAccount:
       type: object
       required: [id, provider, name, endpoint, enabled, allow_private_network, sync_interval_minutes, created_at, updated_at]

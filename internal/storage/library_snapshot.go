@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-const LibrarySnapshotFormat = "aurora-library-snapshot"
+const LibrarySnapshotFormat = "reflow-library-snapshot"
 
 var librarySnapshotTables = []string{
 	"folders", "feeds", "subscriptions", "entries", "entry_contents", "entry_states",
@@ -58,14 +58,14 @@ func ExportLibrarySnapshot(ctx context.Context, db *sql.DB) (BackupDocument, err
 
 func RestoreLibrarySnapshot(ctx context.Context, db *sql.DB, document BackupDocument) error {
 	if document.Format != LibrarySnapshotFormat || document.Version != 1 {
-		return errors.New("unsupported Aurora library snapshot format")
+		return errors.New("unsupported ReFlow library snapshot format")
 	}
 	var currentSchema int
 	if err := db.QueryRowContext(ctx, "SELECT COALESCE(MAX(version), 0) FROM schema_migrations").Scan(&currentSchema); err != nil {
 		return fmt.Errorf("read current schema version: %w", err)
 	}
 	if document.SchemaVersion != currentSchema {
-		return fmt.Errorf("snapshot schema version %d does not match Aurora schema version %d", document.SchemaVersion, currentSchema)
+		return fmt.Errorf("snapshot schema version %d does not match ReFlow schema version %d", document.SchemaVersion, currentSchema)
 	}
 	allowed := make(map[string]struct{}, len(librarySnapshotTables))
 	for _, name := range librarySnapshotTables {

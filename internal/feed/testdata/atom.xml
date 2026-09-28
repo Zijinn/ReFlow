@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom">
-  <title>Cairn Test Atom</title>
+  <title>ReFlow Test Atom</title>
   <link href="https://example.net/" />
   <updated>2026-07-17T02:00:00Z</updated>
-  <id>urn:cairn:test:atom</id>
+  <id>urn:reflow:test:atom</id>
   <entry>
     <title>First Atom entry</title>
     <link href="https://example.net/notes/one" />

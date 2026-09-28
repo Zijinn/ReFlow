@@ -152,14 +152,14 @@ export function SubmittedPage(props: {
         </button>
       </div>
       <div className="wb-table-wrap">
-        <table className="wb-table">
+        <table className="wb-table wb-table--submitted">
           <thead>
             <tr>
               <th className="wb-col-grip" aria-label={t("colCode")} />
-              <th>{t("colTitle")}</th>
-              <th>{t("currentJournal")}</th>
+              <th className="wb-col-title">{t("colTitle")}</th>
+              <th className="wb-col-text">{t("currentJournal")}</th>
               <th className="wb-col-status">{t("colStatus")}</th>
-              <th>{t("nextAction")}</th>
+              <th className="wb-col-text wb-col-note">{t("nextAction")}</th>
               <th className="wb-col-date">{t("deadlineLabel")}</th>
               <th className="wb-col-count">{t("submissionCountLabel")}</th>
               <th className="wb-col-actions">{t("colActions")}</th>
@@ -200,7 +200,7 @@ export function SubmittedPage(props: {
                         <DragHandle />
                         <span className="wb-code">{displayID("submitted", index)}</span>
                       </td>
-                      <td>
+                      <td className="wb-col-title">
                         <div className="wb-cell-title">
                           <InlineText
                             value={paper.title}
@@ -215,7 +215,7 @@ export function SubmittedPage(props: {
                           onChange={(authors) => props.onUpdate(paper.id, { authors })}
                         />
                       </td>
-                      <td>
+                      <td className="wb-col-text">
                         <InlineText
                           value={paper.current_journal}
                           placeholder={t("fillPlaceholder")}
@@ -231,7 +231,7 @@ export function SubmittedPage(props: {
                           options={statusOptions}
                         />
                       </td>
-                      <td>
+                      <td className="wb-col-text wb-col-note">
                         <InlineText
                           value={paper.next_action}
                           placeholder={t("fillPlaceholder")}
@@ -280,7 +280,7 @@ export function SubmittedPage(props: {
                         </button>
                         <button
                           type="button"
-                          className="wb-icon-btn"
+                          className="wb-icon-btn wb-icon-btn--danger"
                           title={t("delete")}
                           aria-label={`${t("delete")}: ${paper.title || displayID("submitted", index)}`}
                           disabled={props.offline}
@@ -299,7 +299,7 @@ export function SubmittedPage(props: {
                                 <span className="wb-muted">{t("submissionHistory")}</span>
                                 <button
                                   type="button"
-                                  className="wb-stage-tool"
+                                  className="wb-icon-btn"
                                   title={t("addRecord")}
                                   aria-label={`${t("addRecord")}: ${paper.title}`}
                                   disabled={props.offline}
@@ -400,7 +400,7 @@ export function SubmittedPage(props: {
                                         />
                                         <button
                                           type="button"
-                                          className="wb-stage-tool"
+                                          className="wb-icon-btn wb-icon-btn--danger"
                                           title={t("deleteRecord")}
                                           aria-label={`${t("deleteRecord")}: ${record.journal || record.date}`}
                                           disabled={props.offline}

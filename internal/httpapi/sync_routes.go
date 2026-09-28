@@ -6,10 +6,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Zijinn/Aurora/internal/job"
-	"github.com/Zijinn/Aurora/internal/service"
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/syncadapter"
+	"github.com/Zijinn/ReFlow/internal/job"
+	"github.com/Zijinn/ReFlow/internal/service"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/syncadapter"
 )
 
 type syncAccountRequest struct {
@@ -209,6 +209,6 @@ func (s *Server) requireSync(w http.ResponseWriter, r *http.Request) bool {
 	if s.syncs != nil {
 		return true
 	}
-	writeProblem(w, r, http.StatusServiceUnavailable, "sync_unavailable", "Synchronization unavailable", "Credential encryption is not configured on this Aurora server.")
+	writeProblem(w, r, http.StatusServiceUnavailable, "sync_unavailable", "Synchronization unavailable", "Credential encryption is not configured on this ReFlow server.")
 	return false
 }

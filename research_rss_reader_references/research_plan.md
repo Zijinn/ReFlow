@@ -2,7 +2,7 @@
 
 ## Main question
 
-Which navigation, subscription-management, reading, and visual patterns from established RSS readers are appropriate for Aurora's next product pass?
+Which navigation, subscription-management, reading, and visual patterns from established RSS readers are appropriate for ReFlow's next product pass?
 
 ## Subtopics
 
@@ -12,4 +12,4 @@ Which navigation, subscription-management, reading, and visual patterns from est
 
 ## Expected synthesis
 
-Compare only patterns that can fit Aurora's server-first model and current three-pane React workspace. Separate directly adoptable changes from ideas that need later product work, then verify the final recommendations against the existing code and visual language.
+Compare only patterns that can fit ReFlow's server-first model and current three-pane React workspace. Separate directly adoptable changes from ideas that need later product work, then verify the final recommendations against the existing code and visual language.

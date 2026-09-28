@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from "react"
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from "react"
 
 import { useTranslation } from "../../lib/i18n"
 
@@ -317,8 +317,10 @@ export function MenuSelect(props: {
 }) {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
+  const [placement, setPlacement] = useState({ up: false, right: false, maxHeight: 0 })
   const rootRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
+  const popRef = useRef<HTMLDivElement | null>(null)
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([])
   const current = props.options.find((o) => o.value === props.value)
   const currentIndex = props.options.findIndex((o) => o.value === props.value)
@@ -327,27 +329,63 @@ export function MenuSelect(props: {
     setActiveIndex(index >= 0 ? index : Math.max(currentIndex, 0))
     setOpen(true)
   }
+  const closeMenu = () => {
+    setOpen(false)
+    setActiveIndex(-1)
+  }
+
+  // The menu is anchored inside a table cell, so a fixed drop-down can end up
+  // under the viewport edge or past the right gutter. Measure once per open and
+  // flip the anchor instead of letting the popover hide the rows it gates.
+  useLayoutEffect(() => {
+    if (!open) return
+    const trigger = buttonRef.current
+    const pop = popRef.current
+    if (!trigger || !pop) return
+    const rect = trigger.getBoundingClientRect()
+    const gutter = 8
+    const gap = 6
+    const spaceBelow = window.innerHeight - rect.bottom - gap - gutter
+    const spaceAbove = rect.top - gap - gutter
+    const natural = pop.offsetHeight
+    setPlacement({
+      up: natural > spaceBelow && spaceAbove > spaceBelow,
+      right: rect.left + pop.offsetWidth > window.innerWidth - gutter,
+      maxHeight: Math.max(120, Math.max(spaceBelow, spaceAbove)),
+    })
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      if (!rootRef.current?.contains(e.target as Node)) closeMenu()
     }
     document.addEventListener("pointerdown", onPointerDown)
     return () => {
       document.removeEventListener("pointerdown", onPointerDown)
     }
-  }, [open ])
+  }, [open])
 
+  // preventScroll matters: the menu lives inside the scrolling workbench, and a
+  // plain focus() would scroll the page to reveal the option, which reads as the
+  // table jumping. Only the popover itself is allowed to scroll.
   useEffect(() => {
-    if (open && activeIndex >= 0) optionRefs.current[activeIndex]?.focus()
+    if (!open || activeIndex < 0) return
+    const node = optionRefs.current[activeIndex]
+    const pop = popRef.current
+    if (!node) return
+    node.focus({ preventScroll: true })
+    if (!pop) return
+    if (node.offsetTop < pop.scrollTop) pop.scrollTop = node.offsetTop
+    else if (node.offsetTop + node.offsetHeight > pop.scrollTop + pop.clientHeight) {
+      pop.scrollTop = node.offsetTop + node.offsetHeight - pop.clientHeight
+    }
   }, [open, activeIndex])
 
   const commitIndex = (index: number) => {
     const option = props.options[index]
-    setOpen(false)
-    setActiveIndex(-1)
-    buttonRef.current?.focus()
+    closeMenu()
+    buttonRef.current?.focus({ preventScroll: true })
     if (option && option.value !== props.value) props.onChange(option.value)
   }
 
@@ -370,12 +408,10 @@ export function MenuSelect(props: {
       if (activeIndex >= 0) commitIndex(activeIndex)
     } else if (e.key === "Escape") {
       e.preventDefault()
-      setOpen(false)
-      setActiveIndex(-1)
-      buttonRef.current?.focus()
+      closeMenu()
+      buttonRef.current?.focus({ preventScroll: true })
     } else if (e.key === "Tab") {
-      setOpen(false)
-      setActiveIndex(-1)
+      closeMenu()
     }
   }
 
@@ -399,15 +435,22 @@ export function MenuSelect(props: {
       >
         {current?.dotClass && <i className={`wb-dot ${current.dotClass}`} aria-hidden="true" />}
         <span className="wb-menu-label">{current?.label ?? props.value}</span>
-        <span className={`wb-menu-chevron ${open ? "wb-menu-chevron--open" : ""}`} aria-hidden="true">
+        <span
+          className={`wb-menu-chevron ${open ? "wb-menu-chevron--open" : ""}`}
+          aria-hidden="true"
+        >
           ▾
         </span>
       </button>
       {open && (
         <div
+          ref={popRef}
           role="listbox"
           aria-label={props.ariaLabel}
-          className={`wb-menu-pop ${props.menuClassName ?? ""}`}
+          className={`wb-menu-pop ${placement.up ? "wb-menu-pop--up" : ""} ${
+            placement.right ? "wb-menu-pop--right" : ""
+          } ${props.menuClassName ?? ""}`}
+          style={placement.maxHeight ? { maxHeight: placement.maxHeight } : undefined}
           onKeyDown={onMenuKeyDown}
         >
           {props.options.map((option, index) => {

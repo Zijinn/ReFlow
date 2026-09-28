@@ -96,7 +96,7 @@ describe("desktop file uploads", () => {
   })
 
   it("sends a backup as text instead of a File body", async () => {
-    const source = JSON.stringify({ format: "aurora-backup" })
+    const source = JSON.stringify({ format: "reflow-backup" })
     const readText = vi.fn().mockResolvedValue(source)
     const file = { text: readText } as unknown as File
     const fetchMock = vi

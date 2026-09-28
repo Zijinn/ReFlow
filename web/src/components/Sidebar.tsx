@@ -314,7 +314,7 @@ type DragItem = { type: "subscription" | "folder"; id: string }
 type DropPosition = "before" | "after" | "inside"
 type DropIndicator = { id: string; position: DropPosition }
 
-const DRAG_MIME = "application/x-aurora-library"
+const DRAG_MIME = "application/x-reflow-library"
 
 function FolderTree(props: {
   folders: Folder[]

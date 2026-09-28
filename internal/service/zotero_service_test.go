@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 type zoteroClientFunc func(*http.Request) (*http.Response, error)
@@ -24,10 +24,10 @@ func TestParseArticleMetadataFindsCitationDOIAndAuthors(t *testing.T) {
 		<meta name="citation_title" content="Metadata title">
 		<meta name="citation_author" content="Ada Lovelace">
 		<meta name="citation_author" content="Alan Turing">
-		<meta name="dc.identifier" content="doi:10.1234/AURORA.2026.1">
+		<meta name="dc.identifier" content="doi:10.1234/REFLOW.2026.1">
 		<meta name="citation_journal_title" content="Systems Journal">
 	</head></html>`))
-	if metadata.DOI != "10.1234/AURORA.2026.1" || metadata.Title != "Metadata title" {
+	if metadata.DOI != "10.1234/REFLOW.2026.1" || metadata.Title != "Metadata title" {
 		t.Fatalf("unexpected metadata: %+v", metadata)
 	}
 	if len(metadata.Authors) != 2 || metadata.Authors[1] != "Alan Turing" {
@@ -37,7 +37,7 @@ func TestParseArticleMetadataFindsCitationDOIAndAuthors(t *testing.T) {
 
 func TestZoteroSaveWritesOnlyWhenExplicitlyCalled(t *testing.T) {
 	ctx := context.Background()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

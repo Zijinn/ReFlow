@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 func seedAnnotationEntry(t *testing.T, dbPath string) (*sql.DB, string) {
@@ -37,7 +37,7 @@ func seedAnnotationEntry(t *testing.T, dbPath string) (*sql.DB, string) {
 
 func TestEntryAnnotationLifecycle(t *testing.T) {
 	ctx := context.Background()
-	db, entryID := seedAnnotationEntry(t, filepath.Join(t.TempDir(), "cairn.db"))
+	db, entryID := seedAnnotationEntry(t, filepath.Join(t.TempDir(), "reflow.db"))
 
 	created, err := CreateEntryAnnotation(ctx, db, domain.DefaultProfileID, entryID, domain.EntryAnnotation{
 		Style: "highlight", Quote: "数据要素", Prefix: "", Suffix: "市场化", Note: "核心概念",
@@ -89,7 +89,7 @@ func TestEntryAnnotationLifecycle(t *testing.T) {
 
 func TestEntryAnnotationValidation(t *testing.T) {
 	ctx := context.Background()
-	db, entryID := seedAnnotationEntry(t, filepath.Join(t.TempDir(), "cairn.db"))
+	db, entryID := seedAnnotationEntry(t, filepath.Join(t.TempDir(), "reflow.db"))
 
 	var validation *AnnotationValidationError
 	if _, err := CreateEntryAnnotation(ctx, db, domain.DefaultProfileID, entryID, domain.EntryAnnotation{Style: "neon", Quote: "x"}); !errors.As(err, &validation) {

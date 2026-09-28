@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 var (
@@ -80,7 +80,7 @@ func (s *ResearchService) FetchCitation(ctx context.Context, id string) (domain.
 		return domain.ResearchPaper{}, err
 	}
 	request.Header.Set("Accept", "application/json")
-	request.Header.Set("User-Agent", "Aurora/1.0 (research workspace)")
+	request.Header.Set("User-Agent", "ReFlow/1.0 (research workspace)")
 	response, err := s.client.Do(request)
 	if err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("%w: %v", ErrCrossrefUnavailable, err)

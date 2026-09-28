@@ -85,7 +85,7 @@ export function SyncAccountDialog(props: SyncAccountDialogProps) {
   }
   const useNutstore = () => {
     setName(t("nutstore"))
-    setEndpoint("https://dav.jianguoyun.com/dav/Aurora/")
+    setEndpoint("https://dav.jianguoyun.com/dav/ReFlow/")
     invalidateConnectionTest()
   }
   const credentials = (): SyncCredentials => ({
@@ -233,7 +233,7 @@ export function SyncAccountDialog(props: SyncAccountDialogProps) {
                 isICloud
                   ? t("icloudPathPlaceholder")
                   : isWebDAV
-                    ? "https://dav.jianguoyun.com/dav/Aurora/"
+                    ? "https://dav.jianguoyun.com/dav/ReFlow/"
                     : "https://reader.example.com"
               }
               value={endpoint}

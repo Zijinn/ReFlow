@@ -33,7 +33,7 @@ func TestRoundTripPreservesFoldersAndURLs(t *testing.T) {
 		{Title: "One", XMLURL: "https://example.com/one.xml", HTMLURL: "https://example.com/one", FolderPath: []string{"Research", "Economics"}},
 		{Title: "Two", XMLURL: "https://example.com/two.json", FolderPath: []string{"Research"}},
 	}
-	body, err := Export("Cairn subscriptions", want)
+	body, err := Export("ReFlow subscriptions", want)
 	if err != nil {
 		t.Fatal(err)
 	}

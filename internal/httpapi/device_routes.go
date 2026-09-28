@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func (s *Server) createPairingCode(w http.ResponseWriter, r *http.Request) {
@@ -38,7 +38,7 @@ func (s *Server) pairDevice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
-		Name: "cairn_device", Value: token, Path: "/api", MaxAge: 365 * 24 * 60 * 60,
+		Name: "reflow_device", Value: token, Path: "/api", MaxAge: 365 * 24 * 60 * 60,
 		HttpOnly: true, SameSite: http.SameSiteStrictMode,
 	})
 	writeJSON(w, http.StatusCreated, map[string]any{"device": device, "token": token})

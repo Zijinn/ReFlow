@@ -41,7 +41,7 @@ function textSegments(root: HTMLElement): TextSegment[] {
 }
 
 function unwrapAnnotations(root: HTMLElement) {
-  const wrappers = Array.from(root.querySelectorAll<HTMLElement>("[data-aurora-annotation]"))
+  const wrappers = Array.from(root.querySelectorAll<HTMLElement>("[data-reflow-annotation]"))
   for (const wrapper of wrappers.reverse()) wrapper.replaceWith(...Array.from(wrapper.childNodes))
   root.normalize()
 }
@@ -79,7 +79,7 @@ function wrapRange(root: HTMLElement, annotation: ReaderAnnotation) {
     selected.splitText(localEnd - localStart)
     const wrapper = document.createElement("span")
     wrapper.className = `reader-annotation reader-annotation--${annotation.style}`
-    wrapper.dataset.auroraAnnotation = annotation.id
+    wrapper.dataset.reflowAnnotation = annotation.id
     if (annotation.note) wrapper.title = annotation.note
     selected.replaceWith(wrapper)
     wrapper.append(selected)

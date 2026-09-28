@@ -162,12 +162,12 @@ export function StageTree(props: {
             onCommit={(name) => rename(path, name)}
           />
         </span>
-        <span className="wb-stage-state">{node.done ? t("done") : t("todo")}</span>
+        <span className="wb-badge wb-stage-state">{node.done ? t("done") : t("todo")}</span>
         <span className="wb-stage-tools">
           {level < MAX_STAGE_LEVEL && (
             <button
               type="button"
-              className="wb-stage-tool"
+              className="wb-icon-btn"
               title={t("stageAddChild")}
               aria-label={`${t("stageAddChild")}: ${node.name}`}
               onClick={() => requestAdd(path)}
@@ -177,7 +177,7 @@ export function StageTree(props: {
           )}
           <button
             type="button"
-            className="wb-stage-tool"
+            className="wb-icon-btn wb-icon-btn--danger"
             title={t("delete")}
             aria-label={`${t("delete")}: ${node.name}`}
             onClick={() => setConfirmPath(path)}

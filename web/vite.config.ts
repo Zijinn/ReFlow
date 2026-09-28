@@ -4,8 +4,8 @@ import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 import { VitePWA } from "vite-plugin-pwa"
 
-const devAPITarget = process.env.AURORA_DEV_API ?? "http://127.0.0.1:7381"
-const devPort = Number(process.env.AURORA_DEV_PORT ?? 4173)
+const devAPITarget = process.env.REFLOW_DEV_API ?? "http://127.0.0.1:7381"
+const devPort = Number(process.env.REFLOW_DEV_PORT ?? 4173)
 
 export default defineConfig(({ mode }) => {
   const desktopBuild = mode === "desktop"
@@ -13,7 +13,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       {
-        name: "cairn-desktop-compatible-entry",
+        name: "reflow-desktop-compatible-entry",
         apply: "build",
         transformIndexHtml: {
           order: "post",
@@ -30,14 +30,14 @@ export default defineConfig(({ mode }) => {
       VitePWA({
         registerType: "autoUpdate",
         includeAssets: [
-          "icons/aurora-32.png",
-          "icons/aurora-180.png",
-          "icons/aurora-192.png",
-          "icons/aurora-512.png",
+          "icons/reflow-32.png",
+          "icons/reflow-180.png",
+          "icons/reflow-192.png",
+          "icons/reflow-512.png",
         ],
         manifest: {
-          name: "Aurora",
-          short_name: "Aurora",
+          name: "ReFlow",
+          short_name: "ReFlow",
           description: "A private reading home for the open web.",
           lang: "zh-CN",
           theme_color: "#f5f5f6",
@@ -48,17 +48,17 @@ export default defineConfig(({ mode }) => {
           scope: "/",
           icons: [
             {
-              src: "/icons/aurora-192.png",
+              src: "/icons/reflow-192.png",
               sizes: "192x192",
               type: "image/png",
             },
             {
-              src: "/icons/aurora-512.png",
+              src: "/icons/reflow-512.png",
               sizes: "512x512",
               type: "image/png",
             },
             {
-              src: "/icons/aurora-maskable-512.png",
+              src: "/icons/reflow-maskable-512.png",
               sizes: "512x512",
               type: "image/png",
               purpose: "maskable",
@@ -73,7 +73,7 @@ export default defineConfig(({ mode }) => {
               urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/entries"),
               handler: "NetworkFirst",
               options: {
-                cacheName: "cairn-entry-api",
+                cacheName: "reflow-entry-api",
                 expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 7 },
                 networkTimeoutSeconds: 4,
               },

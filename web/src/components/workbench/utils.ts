@@ -123,6 +123,12 @@ export function priorityDotClass(priority: string): string {
   return "wb-dot--gray"
 }
 
+export function priorityBadgeClass(priority: string): string {
+  if (priority === "High") return "wb-badge--red"
+  if (priority === "Medium") return "wb-badge--amber"
+  return "wb-badge--gray"
+}
+
 // 相对时间：总览最近动态用；解析失败回退原文。
 export function relativeTime(raw: string, locale: string, now: Date = new Date()): string {
   const date = new Date((raw ?? "").trim())

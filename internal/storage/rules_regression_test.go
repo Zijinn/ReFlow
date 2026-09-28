@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 // Reapplying a rule that changes nothing must not refresh
@@ -15,21 +15,21 @@ import (
 // rule-matched entry as locally modified after each refresh.
 func TestRuleReapplicationDoesNotTouchUpdatedAt(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
 
-	conditions, _ := json.Marshal(map[string]string{"title_contains": "cairn"})
+	conditions, _ := json.Marshal(map[string]string{"title_contains": "reflow"})
 	actions, _ := json.Marshal(map[string]any{"mark_read": true})
-	if _, err := CreateRule(ctx, db, domain.DefaultProfileID, "Read Cairn posts", true, 0, conditions, actions); err != nil {
+	if _, err := CreateRule(ctx, db, domain.DefaultProfileID, "Read ReFlow posts", true, 0, conditions, actions); err != nil {
 		t.Fatal(err)
 	}
 	guid := "stable-rule-entry"
 	feed, err := SaveNewFeed(ctx, db, domain.DefaultProfileID, "https://example.com/rules2", "https://example.com/rules2", domain.ParsedFeed{
 		Title: "Rules", Format: "rss", Entries: []domain.ParsedEntry{{
-			GUID: &guid, Title: "Cairn stable", PublishedAt: time.Now().UTC(),
+			GUID: &guid, Title: "ReFlow stable", PublishedAt: time.Now().UTC(),
 			ContentHash: "stable-hash", PlainText: "body",
 		}},
 	}, nil, nil, nil, nil)
@@ -65,7 +65,7 @@ func TestRuleReapplicationDoesNotTouchUpdatedAt(t *testing.T) {
 // nor report insertions.
 func TestUnchangedRefreshSkipsEntryWrites(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

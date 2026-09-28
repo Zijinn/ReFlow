@@ -1,55 +1,114 @@
-/* Phase 4：空状态 + 菜单键盘焦点 */
+/* Phase 4：空状态 + 菜单键盘焦点
+   main.tsx 里排在 styles.css 之后，这里的值就是最终生效值。 */
 
 .wb-empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 12px 16px 8px;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-8) var(--space-4);
   text-align: center;
+  animation: wb-empty-in var(--dur-slow) var(--ease);
+}
+/* 空状态是一次“出现”而不是闪现：球体先成形，文字随后落位，
+   两个时长同一曲线，保证视觉上是同一个材质在到达（苹果式 materialize）。 */
+@keyframes wb-empty-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes wb-empty-orb-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 .wb-empty-orb {
   width: 44px;
   height: 44px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background:
     radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.9), transparent 55%),
-    linear-gradient(140deg, color-mix(in srgb, var(--accent) 32%, transparent), color-mix(in srgb, var(--accent) 8%, transparent));
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--accent) 32%, transparent),
+      color-mix(in srgb, var(--accent) 8%, transparent)
+    );
   box-shadow:
     inset 0 1px 2px rgb(255 255 255 / 0.5),
     0 4px 14px color-mix(in srgb, var(--accent) 22%, transparent);
-  margin-bottom: 4px;
+  margin-bottom: var(--space-2);
+  animation: wb-empty-orb-in var(--dur-slow) var(--ease);
 }
 :root[data-theme="dark"] .wb-empty-orb {
   background:
     radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.22), transparent 55%),
-    linear-gradient(140deg, color-mix(in srgb, var(--accent) 45%, transparent), color-mix(in srgb, var(--accent) 15%, transparent));
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--accent) 45%, transparent),
+      color-mix(in srgb, var(--accent) 15%, transparent)
+    );
 }
 .wb-empty-title {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
   color: var(--text);
 }
+/* 负字距只给拉丁：这一档是 14px（micro），中文"暂无内容"吃 -0.01em 会把字缝压紧。
+   与 .wb-header h1 / .wb-cal-head h2 / .wb-section-head h2 同一套语言分档。 */
+.wb-empty-title:lang(en) {
+  letter-spacing: var(--tracking-micro);
+}
 .wb-empty-hint {
-  font-size: 12px;
+  font-size: var(--text-sm);
   color: var(--text-tertiary);
-  line-height: 1.6;
+  line-height: var(--leading-prose);
+  max-width: 34ch;
+}
+/* 空态的 CTA 和工具栏上的主按钮是同一个动作（"新增论文"），就必须是同一个几何。
+   但它渲染在 .wb-table 里，被表内密集控件那一条 .wb-table .wb-btn 降级成
+   28px/12px/胶囊（实测），而工具栏上同名主按钮是 38px/13px/10px 圆角。
+   phase4.css 在 styles.css 之后加载，同特异度这一份生效。 */
+.wb-empty-state .wb-btn {
+  min-height: var(--wb-band-h);
+  padding: 0 var(--space-8);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
 }
 .wb-empty-action {
-  margin-top: 6px;
-  border-radius: 999px;
+  margin-top: var(--space-3);
 }
 
-/* 菜单键盘焦点态（与 hover 同视觉） */
+/* 菜单键盘焦点态（与 hover 同视觉）：配方写在 styles.css 的反馈族段，
+   这里只补过渡，让鼠标悬停和方向键移动落在同一条 100ms 曲线里。 */
 .wb-menu-item--focus {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
 }
+/* 焦点态与悬停态必须是同一块颜色：这份文件在 main.tsx 里排在 styles.css 之后，
+   同特异度会赢，所以选中项的键盘焦点也要把灰蒙叠在 background-image 上，
+   否则方向键走到"当前项"时反馈比鼠标扫过少一层。 */
 .wb-menu-item--focus.wb-menu-item--active {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* 减动效不等于没反馈：去掉位移与缩放，保留淡入。 */
+  .wb-empty-state {
+    animation: wb-empty-in var(--dur-base) linear;
+  }
   .wb-empty-orb {
-    box-shadow: none;
+    animation: wb-empty-in var(--dur-base) linear;
+    transform: none;
+  }
+  .wb-menu-item {
+    transition: none;
   }
 }

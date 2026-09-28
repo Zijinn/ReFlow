@@ -13,11 +13,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/syncadapter"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/syncadapter"
 	"github.com/google/uuid"
 )
 
@@ -512,7 +512,7 @@ func validateSyncAccount(provider, name, endpoint string, interval int, credenti
 }
 
 func syncAssociatedData(accountID string) []byte {
-	return []byte("cairn:sync-account:" + accountID)
+	return []byte("reflow:sync-account:" + accountID)
 }
 
 func decodeSyncCursor(raw string) string {

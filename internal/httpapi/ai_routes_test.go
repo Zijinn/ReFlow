@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func TestAIAPIPrivacyCachingChatAndSecretBoundaries(t *testing.T) {
@@ -82,7 +82,7 @@ func TestAIAPIPrivacyCachingChatAndSecretBoundaries(t *testing.T) {
 	if err := db.QueryRowContext(context.Background(), "SELECT payload_json FROM jobs WHERE id = ?", started.Job.ID).Scan(&payloadJSON); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(payloadJSON, "api-route-secret") || strings.Contains(payloadJSON, "Cairn AI API body") {
+	if strings.Contains(payloadJSON, "api-route-secret") || strings.Contains(payloadJSON, "ReFlow AI API body") {
 		t.Fatalf("job payload contains sensitive input: %s", payloadJSON)
 	}
 
@@ -138,7 +138,7 @@ func TestAIAPIPrivacyCachingChatAndSecretBoundaries(t *testing.T) {
 
 func newAIAPITestServer(t *testing.T) (*sql.DB, *httptest.Server) {
 	t.Helper()
-	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +166,7 @@ func createAIAPITestEntry(t *testing.T, db *sql.DB) string {
 		"https://example.com/ai-api.xml", "https://example.com/ai-api.xml",
 		domain.ParsedFeed{Title: "AI API feed", Format: "rss", Entries: []domain.ParsedEntry{{
 			GUID: &guid, CanonicalURL: &entryURL, Title: "AI API article", PublishedAt: time.Now().UTC(),
-			ContentHash: "ai-api-hash", SanitizedHTML: "<p>Cairn AI API body</p>", PlainText: "Cairn AI API body",
+			ContentHash: "ai-api-hash", SanitizedHTML: "<p>ReFlow AI API body</p>", PlainText: "ReFlow AI API body",
 		}}}, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)

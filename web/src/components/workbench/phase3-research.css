@@ -1,29 +1,29 @@
-/* Phase 3A：在研页阶段树 Apple 精修（Reminders 级复选 + 层级引导线） */
+/* Phase 3A：在研页阶段树 Apple 精修（Reminders 级复选 + 层级引导线）
+   本文件在 main.tsx 里排在 styles.css 之后，这里的值就是最终生效值：
+   改阶段树样式请改这份，不要往 styles.css 里追加同名规则。
+   几何一律走标尺（--radius-* / --space-* / --text-* / --fw-*）。 */
 
 .wb-stage-tree {
-  gap: 2px;
+  gap: var(--space-1);
 }
 .wb-stage-node {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 .wb-stage-row {
   min-height: 34px;
-  padding: 6px 8px 6px 6px;
-  gap: 8px;
-  border-radius: 9px;
+  padding: var(--space-3) var(--space-4) var(--space-3) var(--space-3);
+  gap: var(--space-4);
+  border-radius: var(--radius-md);
   transition: background-color var(--dur-fast) var(--ease);
 }
 .wb-stage-row:hover {
   background: color-mix(in srgb, var(--surface-muted) 60%, transparent);
 }
-.wb-stage-row:hover .wb-stage-handle {
-  opacity: 0.7;
-}
 .wb-stage-handle {
   opacity: 0;
-  width: 16px;
+  width: var(--space-4);
   text-align: center;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   transition: opacity var(--dur-fast) var(--ease);
 }
 .wb-stage-row:hover .wb-stage-handle,
@@ -31,22 +31,45 @@
   opacity: 0.7;
 }
 .wb-stage-toggle {
-  width: 21px;
-  height: 21px;
+  width: var(--wb-check-h);
+  height: var(--wb-check-h);
   flex: none;
+  position: relative;
   border-width: 1.5px;
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-bold);
   transition:
     background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
+    border-color var(--dur-fast) var(--ease);
+}
+/* 泡只有 21px（粗指针 24），按中的却是它周围这一圈：上下借进行内空白
+   （行比泡高 15–20px），左右借满 flex gap 的一半（--space-4 8px，正好不压到
+   相邻的把手和名称）。和作者药丸的 ✕ 同一份配方。
+   此前粗指针档把泡本身写成 20px，比桌面端还小一圈——热区该随指针变粗而变大。 */
+.wb-stage-toggle::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-2) * -1);
 }
 .wb-stage-toggle:hover {
   border-color: var(--accent);
 }
-.wb-stage-toggle:active {
-  transform: scale(0.85);
+/* 按压只改颜色、不改几何：列表里的每一次缩放都会把邻行挤得发抖。
+   完成时的 wb-check-pop 保留，那是“状态落定”的反馈而不是按压反馈。
+   :not(:disabled) 不能省，否则全局 button:active:not(:disabled) 仍然胜出。 */
+.wb-stage-toggle:active:not(:disabled) {
+  transform: none;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* 已完成的泡是实心主色面，按下必须"更实一档"，不能被上面那层淡底洗成半透。
+   这条要写在同特异度之上（(0,4,0)），否则 styles.css 里那份旧覆盖连同本条
+   都会按文件顺序互相压。压暗用 filter 而不是换色：深浅两档的 solid 方向相反，
+   相对亮度是唯一在两种模式下都读得出"按下去了"的操作。 */
+.wb-stage-row--done .wb-stage-toggle:active:not(:disabled) {
+  border-color: var(--accent-solid);
+  background: var(--accent-solid);
+  filter: brightness(0.92);
 }
 .wb-stage-row--done .wb-stage-toggle {
   animation: wb-check-pop var(--dur-base) var(--ease);
@@ -63,21 +86,22 @@
   }
 }
 .wb-stage-name {
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
 }
+/* 状态药丸的外观只有一处定义：styles.css 的 .wb-badge（色相 12% 淡底 + 同色相深墨 +
+   radius-md + padding 2/10 + 11px/fw-semibold）。这里不再自带第二套配方——原来它是
+   radius-full + --surface-muted 灰底 + padding 2/8，于是同一种"只读状态"在阶段树里
+   是圆胶囊灰片、在表格里是方标签，两处字色也差一档（实测 4.8:1 vs 6.2:1）。
+   保留这个类只为了 flex:none：药丸坐在 flex 行里，不许被压扁换行。 */
 .wb-stage-state {
   flex: none;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
-  color: var(--text-tertiary);
 }
+/* 「已完成」跟随主色而不是写死某个色相：换品牌主题时它要一起变，小字主色的既定档位
+   就是 --accent-strong。未开始/未完成不覆盖，走 .wb-badge 的中性默认档。 */
 .wb-stage-row--done .wb-stage-state {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-strong);
+  --wb-badge-hue: var(--accent);
+  --wb-badge-ink: var(--accent-strong);
 }
 .wb-stage-tools {
   opacity: 0;
@@ -87,42 +111,57 @@
 .wb-stage-row:focus-within .wb-stage-tools {
   opacity: 1;
 }
-.wb-stage-tool {
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
+/* 触屏上没有 :hover，两颗按钮（加子阶段 / 删阶段）就永久隐身——它们仍可点（opacity:0
+   不挡命中），但用户看不到才会去点。让"悬停态"成为无悬停设备的常态。
+   旁边的 .wb-stage-handle 不一起露出：阶段排序走 HTML5 拖拽，手指拖不动，
+   露出一个不会响应的手柄比不露更糟。 */
+@media (hover: none) {
+  .wb-stage-row .wb-stage-tools {
+    opacity: 1;
+  }
 }
-.wb-stage-tool:active {
-  transform: scale(0.9);
-}
+/* ＋/✕ 的尺寸、圆角与悬停/按压反馈全部来自 .wb-icon-btn 一族（见 styles.css），
+   这里只保留上面的"随行悬停浮现"这一条阶段树特有的行为。 */
 .wb-stage-children {
   margin-left: 19px;
   border-left: 1.5px solid var(--border);
-  padding-left: 8px;
+  padding-left: var(--space-4);
   border-radius: 0;
 }
 .wb-stage-level-3 .wb-stage-children {
   border-left-style: dotted;
 }
 .wb-stage-add-btn {
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   transition:
     background-color var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
+    border-color var(--dur-fast) var(--ease);
 }
 .wb-stage-add-btn:hover {
   background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
-.wb-stage-add-btn:active {
-  transform: scale(0.98);
+.wb-stage-add-btn:active:not(:disabled) {
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 
-/* 在研表阶段格：进度更紧凑 */
-.wb-stage-cell .wb-progress-track {
-  height: 8px;
+/* 键盘焦点：整棵树里的可聚焦控件共用一条 Apple 式焦点环。
+   ＋/✕ 的焦点环由 styles.css 的 .wb-icon-btn:focus-visible 提供，同一圈。 */
+.wb-stage-toggle:focus-visible,
+.wb-stage-add-btn:focus-visible,
+.wb-stage-row .wb-inline-input:focus {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
+/* 在研表阶段格：进度条与全局同一根轨道 */
+.wb-stage-cell .wb-progress-track {
+  height: 6px;
+}
+/* 11px 这一档（.wb-code / .wb-badge / .wb-stage-state）全部是 fw-semibold，
+   进度百分比原来是唯一的 fw-bold，等于在同一行里多插了一档字重。
+   它比编号醒目是靠墨色（--text-secondary vs --text-tertiary）来的，不需要再叠一档字重。 */
 .wb-progress-text {
-  font-weight: 700;
+  font-weight: var(--fw-semibold);
   color: var(--text-secondary);
 }
 
@@ -130,9 +169,11 @@
   .wb-stage-row--done .wb-stage-toggle {
     animation: none;
   }
-  .wb-stage-toggle:active,
-  .wb-stage-tool:active,
-  .wb-stage-add-btn:active {
-    transform: none;
+  .wb-stage-toggle,
+  .wb-stage-add-btn,
+  .wb-stage-row,
+  .wb-stage-handle,
+  .wb-stage-tools {
+    transition: none;
   }
 }

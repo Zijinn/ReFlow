@@ -18,8 +18,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/syncadapter"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/syncadapter"
 )
 
 const maxLibrarySnapshotBytes int64 = 128 << 20
@@ -94,7 +94,7 @@ func (s *SyncService) runLibrarySync(
 		remoteHash = localHash
 	case "pull":
 		if !remoteExists {
-			return SyncResult{}, &syncadapter.Error{Code: "remote_missing", Err: errors.New("the remote Aurora snapshot does not exist")}
+			return SyncResult{}, &syncadapter.Error{Code: "remote_missing", Err: errors.New("the remote ReFlow snapshot does not exist")}
 		}
 		// Pause dispatch and cancel other in-flight jobs before replacing
 		// tables; this job keeps running via its own ID exemption.
@@ -206,10 +206,10 @@ func (s *SyncService) readRemoteSnapshot(ctx context.Context, record storage.Syn
 	}
 	var document storage.BackupDocument
 	if err := json.Unmarshal(body, &document); err != nil {
-		return storage.BackupDocument{}, false, fmt.Errorf("decode remote Aurora snapshot: %w", err)
+		return storage.BackupDocument{}, false, fmt.Errorf("decode remote ReFlow snapshot: %w", err)
 	}
 	if document.Format != storage.LibrarySnapshotFormat || document.Version != 1 {
-		return storage.BackupDocument{}, false, errors.New("remote file is not an Aurora library snapshot")
+		return storage.BackupDocument{}, false, errors.New("remote file is not an ReFlow library snapshot")
 	}
 	return document, true, nil
 }
@@ -217,16 +217,16 @@ func (s *SyncService) readRemoteSnapshot(ctx context.Context, record storage.Syn
 func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials, document storage.BackupDocument) error {
 	body, err := json.Marshal(document)
 	if err != nil {
-		return fmt.Errorf("encode Aurora snapshot: %w", err)
+		return fmt.Errorf("encode ReFlow snapshot: %w", err)
 	}
 	if int64(len(body)) > maxLibrarySnapshotBytes {
-		return errors.New("Aurora snapshot is too large to synchronize")
+		return errors.New("ReFlow snapshot is too large to synchronize")
 	}
 	if record.Account.Provider == "icloud" {
 		if err := os.MkdirAll(filepath.Dir(record.Account.Endpoint), 0o700); err != nil {
 			return fmt.Errorf("create iCloud snapshot directory: %w", err)
 		}
-		temporary, err := os.CreateTemp(filepath.Dir(record.Account.Endpoint), ".aurora-sync-*.tmp")
+		temporary, err := os.CreateTemp(filepath.Dir(record.Account.Endpoint), ".reflow-sync-*.tmp")
 		if err != nil {
 			return fmt.Errorf("create iCloud snapshot: %w", err)
 		}
@@ -286,14 +286,14 @@ func normalizeLibrarySyncEndpoint(provider, raw string) (string, error) {
 		if strings.EqualFold(parsed.Hostname(), "dav.jianguoyun.com") {
 			cleanPath := path.Clean(parsed.Path)
 			switch {
-			case cleanPath == "/dav", cleanPath == "/dav/aurora-library.json":
-				parsed.Path = "/dav/Aurora/aurora-library.json"
+			case cleanPath == "/dav", cleanPath == "/dav/reflow-library.json":
+				parsed.Path = "/dav/ReFlow/reflow-library.json"
 			case path.Ext(cleanPath) == "":
-				parsed.Path = strings.TrimRight(parsed.Path, "/") + "/aurora-library.json"
+				parsed.Path = strings.TrimRight(parsed.Path, "/") + "/reflow-library.json"
 			}
 			endpoint = parsed.String()
 		} else if parsed.Path == "" || strings.HasSuffix(parsed.Path, "/") {
-			parsed.Path = strings.TrimRight(parsed.Path, "/") + "/aurora-library.json"
+			parsed.Path = strings.TrimRight(parsed.Path, "/") + "/reflow-library.json"
 			endpoint = parsed.String()
 		}
 		return endpoint, nil
@@ -304,7 +304,7 @@ func normalizeLibrarySyncEndpoint(provider, raw string) (string, error) {
 	}
 	endpoint := strings.TrimSpace(raw)
 	if endpoint == "" {
-		endpoint = filepath.Join(roots[0], "Aurora", "aurora-library.json")
+		endpoint = filepath.Join(roots[0], "ReFlow", "reflow-library.json")
 	}
 	absolute, err := filepath.Abs(endpoint)
 	if err != nil {
@@ -322,7 +322,7 @@ func normalizeLibrarySyncEndpoint(provider, raw string) (string, error) {
 		return "", errors.New("iCloud snapshot path must be inside the local iCloud Drive folder")
 	}
 	if filepath.Ext(absolute) == "" {
-		absolute = filepath.Join(absolute, "aurora-library.json")
+		absolute = filepath.Join(absolute, "reflow-library.json")
 	}
 	return absolute, nil
 }
@@ -363,8 +363,8 @@ func (s *SyncService) testWebDAVConnection(ctx context.Context, snapshotEndpoint
 		return err
 	}
 	testFile := *collection
-	testFile.Path = path.Join(collection.Path, "aurora-connection-test-"+uuid.NewString()+".tmp")
-	status, err := s.sendWebDAVRequest(ctx, http.MethodPut, testFile.String(), []byte("Aurora WebDAV connection test\n"), "text/plain; charset=utf-8", credentials, allowPrivate)
+	testFile.Path = path.Join(collection.Path, "reflow-connection-test-"+uuid.NewString()+".tmp")
+	status, err := s.sendWebDAVRequest(ctx, http.MethodPut, testFile.String(), []byte("ReFlow WebDAV connection test\n"), "text/plain; charset=utf-8", credentials, allowPrivate)
 	if err != nil {
 		return err
 	}
@@ -438,7 +438,7 @@ func (s *SyncService) sendWebDAVRequest(ctx context.Context, method, endpoint st
 		return 0, err
 	}
 	request.Header.Set("Accept", "application/json, application/xml, text/xml, */*")
-	request.Header.Set("User-Agent", "Aurora/WebDAV")
+	request.Header.Set("User-Agent", "ReFlow/WebDAV")
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}

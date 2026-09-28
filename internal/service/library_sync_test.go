@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/syncadapter"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/syncadapter"
 )
 
 func TestLibrarySyncCanMirrorWebDAVAndICloudTogether(t *testing.T) {
@@ -24,7 +24,7 @@ func TestLibrarySyncCanMirrorWebDAVAndICloudTogether(t *testing.T) {
 		t.Skip("iCloud Drive is available only on macOS and Windows")
 	}
 	ctx := context.Background()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "aurora.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,11 +65,11 @@ func TestLibrarySyncCanMirrorWebDAVAndICloudTogether(t *testing.T) {
 
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	iCloudFile := filepath.Join(home, "Library", "Mobile Documents", "com~apple~CloudDocs", "Aurora", "aurora-library.json")
+	iCloudFile := filepath.Join(home, "Library", "Mobile Documents", "com~apple~CloudDocs", "ReFlow", "reflow-library.json")
 	syncService := newSyncService(db, NewFeedService(db, nil), box, func(bool) *http.Client { return webDAV.Client() })
 	webDAVAccount, err := syncService.CreateAccount(ctx, SyncAccountInput{
-		Provider: "webdav", Name: "WebDAV mirror", Endpoint: webDAV.URL + "/aurora-library.json",
-		Credentials: syncadapter.Credentials{Username: "aurora", Password: "secret"}, AllowPrivateNetwork: true,
+		Provider: "webdav", Name: "WebDAV mirror", Endpoint: webDAV.URL + "/reflow-library.json",
+		Credentials: syncadapter.Credentials{Username: "reflow", Password: "secret"}, AllowPrivateNetwork: true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -130,21 +130,21 @@ func TestLibrarySyncRequiresConflictChoice(t *testing.T) {
 }
 
 func TestWebDAVDirectoryEndpointGetsSnapshotFilename(t *testing.T) {
-	got, err := normalizeLibrarySyncEndpoint("webdav", "https://dav.example.test/Aurora/")
+	got, err := normalizeLibrarySyncEndpoint("webdav", "https://dav.example.test/ReFlow/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got != "https://dav.example.test/Aurora/aurora-library.json" {
+	if got != "https://dav.example.test/ReFlow/reflow-library.json" {
 		t.Fatalf("unexpected normalized endpoint: %q", got)
 	}
 	nutstore, err := normalizeLibrarySyncEndpoint("webdav", "https://dav.jianguoyun.com/dav/")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if nutstore != "https://dav.jianguoyun.com/dav/Aurora/aurora-library.json" {
+	if nutstore != "https://dav.jianguoyun.com/dav/ReFlow/reflow-library.json" {
 		t.Fatalf("unexpected Nutstore endpoint: %q", nutstore)
 	}
-	legacy, err := normalizeLibrarySyncEndpoint("webdav", "https://dav.jianguoyun.com/dav/aurora-library.json")
+	legacy, err := normalizeLibrarySyncEndpoint("webdav", "https://dav.jianguoyun.com/dav/reflow-library.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +158,7 @@ func TestWebDAVConnectionCreatesCollectionAndChecksWriteAccess(t *testing.T) {
 	testFileWritten := false
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == "PROPFIND" && r.URL.Path == "/dav/Aurora/":
+		case r.Method == "PROPFIND" && r.URL.Path == "/dav/ReFlow/":
 			if collectionCreated {
 				w.WriteHeader(http.StatusMultiStatus)
 			} else {
@@ -166,13 +166,13 @@ func TestWebDAVConnectionCreatesCollectionAndChecksWriteAccess(t *testing.T) {
 			}
 		case r.Method == "PROPFIND" && r.URL.Path == "/dav/":
 			w.WriteHeader(http.StatusMultiStatus)
-		case r.Method == "MKCOL" && r.URL.Path == "/dav/Aurora/":
+		case r.Method == "MKCOL" && r.URL.Path == "/dav/ReFlow/":
 			collectionCreated = true
 			w.WriteHeader(http.StatusCreated)
-		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/dav/Aurora/aurora-connection-test-"):
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/dav/ReFlow/reflow-connection-test-"):
 			testFileWritten = true
 			w.WriteHeader(http.StatusCreated)
-		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/dav/Aurora/aurora-connection-test-"):
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/dav/ReFlow/reflow-connection-test-"):
 			if !testFileWritten {
 				http.NotFound(w, r)
 				return
@@ -188,7 +188,7 @@ func TestWebDAVConnectionCreatesCollectionAndChecksWriteAccess(t *testing.T) {
 	service := &SyncService{clientFactory: func(bool) *http.Client { return upstream.Client() }}
 	err := service.testWebDAVConnection(
 		context.Background(),
-		upstream.URL+"/dav/Aurora/aurora-library.json",
+		upstream.URL+"/dav/ReFlow/reflow-library.json",
 		syncadapter.Credentials{Username: "user", Password: "app-password"},
 		true,
 	)
@@ -205,18 +205,18 @@ func TestWebDAVSnapshotWriteCreatesMissingCollectionAndRetries(t *testing.T) {
 	writes := 0
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
-		case r.Method == http.MethodPut && r.URL.Path == "/dav/Aurora/aurora-library.json":
+		case r.Method == http.MethodPut && r.URL.Path == "/dav/ReFlow/reflow-library.json":
 			writes++
 			if !collectionCreated {
 				http.NotFound(w, r)
 				return
 			}
 			w.WriteHeader(http.StatusCreated)
-		case r.Method == "PROPFIND" && r.URL.Path == "/dav/Aurora/":
+		case r.Method == "PROPFIND" && r.URL.Path == "/dav/ReFlow/":
 			http.NotFound(w, r)
 		case r.Method == "PROPFIND" && r.URL.Path == "/dav/":
 			w.WriteHeader(http.StatusMultiStatus)
-		case r.Method == "MKCOL" && r.URL.Path == "/dav/Aurora/":
+		case r.Method == "MKCOL" && r.URL.Path == "/dav/ReFlow/":
 			collectionCreated = true
 			w.WriteHeader(http.StatusCreated)
 		default:
@@ -228,7 +228,7 @@ func TestWebDAVSnapshotWriteCreatesMissingCollectionAndRetries(t *testing.T) {
 	service := &SyncService{clientFactory: func(bool) *http.Client { return upstream.Client() }}
 	record := storage.SyncAccountRecord{Account: domain.SyncAccount{
 		Provider:            "webdav",
-		Endpoint:            upstream.URL + "/dav/Aurora/aurora-library.json",
+		Endpoint:            upstream.URL + "/dav/ReFlow/reflow-library.json",
 		AllowPrivateNetwork: true,
 	}}
 	document := storage.BackupDocument{Format: storage.LibrarySnapshotFormat, Version: 1}

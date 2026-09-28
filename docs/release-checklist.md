@@ -1,4 +1,4 @@
-# Aurora release checklist
+# ReFlow release checklist
 
 Native installers are built only on GitHub-hosted runners. The development workstation is intentionally limited to frontend production builds, Go tests, vet, race checks, and desktop-tag compile checks.
 
@@ -20,7 +20,7 @@ Windows signing uses `WINDOWS_CERTIFICATE` (base64 PFX) and `WINDOWS_CERTIFICATE
 ## Cloud artifact verification
 
 - The macOS artifact is a universal arm64/x86_64 DMG. Verify with `lipo -archs` and `codesign --verify --deep --strict`.
-- The Windows artifact is a per-user x64 NSIS installer. Install on a clean Windows 10/11 runner, confirm WebView2 bootstrap behavior, launch Aurora from the installed path, and verify that uninstall leaves user data untouched. The installer must contain `web/dist` beside `Aurora.exe`.
+- The Windows artifact is a per-user x64 NSIS installer. Install on a clean Windows 10/11 runner, confirm WebView2 bootstrap behavior, launch ReFlow from the installed path, and verify that uninstall leaves user data untouched. The installer must contain `web/dist` beside `ReFlow.exe`.
 - If notarized, verify with `spctl --assess --type execute` and `xcrun stapler validate`.
 - Publish only the DMG and EXE. GitHub supplies source archives automatically; retain license inventories as internal workflow artifacts.
 

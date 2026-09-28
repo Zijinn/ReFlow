@@ -1,10 +1,31 @@
-/* Phase 6：筛选计数 */
+/* Phase 6：筛选计数
+   main.tsx 里排在 styles.css 之后，改这里才是最终值。 */
 
 .wb-result-count {
   flex: none;
-  font-size: 12px;
-  font-weight: 600;
+  /* 只在有筛选条件时出现，所以它属于“活动状态”而不是普通说明文字：
+     用状态蓝的浅底药丸，与工具栏同材质，避免又一个灰色小块。 */
+  padding: var(--space-1) var(--space-4);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
-  color: var(--text-tertiary);
-  padding: 2px 4px;
+  white-space: nowrap;
+  animation: wb-count-in var(--dur-fast) var(--ease);
+}
+@keyframes wb-count-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-result-count {
+    animation: none;
+  }
 }

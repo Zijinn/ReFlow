@@ -4,13 +4,13 @@ Unicode true
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "1.5.0"
+  !define VERSION "5.2.0"
 !endif
 !ifndef APP_EXE
-  !error "APP_EXE must point to Aurora.exe"
+  !error "APP_EXE must point to ReFlow.exe"
 !endif
 !ifndef APP_ICON
-  !error "APP_ICON must point to Aurora.ico"
+  !error "APP_ICON must point to ReFlow.ico"
 !endif
 !ifndef LICENSE_FILE
   !error "LICENSE_FILE must point to LICENSE"
@@ -22,24 +22,24 @@ Unicode true
   !error "WEB_ASSETS must point to the built web/dist directory"
 !endif
 !ifndef OUT_FILE
-  !define OUT_FILE "Aurora-${VERSION}-windows-x64-setup.exe"
+  !define OUT_FILE "ReFlow-${VERSION}-windows-x64-setup.exe"
 !endif
 
-Name "Aurora"
+Name "ReFlow"
 OutFile "${OUT_FILE}"
-InstallDir "$LOCALAPPDATA\Programs\Aurora"
-InstallDirRegKey HKCU "Software\Aurora" "InstallDir"
+InstallDir "$LOCALAPPDATA\Programs\ReFlow"
+InstallDirRegKey HKCU "Software\ReFlow" "InstallDir"
 RequestExecutionLevel user
 ManifestDPIAware true
 
 VIProductVersion "${VERSION}.0"
 VIFileVersion "${VERSION}.0"
-VIAddVersionKey "CompanyName" "Aurora contributors"
-VIAddVersionKey "FileDescription" "Aurora installer"
+VIAddVersionKey "CompanyName" "ReFlow contributors"
+VIAddVersionKey "FileDescription" "ReFlow installer"
 VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "FileVersion" "${VERSION}"
-VIAddVersionKey "LegalCopyright" "Copyright 2026 Aurora contributors. GPL-3.0-only."
-VIAddVersionKey "ProductName" "Aurora"
+VIAddVersionKey "LegalCopyright" "Copyright 2026 ReFlow contributors. GPL-3.0-only."
+VIAddVersionKey "ProductName" "ReFlow"
 
 !define MUI_ABORTWARNING
 !define MUI_ICON "${APP_ICON}"
@@ -54,10 +54,10 @@ VIAddVersionKey "ProductName" "Aurora"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
 
-Section "Aurora" SEC_AURORA
+Section "ReFlow" SEC_REFLOW
   SetShellVarContext current
   SetOutPath "$INSTDIR"
-  File /oname=Aurora.exe "${APP_EXE}"
+  File /oname=ReFlow.exe "${APP_EXE}"
   File /oname=LICENSE.txt "${LICENSE_FILE}"
   SetOutPath "$INSTDIR\web\dist"
   File /r "${WEB_ASSETS}\*"
@@ -68,28 +68,28 @@ Section "Aurora" SEC_AURORA
 
   SetOutPath "$INSTDIR"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
-  WriteRegStr HKCU "Software\Aurora" "InstallDir" "$INSTDIR"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora" "DisplayName" "Aurora"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora" "DisplayVersion" "${VERSION}"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora" "Publisher" "Aurora contributors"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora" "DisplayIcon" "$INSTDIR\Aurora.exe"
-  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegStr HKCU "Software\ReFlow" "InstallDir" "$INSTDIR"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow" "DisplayName" "ReFlow"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow" "Publisher" "ReFlow contributors"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow" "DisplayIcon" "$INSTDIR\ReFlow.exe"
+  WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
-  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora" "EstimatedSize" $0
-  CreateDirectory "$SMPROGRAMS\Aurora"
-  CreateShortcut "$SMPROGRAMS\Aurora\Aurora.lnk" "$INSTDIR\Aurora.exe"
-  CreateShortcut "$DESKTOP\Aurora.lnk" "$INSTDIR\Aurora.exe"
+  WriteRegDWORD HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow" "EstimatedSize" $0
+  CreateDirectory "$SMPROGRAMS\ReFlow"
+  CreateShortcut "$SMPROGRAMS\ReFlow\ReFlow.lnk" "$INSTDIR\ReFlow.exe"
+  CreateShortcut "$DESKTOP\ReFlow.lnk" "$INSTDIR\ReFlow.exe"
 SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
-  Delete "$DESKTOP\Aurora.lnk"
-  Delete "$SMPROGRAMS\Aurora\Aurora.lnk"
-  RMDir "$SMPROGRAMS\Aurora"
-  Delete "$INSTDIR\Aurora.exe"
+  Delete "$DESKTOP\ReFlow.lnk"
+  Delete "$SMPROGRAMS\ReFlow\ReFlow.lnk"
+  RMDir "$SMPROGRAMS\ReFlow"
+  Delete "$INSTDIR\ReFlow.exe"
   Delete "$INSTDIR\LICENSE.txt"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
-  DeleteRegKey HKCU "Software\Aurora"
-  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Aurora"
+  DeleteRegKey HKCU "Software\ReFlow"
+  DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\ReFlow"
 SectionEnd

@@ -12,6 +12,18 @@ version="$(node -p "require('./package.json').version")"
 test "$version" = "$(node -p "require('./web/package.json').version")"
 grep -q "default: $version" .github/workflows/release.yml
 
+# The release workflow injects the tag version into the Windows resources with a literal string
+# replace. If a committed literal drifts from package.json the replace matches nothing and the
+# build ships a stale FileVersion, so every occurrence must agree.
+test "$version" = "$(node -p "require('./build/windows/info.json').fixed.file_version")"
+test "$version" = "$(node -p "require('./build/windows/info.json').info['0000'].ProductVersion")"
+grep -q "version=\"$version\"" build/windows/wails.exe.manifest
+grep -qF -- "!define VERSION \"$version\"" build/windows/installer.nsi
+grep -qF -- ".Replace('$version', \$env:VERSION)" .github/workflows/release.yml
+grep -qF -- ".Replace('version=\"$version\"'" .github/workflows/release.yml
+grep -q "<string>$version</string>" build/darwin/Info.plist
+test "$(grep -c "<string>$version</string>" build/darwin/Info.plist)" = "2"
+
 ruby -ryaml -rjson -rrexml/document -e '
   workflow = YAML.load_file(".github/workflows/release.yml")
   expected_jobs = ["license-inventory", "macos-universal", "publish-release", "windows-x64"]
@@ -26,7 +38,11 @@ ruby -ryaml -rjson -rrexml/document -e '
 grep -q 'lipo -create' .github/workflows/release.yml
 grep -q 'makensis' .github/workflows/release.yml
 grep -q 'notarytool submit' .github/workflows/release.yml
-grep -q 'dist/Aurora-${{ env.VERSION }}-macos-universal.dmg' .github/workflows/release.yml
-grep -q 'dist/Aurora-${{ env.VERSION }}-windows-x64-setup.exe' .github/workflows/release.yml
+grep -q 'dist/ReFlow-${{ env.VERSION }}-macos-universal.dmg' .github/workflows/release.yml
+grep -q 'dist/ReFlow-${{ env.VERSION }}-windows-x64-setup.exe' .github/workflows/release.yml
+grep -q -- '-X github.com/Zijinn/ReFlow/internal/version.Version' .github/workflows/release.yml
+grep -q './cmd/reflow-desktop' .github/workflows/release.yml
 ! grep -q '\.sha256' .github/workflows/release.yml
-! grep -q 'pattern: Cairn-' .github/workflows/release.yml
+# Brand guard against a half-done rename: no legacy product name or legacy slug may survive
+# in the workflow, including the old artifact pattern "pattern: <old name>-*".
+! grep -Eq '[Aa]urora|[Cc]airn' .github/workflows/release.yml

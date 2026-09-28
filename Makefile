@@ -2,7 +2,7 @@
 
 build:
 	pnpm --dir web build
-	go build -o bin/aurora-server ./cmd/cairn-server
+	go build -o bin/reflow-server ./cmd/reflow-server
 
 check:
 	go test ./...
@@ -16,7 +16,7 @@ dev:
 	pnpm dev
 
 dev-server:
-	go run ./cmd/cairn-server
+	go run ./cmd/reflow-server
 
 dev-web:
 	pnpm --dir web dev

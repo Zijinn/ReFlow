@@ -6,7 +6,7 @@ on:
       version:
         description: Semantic version without a leading v
         required: true
-        default: 4.1.0
+        default: 5.2.0
   push:
     tags:
       - "v*.*.*"
@@ -84,75 +84,75 @@ jobs:
       - name: Build universal application
         shell: bash
         run: |
-          mkdir -p dist/Aurora.app/Contents/{MacOS,Resources}
-          wails3 generate icons -input build/icons/Aurora-1024.png -macfilename build/darwin/Aurora.icns -windowsfilename build/windows/Aurora.ico
+          mkdir -p dist/ReFlow.app/Contents/{MacOS,Resources}
+          wails3 generate icons -input build/icons/ReFlow-1024.png -macfilename build/darwin/ReFlow.icns -windowsfilename build/windows/ReFlow.ico
           for ARCH in amd64 arm64; do
             CGO_ENABLED=1 GOOS=darwin GOARCH="$ARCH" \
               CGO_CFLAGS="-mmacosx-version-min=12.0" CGO_LDFLAGS="-mmacosx-version-min=12.0" \
               MACOSX_DEPLOYMENT_TARGET=12.0 \
               go build -tags desktop -trimpath -buildvcs=false \
-              -ldflags "-s -w -X github.com/Zijinn/Aurora/internal/version.Version=$VERSION" \
-              -o "dist/Aurora-$ARCH" ./cmd/cairn-desktop
+              -ldflags "-s -w -X github.com/Zijinn/ReFlow/internal/version.Version=$VERSION" \
+              -o "dist/ReFlow-$ARCH" ./cmd/reflow-desktop
           done
-          lipo -create -output dist/Aurora.app/Contents/MacOS/Aurora dist/Aurora-amd64 dist/Aurora-arm64
-          rm dist/Aurora-amd64 dist/Aurora-arm64
-          cp build/darwin/Aurora.icns dist/Aurora.app/Contents/Resources/
-          mkdir -p dist/Aurora.app/Contents/Resources/web
-          cp -R web/dist dist/Aurora.app/Contents/Resources/web/
-          cp build/darwin/Info.plist dist/Aurora.app/Contents/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" dist/Aurora.app/Contents/Info.plist
-          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" dist/Aurora.app/Contents/Info.plist
-          lipo -archs dist/Aurora.app/Contents/MacOS/Aurora | grep -q "x86_64 arm64\|arm64 x86_64"
+          lipo -create -output dist/ReFlow.app/Contents/MacOS/ReFlow dist/ReFlow-amd64 dist/ReFlow-arm64
+          rm dist/ReFlow-amd64 dist/ReFlow-arm64
+          cp build/darwin/ReFlow.icns dist/ReFlow.app/Contents/Resources/
+          mkdir -p dist/ReFlow.app/Contents/Resources/web
+          cp -R web/dist dist/ReFlow.app/Contents/Resources/web/
+          cp build/darwin/Info.plist dist/ReFlow.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" dist/ReFlow.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" dist/ReFlow.app/Contents/Info.plist
+          lipo -archs dist/ReFlow.app/Contents/MacOS/ReFlow | grep -q "x86_64 arm64\|arm64 x86_64"
       - name: Import signing certificate
         if: ${{ env.MACOS_CERTIFICATE != '' && env.MACOS_SIGNING_IDENTITY != '' }}
         shell: bash
         run: |
-          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/aurora.p12"
-          security create-keychain -p runner "$RUNNER_TEMP/aurora.keychain-db"
-          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/aurora.keychain-db"
-          security unlock-keychain -p runner "$RUNNER_TEMP/aurora.keychain-db"
-          security import "$RUNNER_TEMP/aurora.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$RUNNER_TEMP/aurora.keychain-db"
-          security list-keychains -d user -s "$RUNNER_TEMP/aurora.keychain-db" login.keychain-db
-          security set-key-partition-list -S apple-tool:,apple: -s -k runner "$RUNNER_TEMP/aurora.keychain-db"
+          echo "$MACOS_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/reflow.p12"
+          security create-keychain -p runner "$RUNNER_TEMP/reflow.keychain-db"
+          security set-keychain-settings -lut 21600 "$RUNNER_TEMP/reflow.keychain-db"
+          security unlock-keychain -p runner "$RUNNER_TEMP/reflow.keychain-db"
+          security import "$RUNNER_TEMP/reflow.p12" -P "$MACOS_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$RUNNER_TEMP/reflow.keychain-db"
+          security list-keychains -d user -s "$RUNNER_TEMP/reflow.keychain-db" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple: -s -k runner "$RUNNER_TEMP/reflow.keychain-db"
       - name: Sign application
         shell: bash
         run: |
           if [[ -n "$MACOS_SIGNING_IDENTITY" ]]; then
-            codesign --force --deep --options runtime --timestamp --entitlements build/darwin/entitlements.plist --sign "$MACOS_SIGNING_IDENTITY" dist/Aurora.app
+            codesign --force --deep --options runtime --timestamp --entitlements build/darwin/entitlements.plist --sign "$MACOS_SIGNING_IDENTITY" dist/ReFlow.app
           else
-            codesign --force --deep --options runtime --entitlements build/darwin/entitlements.plist --sign - dist/Aurora.app
+            codesign --force --deep --options runtime --entitlements build/darwin/entitlements.plist --sign - dist/ReFlow.app
           fi
-          codesign --verify --deep --strict --verbose=2 dist/Aurora.app
+          codesign --verify --deep --strict --verbose=2 dist/ReFlow.app
       - name: Notarize application
         if: ${{ env.MACOS_SIGNING_IDENTITY != '' && env.APPLE_ID != '' && env.APPLE_APP_PASSWORD != '' && env.APPLE_TEAM_ID != '' }}
         shell: bash
         run: |
-          ditto -c -k --keepParent dist/Aurora.app "$RUNNER_TEMP/Aurora-notarize.zip"
-          xcrun notarytool submit "$RUNNER_TEMP/Aurora-notarize.zip" --wait \
+          ditto -c -k --keepParent dist/ReFlow.app "$RUNNER_TEMP/ReFlow-notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/ReFlow-notarize.zip" --wait \
             --apple-id "$APPLE_ID" --password "$APPLE_APP_PASSWORD" --team-id "$APPLE_TEAM_ID"
-          xcrun stapler staple dist/Aurora.app
+          xcrun stapler staple dist/ReFlow.app
       - name: Create DMG
         shell: bash
         run: |
           mkdir -p "$RUNNER_TEMP/dmg"
-          cp -R dist/Aurora.app "$RUNNER_TEMP/dmg/"
+          cp -R dist/ReFlow.app "$RUNNER_TEMP/dmg/"
           ln -s /Applications "$RUNNER_TEMP/dmg/Applications"
-          DMG="dist/Aurora-$VERSION-macos-universal.dmg"
+          DMG="dist/ReFlow-$VERSION-macos-universal.dmg"
           # hdiutil intermittently fails with "Resource busy" on CI runners; retry a few times.
           for attempt in 1 2 3 4; do
-            if hdiutil create -volname Aurora -srcfolder "$RUNNER_TEMP/dmg" -ov -format UDZO "$DMG"; then
+            if hdiutil create -volname ReFlow -srcfolder "$RUNNER_TEMP/dmg" -ov -format UDZO "$DMG"; then
               break
             fi
             echo "hdiutil create failed (attempt $attempt), retrying in 10s"
-            hdiutil detach /Volumes/Aurora 2>/dev/null || true
+            hdiutil detach /Volumes/ReFlow 2>/dev/null || true
             sleep 10
           done
           test -f "$DMG"
           if [[ -n "$MACOS_SIGNING_IDENTITY" ]]; then codesign --timestamp --sign "$MACOS_SIGNING_IDENTITY" "$DMG"; fi
       - uses: actions/upload-artifact@v4
         with:
-          name: Aurora-${{ env.VERSION }}-macos-universal
-          path: dist/Aurora-${{ env.VERSION }}-macos-universal.dmg
+          name: ReFlow-${{ env.VERSION }}-macos-universal
+          path: dist/ReFlow-${{ env.VERSION }}-macos-universal.dmg
 
   windows-x64:
     needs: license-inventory
@@ -191,12 +191,14 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force dist | Out-Null
-          wails3 generate icons -input build/icons/Aurora-1024.png -macfilename build/darwin/Aurora.icns -windowsfilename build/windows/Aurora.ico
-          (Get-Content build/windows/info.json -Raw).Replace('0.1.0', $env:VERSION) | Set-Content build/windows/info.release.json
-          (Get-Content build/windows/wails.exe.manifest -Raw).Replace('version="0.1.0"', "version=`"$($env:VERSION)`"") | Set-Content build/windows/wails.release.exe.manifest
-          wails3 generate syso -arch amd64 -icon build/windows/Aurora.ico -manifest build/windows/wails.release.exe.manifest -info build/windows/info.release.json -out aurora_windows_amd64.syso
-          go build -tags desktop -trimpath -buildvcs=false -ldflags "-s -w -H windowsgui -X github.com/Zijinn/Aurora/internal/version.Version=$($env:VERSION)" -o dist/Aurora.exe ./cmd/cairn-desktop
-          Remove-Item aurora_windows_amd64.syso
+          wails3 generate icons -input build/icons/ReFlow-1024.png -macfilename build/darwin/ReFlow.icns -windowsfilename build/windows/ReFlow.ico
+          # These literals must equal the committed version in info.json / wails.exe.manifest, or
+          # the substitution silently no-ops and ships a stale FileVersion. check-release-config.sh gates it.
+          (Get-Content build/windows/info.json -Raw).Replace('5.2.0', $env:VERSION) | Set-Content build/windows/info.release.json
+          (Get-Content build/windows/wails.exe.manifest -Raw).Replace('version="5.2.0"', "version=`"$($env:VERSION)`"") | Set-Content build/windows/wails.release.exe.manifest
+          wails3 generate syso -arch amd64 -icon build/windows/ReFlow.ico -manifest build/windows/wails.release.exe.manifest -info build/windows/info.release.json -out reflow_windows_amd64.syso
+          go build -tags desktop -trimpath -buildvcs=false -ldflags "-s -w -H windowsgui -X github.com/Zijinn/ReFlow/internal/version.Version=$($env:VERSION)" -o dist/ReFlow.exe ./cmd/reflow-desktop
+          Remove-Item reflow_windows_amd64.syso
       - name: Locate signing tool
         if: ${{ env.WINDOWS_CERTIFICATE != '' }}
         shell: pwsh
@@ -205,16 +207,16 @@ jobs:
             Where-Object FullName -Match '\\x64\\signtool.exe$' | Sort-Object FullName -Descending | Select-Object -First 1
           if (-not $tool) { throw "signtool.exe not found" }
           "SIGNTOOL=$($tool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append
-          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\aurora.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\reflow.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
       - name: Sign application
         if: ${{ env.WINDOWS_CERTIFICATE != '' }}
         shell: pwsh
-        run: '& "$env:SIGNTOOL" sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f "$env:RUNNER_TEMP\aurora.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" dist/Aurora.exe'
+        run: '& "$env:SIGNTOOL" sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f "$env:RUNNER_TEMP\reflow.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" dist/ReFlow.exe'
       - name: Build NSIS installer
         shell: pwsh
         run: |
           wails3 generate webview2bootstrapper -dir build/windows
-          $out = "$pwd\dist\Aurora-$($env:VERSION)-windows-x64-setup.exe"
+          $out = "$pwd\dist\ReFlow-$($env:VERSION)-windows-x64-setup.exe"
           $makensis = (Get-Command makensis.exe -ErrorAction SilentlyContinue)?.Source
           if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
           if (-not (Test-Path $makensis)) { $makensis = "${env:ProgramFiles}\NSIS\makensis.exe" }
@@ -225,15 +227,15 @@ jobs:
             if (-not (Test-Path $makensis)) { $makensis = "${env:ProgramFiles}\NSIS\makensis.exe" }
           }
           if (-not (Test-Path $makensis)) { throw "makensis.exe not found at $makensis" }
-          & $makensis "/DVERSION=$($env:VERSION)" "/DAPP_EXE=$pwd\dist\Aurora.exe" "/DAPP_ICON=$pwd\build\windows\Aurora.ico" "/DLICENSE_FILE=$pwd\LICENSE" "/DWEBVIEW2_BOOTSTRAPPER=$pwd\build\windows\MicrosoftEdgeWebview2Setup.exe" "/DWEB_ASSETS=$pwd\web\dist" "/DOUT_FILE=$out" build/windows/installer.nsi
+          & $makensis "/DVERSION=$($env:VERSION)" "/DAPP_EXE=$pwd\dist\ReFlow.exe" "/DAPP_ICON=$pwd\build\windows\ReFlow.ico" "/DLICENSE_FILE=$pwd\LICENSE" "/DWEBVIEW2_BOOTSTRAPPER=$pwd\build\windows\MicrosoftEdgeWebview2Setup.exe" "/DWEB_ASSETS=$pwd\web\dist" "/DOUT_FILE=$out" build/windows/installer.nsi
       - name: Sign installer
         if: ${{ env.WINDOWS_CERTIFICATE != '' }}
         shell: pwsh
-        run: '& "$env:SIGNTOOL" sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f "$env:RUNNER_TEMP\aurora.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" "dist\Aurora-$($env:VERSION)-windows-x64-setup.exe"'
+        run: '& "$env:SIGNTOOL" sign /fd SHA256 /td SHA256 /tr http://timestamp.digicert.com /f "$env:RUNNER_TEMP\reflow.pfx" /p "$env:WINDOWS_CERTIFICATE_PASSWORD" "dist\ReFlow-$($env:VERSION)-windows-x64-setup.exe"'
       - uses: actions/upload-artifact@v4
         with:
-          name: Aurora-${{ env.VERSION }}-windows-x64
-          path: dist/Aurora-${{ env.VERSION }}-windows-x64-setup.exe
+          name: ReFlow-${{ env.VERSION }}-windows-x64
+          path: dist/ReFlow-${{ env.VERSION }}-windows-x64-setup.exe
 
   publish-release:
     if: ${{ github.ref_type == 'tag' }}
@@ -247,7 +249,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: Aurora-*
+          pattern: ReFlow-*
           path: release-assets
           merge-multiple: true
       - name: Publish GitHub release
@@ -257,6 +259,6 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release-assets/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Aurora ${GITHUB_REF_NAME#v}" \
+            --title "ReFlow ${GITHUB_REF_NAME#v}" \
             --generate-notes \
             --verify-tag

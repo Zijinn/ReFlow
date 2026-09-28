@@ -12,7 +12,7 @@ import (
 
 func TestMigrationsAreIdempotent(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatalf("open database: %v", err)
 	}
@@ -54,7 +54,7 @@ func TestEachPriorMigrationUpgradesToLatest(t *testing.T) {
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 	for prior := 0; prior < len(entries); prior++ {
 		t.Run("from_"+strconv.Itoa(prior), func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "cairn.db")
+			path := filepath.Join(t.TempDir(), "reflow.db")
 			db, err := sql.Open("sqlite", path)
 			if err != nil {
 				t.Fatal(err)

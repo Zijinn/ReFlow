@@ -36,33 +36,33 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Address:        envOr("CAIRN_ADDR", defaultAddress),
-		DataDir:        envOr("CAIRN_DATA_DIR", dataDir),
-		WebDir:         envOr("CAIRN_WEB_DIR", "web/dist"),
-		TLSCertPath:    strings.TrimSpace(os.Getenv("CAIRN_TLS_CERT_PATH")),
-		TLSKeyPath:     strings.TrimSpace(os.Getenv("CAIRN_TLS_KEY_PATH")),
-		LogLevel:       strings.ToLower(envOr("CAIRN_LOG_LEVEL", "info")),
-		RSSHubBase:     envOr("CAIRN_RSSHUB_BASE", "https://rsshub.app"),
-		AllowedOrigins: splitList(os.Getenv("CAIRN_ALLOWED_ORIGINS")),
+		Address:        envOr("REFLOW_ADDR", defaultAddress),
+		DataDir:        envOr("REFLOW_DATA_DIR", dataDir),
+		WebDir:         envOr("REFLOW_WEB_DIR", "web/dist"),
+		TLSCertPath:    strings.TrimSpace(os.Getenv("REFLOW_TLS_CERT_PATH")),
+		TLSKeyPath:     strings.TrimSpace(os.Getenv("REFLOW_TLS_KEY_PATH")),
+		LogLevel:       strings.ToLower(envOr("REFLOW_LOG_LEVEL", "info")),
+		RSSHubBase:     envOr("REFLOW_RSSHUB_BASE", "https://rsshub.app"),
+		AllowedOrigins: splitList(os.Getenv("REFLOW_ALLOWED_ORIGINS")),
 	}
-	cfg.TrustedProxies, err = parseTrustedProxies(os.Getenv("CAIRN_TRUSTED_PROXIES"))
+	cfg.TrustedProxies, err = parseTrustedProxies(os.Getenv("REFLOW_TRUSTED_PROXIES"))
 	if err != nil {
 		return Config{}, err
 	}
 
-	if raw := os.Getenv("CAIRN_LAN_MODE"); raw != "" {
+	if raw := os.Getenv("REFLOW_LAN_MODE"); raw != "" {
 		cfg.LANMode, err = strconv.ParseBool(raw)
 		if err != nil {
-			return Config{}, fmt.Errorf("parse CAIRN_LAN_MODE: %w", err)
+			return Config{}, fmt.Errorf("parse REFLOW_LAN_MODE: %w", err)
 		}
 	}
 
-	if dbPath := os.Getenv("CAIRN_DB_PATH"); dbPath != "" {
+	if dbPath := os.Getenv("REFLOW_DB_PATH"); dbPath != "" {
 		cfg.DBPath = dbPath
 	} else {
-		cfg.DBPath = filepath.Join(cfg.DataDir, "cairn.db")
+		cfg.DBPath = filepath.Join(cfg.DataDir, "reflow.db")
 	}
-	if keyPath := os.Getenv("CAIRN_MASTER_KEY_PATH"); keyPath != "" {
+	if keyPath := os.Getenv("REFLOW_MASTER_KEY_PATH"); keyPath != "" {
 		cfg.MasterKeyPath = keyPath
 	} else {
 		cfg.MasterKeyPath = filepath.Join(cfg.DataDir, "master.key")
@@ -80,17 +80,17 @@ func Load() (Config, error) {
 func (c Config) Validate() error {
 	host, _, err := net.SplitHostPort(c.Address)
 	if err != nil {
-		return fmt.Errorf("invalid CAIRN_ADDR: %w", err)
+		return fmt.Errorf("invalid REFLOW_ADDR: %w", err)
 	}
 
 	if !c.LANMode && !isLoopbackHost(host) {
-		return errors.New("non-loopback CAIRN_ADDR requires CAIRN_LAN_MODE=true")
+		return errors.New("non-loopback REFLOW_ADDR requires REFLOW_LAN_MODE=true")
 	}
 
 	switch c.LogLevel {
 	case "debug", "info", "warn", "error":
 	default:
-		return fmt.Errorf("unsupported CAIRN_LOG_LEVEL %q", c.LogLevel)
+		return fmt.Errorf("unsupported REFLOW_LOG_LEVEL %q", c.LogLevel)
 	}
 
 	if strings.TrimSpace(c.DataDir) == "" {
@@ -103,7 +103,7 @@ func (c Config) Validate() error {
 		return errors.New("master key path cannot be empty")
 	}
 	if (c.TLSCertPath == "") != (c.TLSKeyPath == "") {
-		return errors.New("CAIRN_TLS_CERT_PATH and CAIRN_TLS_KEY_PATH must be set together")
+		return errors.New("REFLOW_TLS_CERT_PATH and REFLOW_TLS_KEY_PATH must be set together")
 	}
 	rssHubBase := c.RSSHubBase
 	if strings.TrimSpace(rssHubBase) == "" {
@@ -111,17 +111,17 @@ func (c Config) Validate() error {
 	}
 	rssHubURL, err := url.Parse(rssHubBase)
 	if err != nil || rssHubURL.Hostname() == "" || (rssHubURL.Scheme != "http" && rssHubURL.Scheme != "https") {
-		return errors.New("CAIRN_RSSHUB_BASE must be an HTTP or HTTPS URL")
+		return errors.New("REFLOW_RSSHUB_BASE must be an HTTP or HTTPS URL")
 	}
 	for _, origin := range c.AllowedOrigins {
 		parsed, err := url.Parse(origin)
 		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") || (parsed.Path != "" && parsed.Path != "/") {
-			return fmt.Errorf("invalid CAIRN_ALLOWED_ORIGINS value %q", origin)
+			return fmt.Errorf("invalid REFLOW_ALLOWED_ORIGINS value %q", origin)
 		}
 	}
 	for _, proxy := range c.TrustedProxies {
 		if !proxy.IsValid() || proxy != proxy.Masked() {
-			return fmt.Errorf("invalid CAIRN_TRUSTED_PROXIES prefix %q", proxy)
+			return fmt.Errorf("invalid REFLOW_TRUSTED_PROXIES prefix %q", proxy)
 		}
 	}
 	return nil
@@ -135,12 +135,12 @@ func parseTrustedProxies(value string) ([]netip.Prefix, error) {
 		if err != nil {
 			address, addressErr := netip.ParseAddr(item)
 			if addressErr != nil {
-				return nil, fmt.Errorf("invalid CAIRN_TRUSTED_PROXIES value %q", item)
+				return nil, fmt.Errorf("invalid REFLOW_TRUSTED_PROXIES value %q", item)
 			}
 			prefix = netip.PrefixFrom(address, address.BitLen())
 		}
 		if prefix != prefix.Masked() {
-			return nil, fmt.Errorf("CAIRN_TRUSTED_PROXIES CIDR %q has host bits set", item)
+			return nil, fmt.Errorf("REFLOW_TRUSTED_PROXIES CIDR %q has host bits set", item)
 		}
 		proxies = append(proxies, prefix)
 	}
@@ -152,7 +152,7 @@ func defaultDataDir() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve user config directory: %w", err)
 	}
-	return filepath.Join(base, "Cairn"), nil
+	return filepath.Join(base, "ReFlow"), nil
 }
 
 func envOr(key, fallback string) string {

@@ -58,7 +58,7 @@ Research focus: high-frequency RSS reading, keyboard shortcuts, context/menu act
 - Feedbin's fixable-feeds post describes continuous feed-health monitoring, alternatives for moved/broken feeds, and notices on the subscriptions page; OPML imports are checked for working alternatives too. This is a useful maintenance pattern for a subscription-management screen.
   - Source: https://feedbin.com/blog/2024/01/15/fixable-feeds/
 
-## Product implications for Aurora/Cairn
+## Product implications for ReFlow
 
 - Preserve the three-pane reading loop: source scope on the left, chronological/unread timeline in the middle, and article detail on the right. Keep focus movement and unread progression usable from the keyboard.
 - Adopt a small, discoverable single-key set for repeated actions (next unread, read/unread, star, mark-all-read, open original, search), plus a visible shortcut help surface modeled on Feedbin's `?` and NetNewsWire's Help > Keyboard Shortcuts.

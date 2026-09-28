@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
 func newResearchTestDB(t *testing.T) *sql.DB {
 	t.Helper()
-	db, err := Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(context.Background(), filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatalf("open test database: %v", err)
 	}

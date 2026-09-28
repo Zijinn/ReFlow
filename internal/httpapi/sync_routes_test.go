@@ -11,9 +11,9 @@ import (
 	"strings"
 	"testing"
 
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func TestSyncAccountAPIKeepsCredentialsPrivateAndRunsJob(t *testing.T) {
@@ -146,9 +146,9 @@ func TestWebDAVConnectionTestVerifiesWritesAndDoesNotPersistCredentials(t *testi
 		switch {
 		case r.Method == "PROPFIND" && r.URL.Path == "/dav/" && r.Header.Get("Depth") == "0":
 			w.WriteHeader(http.StatusMultiStatus)
-		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/dav/aurora-connection-test-"):
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/dav/reflow-connection-test-"):
 			w.WriteHeader(http.StatusCreated)
-		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/dav/aurora-connection-test-"):
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/dav/reflow-connection-test-"):
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			t.Errorf("unexpected WebDAV probe: %s %s depth=%q", r.Method, r.URL.Path, r.Header.Get("Depth"))
@@ -193,7 +193,7 @@ func TestWebDAVConnectionTestVerifiesWritesAndDoesNotPersistCredentials(t *testi
 		Endpoint string `json:"endpoint"`
 	}
 	decodeResponse(t, savedCredentialsTest, &result)
-	if !result.OK || result.Endpoint != upstream.URL+"/dav/aurora-library.json" {
+	if !result.OK || result.Endpoint != upstream.URL+"/dav/reflow-library.json" {
 		t.Fatalf("unexpected connection result: %+v", result)
 	}
 
@@ -255,7 +255,7 @@ func TestWebDAVConnectionTestRejectsInvalidEndpoint(t *testing.T) {
 
 func newSyncTestServer(t *testing.T, fetcher *feedcore.Fetcher) (*Server, *httptest.Server) {
 	t.Helper()
-	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

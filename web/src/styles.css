@@ -17,6 +17,19 @@
   --accent-strong: #285ecb;
   --accent-fill: #3975eb;
   --accent-soft: #eaf1ff;
+  /* 实心主色面（主按钮、阶段勾选泡、日历当天圆点）成套用这三个令牌：底是
+     --accent-strong、字是 --accent-soft。这两个令牌本身按"深面/浅面"成对定义，
+     浅色模式是深蓝+近白，深色模式自动翻成淡蓝+深墨，所以 7 个主色主题 × 明暗
+     两档实测 5.05–9.97:1，全部过正文级 AA。旧写法 --accent-fill + #fff 有
+     7/12 组只有 2.80–4.38:1（13px 半粗按正文算，需要 4.5:1）。
+     只在 :root 声明一次即可：值里的 var() 在 :root 上就地解析，
+     [data-theme] / [data-accent] 覆盖的是同一元素上的 --accent-*，会自动跟上。 */
+  --accent-solid: var(--accent-strong);
+  --accent-solid-hover: color-mix(in srgb, var(--accent-strong) 82%, var(--accent));
+  --accent-solid-ink: var(--accent-soft);
+  /* 文字级主色一律用 --accent-strong，--accent 只做描边与底色：前者在纸面上
+     浅色 5.76–9.79:1、深色 9.73:1 以上；后者浅纸最低 3.76–4.04:1
+     （warm-paper / forest / academic-blue），12px 就落到 AA 以下。 */
   --canvas: #fff;
   --surface: #f5f6f8;
   --surface-raised: #fff;
@@ -27,12 +40,67 @@
   --glass-border: rgb(255 255 255 / 0.82);
   --glass-shadow: 0 20px 60px rgb(25 35 55 / 0.14), 0 2px 8px rgb(25 35 55 / 0.05);
   --text: #18191c;
-  --text-secondary: #686b72;
-  --text-tertiary: #8d9096;
+  /* 灰阶按"承载信息的文字必须在真实纸面上过 AA"来定，四档实测：
+     text 15.9 / secondary 7.24 / tertiary 5.11（含 .wb-shell 的淡蓝底 4.75）
+     / faint 3.46。前三档都能承担 11–13px 小字；faint 过不了正文级 4.5:1，
+     所以只给非文本图形用——拖拽把手、▾ ▸ › 箭头、"—"占位符、滚动条与装饰
+     圆点（WCAG 1.4.11 对图形只要求 3:1）。原来 tertiary 是 3.20，被 82 处
+     引用里有 24 处落在承载信息的日期/脚注/编号上，等于整站小字都不合规。 */
+  --text-secondary: #54575e;
+  --text-tertiary: #6b6e75;
+  --text-faint: #878a90;
   --border: #14161a17;
   --border-strong: #14161a2e;
+  /* 悬停/按压填充：Apple 用半透明系统灰，不用不透明的 --surface-muted，也不是
+     color-mix(--surface-raised N%, transparent)。后者在白卡片上等于自己盖自己——
+     实测侧栏行的悬停亮度差 Δlum = 0.0000、对比 1.000，也就是完全没有反馈。
+     灰阶填充永远只是"多蒙了一层灰"，压在任意静置底色上都能显形。 */
+  --fill-hover: rgb(120 120 128 / 0.09);
+  --fill-pressed: rgb(120 120 128 / 0.17);
+  /* 键盘焦点环：全站只此一处配方。收敛前有三层纯淡底（3px/20%、3.5px/28%、2.5px/45%），
+     把合成后的环与它所在背景的非文字对比实测了一遍（336 个样本：浅色/深色 × 六套强调色
+     × 按钮/侧栏项/图标按钮/可编辑格/统计卡/搜索框/药丸），最坏只有 1.38:1——WCAG 1.4.11
+     对"识别组件与状态所必需的视觉信息"要求 ≥3:1，淡底根本担不起指示器，Tab 到哪儿其实
+     看不出来。改成分层：内圈 2px 实心 --accent-strong（最坏 5.76:1）负责"我在哪"，
+     外圈 3.5px 主色 18% 淡底负责苹果式柔光。总足迹仍是 3.5px，表格里不会顶到邻格。
+     实心层走 strong 档而不是 --accent：六套浅色调里 --accent 做描边最坏只有 3.76:1，
+     余量太薄；偏好开关的 outline 早就在用更深的那一档了。 */
+  --focus-ring: 0 0 0 2px var(--accent-strong), 0 0 0 3.5px color-mix(in srgb, var(--accent) 18%, transparent);
+  /* 整行/整卡这类"大块的焦点"用内描边而不是外扩环：外扩会盖住邻行的边缘，
+     列表里看不出焦点在哪一行。颜色仍取同一档，两种形状是同一语义。 */
+  --focus-ring-inset: inset 0 0 0 2px var(--accent-strong);
+  /* 鬓发线环：0.5px 的贴边描边，只用于给淡底药丸定形。原来两处写死
+     rgb(20 22 26 / 0.05)——深色主题下近黑色 5% 压在深面上等于没有，环直接消失。
+     和 --wb-chrome-ring 一样按主题各给一档。 */
+  --ring-hairline: inset 0 0 0 0.5px rgb(20 22 26 / 0.05);
+  /* 状态色和主色同一分工：不带后缀的用于底色/描边/圆点，-strong 用于承载信息的
+     文字。原因实测过：--danger #c43f37 做文字压在自己 12% 淡底 + 壳层灰蓝上只有
+     3.76:1，--warning #b56b14 做文字在白底就只有 4.14:1，正文级 AA 都不过。
+     余量要按六套强调色 × 浅深两主题的最坏组合算，不是按默认主题算：琥珀字色压在
+     --accent-soft（靛蓝档 #ebeaff）＋ 12% 警示淡底上实测只有 4.54:1，压到 #844a08
+     后最坏一档 5.13，四套危险/警示面全部 ≥4.8。 */
   --danger: #c43f37;
-  --warning: #b56b14;
+  --danger-strong: #ae2f28;
+  --warning: #9c5810;
+  --warning-strong: #844a08;
+  /* 实心危险/警示面和 --accent-solid 同一套规则：字与底成对派生，
+     深色下"淡面 + 深墨"、浅色下"深面 + 近白墨"，不必逐处手调。 */
+  --danger-solid: var(--danger);
+  --danger-solid-ink: #f7fbfa;
+  --warning-solid: var(--warning);
+  --warning-solid-ink: #fff;
+  /* 分段器选中态一份配方，五处共用。深色档不能直接沿用 --surface-raised 当胶囊：
+     它 (#0f1012) 比轨道 --surface-muted (#17181b) 还暗，浮起的选中块会看起来是个洞。 */
+  --segment-track: color-mix(in srgb, var(--surface-muted) 76%, var(--surface-raised));
+  --segment-pill: var(--surface-raised);
+  --segment-pill-ink: var(--accent-strong);
+  --segment-pill-shadow:
+    0 1px 2px rgb(20 22 26 / 0.1),
+    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+  /* 列表行选中底：侧栏三类行（文件夹/订阅/移动抽屉）此前各写各的
+     color-mix(accent-soft …)，四份配方叠在层叠里互相顶。收成一份，
+     悬停要重述底色时也只有一处真相。 */
+  --row-selected: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-raised));
   --shadow-panel: 0 14px 34px rgb(20 22 26 / 0.12);
   --radius-panel: 8px;
   --radius-control: 6px;
@@ -71,6 +139,49 @@
   --fw-semibold: 600;
   --fw-bold: 700;
 
+  /* leading — 行距按 role 命名，不按元素：同一档文字在任何视图里都一样高。
+     收敛前实测同一批元素上并存 1 / 1.05 / 1.1 / 1.15 / 1.2 / 1.45 / 1.5 / 1.55 /
+     1.6 / 1.7 / 1.75 和四处 line-height:normal（21-26px 的标题与大数字在裸奔，
+     CJK 下 normal≈1.4-1.5，比正文还松）。行高与字号成反比是排版常识：越大越紧，
+     但中文标题不吃 1.0 这一档——换行时会贴脸，所以 display 停在 1.2。
+     metric 只给"单个数字坐自己一个框里"的场合（没有下行空间的需求）；
+     solid 给图标控件：行框必须等于字号，否则字形把控件顶高。
+     ui 同时是 body 的默认值——一份标尺如果有角色没被它覆盖，那些角色就会去继承
+     初值 normal，而 normal 由字体度量决定、不受设计管，所以"谁都没写"其实是
+     "写错了没人知道"。默认值挂在 body 上，大字号角色各自显式换档。 */
+  --leading-display: 1.2;
+  --leading-ui: 1.45;
+  --leading-prose: 1.7;
+  --leading-metric: 1.05;
+  --leading-solid: 1;
+  /* reader 是整份标尺里唯一"默认值可被用户改"的一档：阅读面正文的字号与行距由
+     ReaderPane 的外观滑杆通过 --reader-content-* 注入，这里只定它的默认。1.8 不是
+     口味：中文正文 19px 时 1.7 以下长段落开始串行，2.0 以上行间的黏性消失、扫读
+     变慢。它和 prose 分成两档，是因为 prose 服务"界面里的一段话"（AI 摘要、对话框），
+     读完即走；reader 服务"要读十分钟的文章"。 */
+  --leading-reader: 1.8;
+
+  /* tracking — 字距是字号的函数，不是风格偏好：字越大，字母之间的相对空隙读起来越宽，
+     所以负字距必须随字号增长；反过来 11-12px 的小标签要略微放宽才看得清。
+     收敛前同一批元素上并存 -0.005 / -0.01 / -0.015 / -0.02 / 0.01 / 0.02 六个值，
+     且分档和字号并不对应——21px 的计数（.wb-status-item strong）吃 -0.01em，
+     而它的 21px 同伴在别处吃 -0.015em；16px 的引用数吃 -0.01em，比 16px 的标题还紧。
+     其中四档按字号区间固定：micro 给 14-16px 的 UI 标题，metric 给 21-26px 的大数字与
+     拉丁副标题，display 给 ≥30px 的页面主标题，label 给 11-12px 的眉标/小标签。
+     负值只给拉丁文和数字：中文吃负字距会字缝发紧，所以 metric/display 两档的标题类
+     用法一律写在 :lang(en) 下。micro 是唯一例外——14-16px 上它是 0.07-0.08px/字，
+     低于中文的可辨阈值，写与不写在表里没有区别，就不必为它增加一层语言分支。 */
+  --tracking-micro: -0.005em;
+  --tracking-metric: -0.015em;
+  --tracking-display: -0.02em;
+  --tracking-label: 0.02em;
+  /* 宽字距两档只在拉丁全大写/机器可读串上成立，所以不需要 :lang 分支——挂它们的元素
+     本来就是 DOI、日期、全大写英文。eyebrow 给 9-11px 全大写眉标：散体转大写后字母
+     彼此形状太接近，不放到 0.1em 就糊成一条灰带，读不出边界。meta 给 DOI 与分组标签：
+     0.04em 让标识串和周围的自然语言在视觉上分行，扫读时能一眼跳过它。 */
+  --tracking-eyebrow: 0.1em;
+  --tracking-meta: 0.04em;
+
   /* spacing — 4px grid, snapped from the observed 1–34px mass */
   --space-1: 2px;
   --space-2: 4px;
@@ -96,13 +207,23 @@
   --elev-overlay: 0 14px 34px rgb(20 22 26 / 0.12);
   --elev-glass: 0 20px 60px rgb(25 35 55 / 0.14), 0 2px 8px rgb(25 35 55 / 0.05);
 
-  /* motion */
+  /* motion
+     三档时长就是全站唯一的时长标尺：fast 给指针反馈（hover/press 的颜色与位移，
+     必须跟手），base 给状态切换与浮层入场，slow 只给大面（空态、视图转场）。
+     曲线只有一条——--ease 是重起慢停的减速曲线，入场和交互都用它，
+     这样同一类动作在任何视图里的节奏都相同（实测收敛前有 100/120/140/160/180ms 五档）。 */
   --dur-fast: 100ms;
   --dur-base: 180ms;
   --dur-slow: 260ms;
   --ease: cubic-bezier(0.2, 0, 0, 1);
+  /* 按压缩放量全站只此一档：实测此前有 0.985 / 0.97 / 0.93 三种，同一个"按下"
+     在不同控件上手感差一个量级。行内、表格里的控件不用它（见 transform: none）。 */
+  --press-scale: 0.985;
 
-  /* stacking */
+  /* stacking
+     var() 替换发生在 token 层，不能往后面接数字：`z-index: var(--z-raised)0`
+     不会得到 30，而是整条声明在 computed-value 阶段失效、退化成 auto。要偏移就
+     写 calc()。批量 codemod 之后务必用 getComputedStyle 复核一层。 */
   --z-raised: 3;
   --z-sticky: 8;
   --z-overlay: 30;
@@ -120,6 +241,9 @@
   --accent-strong: #8bbcff;
   --accent-fill: #3478f6;
   --accent-soft: #17243d;
+  /* 深档的实心主色面本身已经是淡面，hover 只能继续往白提；浅档那套是
+     往 --accent 提亮，两者方向相反，所以只有这个派生值需要按主题重写。 */
+  --accent-solid-hover: color-mix(in srgb, var(--accent-strong) 86%, #fff);
   --canvas: #0d0e10;
   --surface: #111215;
   --surface-raised: #0f1012;
@@ -130,12 +254,34 @@
   --glass-border: rgb(255 255 255 / 0.1);
   --glass-shadow: 0 24px 68px rgb(0 0 0 / 0.44), 0 2px 8px rgb(0 0 0 / 0.2);
   --text: #f1f2f4;
-  --text-secondary: #9a9da5;
-  --text-tertiary: #696c74;
+  --text-secondary: #a3a6ad;
+  --text-tertiary: #8b8e96;
+  --text-faint: #6f727a;
   --border: #ffffff12;
   --border-strong: #ffffff24;
+  /* 深底要更实的灰才压得住：沿用工作台导航已验证过的两档 */
+  --fill-hover: rgb(99 99 102 / 0.32);
+  --fill-pressed: rgb(99 99 102 / 0.46);
+  /* 鬓发线在深色下必须换成白描边：:root 那档近黑 5% 压在深面上等于没有。
+     取与 --wb-chrome-ring 深色档同一量。焦点环本身不用覆盖——它的两层都由
+     --accent / --accent-strong 派生，而这两枚令牌已经按主题翻面。 */
+  --ring-hairline: inset 0 0 0 0.5px rgb(255 255 255 / 0.09);
   --danger: #ff8f9c;
   --warning: #f1be68;
+  /* 深色的基础档本来就是"淡面"，做文字已经 8.62 / 10.98:1，直接别名过去 */
+  --danger-strong: var(--danger);
+  --warning-strong: var(--warning);
+  /* 深色档这两个状态色是"淡面"，所以实心面上的字必须换成深墨：
+     原来 .button--danger 写死 #f7fbfa，落在 #ff8f9c 上实测只有 2.08:1。
+     深墨对淡面：#2b0d11 = 8.27:1，#241603 = 10.33:1。 */
+  --danger-solid-ink: #2b0d11;
+  --warning-solid-ink: #241603;
+  /* 深底上轨道和胶囊都要往白提，才保住"胶囊 > 轨道 > 页面"三级高程 */
+  --segment-track: color-mix(in srgb, #fff 9%, var(--canvas));
+  --segment-pill: color-mix(in srgb, #fff 17%, var(--surface-raised));
+  --segment-pill-shadow:
+    0 1px 2px rgb(0 0 0 / 0.45),
+    0 0 0 1px rgb(255 255 255 / 0.08);
   --shadow-panel: 0 20px 54px rgb(0 0 0 / 0.38);
 }
 
@@ -152,6 +298,13 @@ body,
 body {
   min-height: 100dvh;
   overflow: hidden;
+  /* 全站默认行距必须落在这里，否则标尺只是"愿意写的角色才用"的建议：
+     实测未声明 line-height 的元素一路继承初值 normal，而 -apple-system 的 normal
+     给 11px 标签 1.18、给 21px 字标 1.14——字号越小行距反而越紧，正好和"行距与
+     字号成反比"的设计规则相反，也和设计里的任何一档都不相等。ui 是 11–16px 标签
+     这一族的角色（占未声明元素的绝大多数），更大字号的角色（字标、标题、正文、
+     阅读面）各自显式挂自己的档位，不靠这条兜底。 */
+  line-height: var(--leading-ui);
   background: var(--canvas);
   color: var(--text);
 }
@@ -171,12 +324,15 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--accent);
+  /* 和 --focus-ring 的实心层同一档色、同一粗细：outline 这一族没有柔光外圈，
+     但"2px 实心 accent-strong"是共用的那一句，焦点在整个 app 里长成同一个东西。
+     原来这里用 --accent（最坏 3.76:1），换 strong 档后最坏 5.76:1。 */
+  outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
 }
 button:active:not(:disabled) {
-  transform: scale(0.985);
-  transition: transform 100ms ease-out;
+  transform: scale(var(--press-scale));
+  transition: transform var(--dur-fast) var(--ease);
 }
 button:disabled {
   cursor: not-allowed;
@@ -204,7 +360,7 @@ button:disabled {
   width: 1px;
   height: 1px;
   padding: 0;
-  margin: -var(--space-1);
+  margin: calc(var(--space-1) * -1);
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
@@ -248,14 +404,14 @@ button:disabled {
   margin: var(--space-5) 0 var(--space-10);
   color: var(--text-secondary);
   font-size: var(--text-base);
-  line-height: 1.6;
+  line-height: var(--leading-ui);
 }
 
 .pane-divider {
   position: absolute;
   top: 0;
   bottom: 0;
-  z-index: var(--z-raised)0;
+  z-index: var(--z-overlay);
   width: 9px;
   padding: 0;
   margin: 0;
@@ -273,8 +429,8 @@ button:disabled {
   content: "";
   background: color-mix(in srgb, var(--border) 68%, transparent);
   transition:
-    background 120ms ease,
-    width 120ms ease;
+    background var(--dur-fast) var(--ease),
+    width var(--dur-fast) var(--ease);
 }
 .pane-divider:hover::after,
 .pane-divider:focus-visible::after,
@@ -336,11 +492,6 @@ button:disabled {
   height: 100%;
   object-fit: cover;
 }
-.brand__name {
-  font-size: var(--text-lg);
-  font-weight: var(--fw-bold);
-}
-
 .icon-button {
   display: grid;
   width: 34px;
@@ -354,10 +505,21 @@ button:disabled {
   border: 0;
   border-radius: var(--radius-control);
   cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
+/* 图标按钮的悬停/按压一律走透明灰：旧写法用不透明的 --surface-muted，
+   既是实心灰（压在白色侧栏上比选中态还重），又和 .icon-button--active
+   的底色完全相同——悬停当前视图的图标按钮实测 Δlum = 0，毫无回应。
+   选中态要叠一层只能用 background-image，写成 background 简写会把这层冲掉。 */
 .icon-button:hover {
   color: var(--text);
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+.icon-button:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
 }
 .icon-button svg {
   width: 19px;
@@ -370,7 +532,17 @@ button:disabled {
 }
 .icon-button--active {
   color: var(--accent-strong);
-  background: var(--surface-muted);
+  background-color: var(--surface-muted);
+}
+.icon-button--active:hover {
+  color: var(--accent-strong);
+  background-color: var(--surface-muted);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.icon-button--active:active:not(:disabled) {
+  color: var(--accent-strong);
+  background-color: var(--surface-muted);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 
 .search-box {
@@ -425,7 +597,9 @@ button:disabled {
   gap: var(--space-1);
   padding: var(--space-2);
   margin-top: var(--space-6);
-  background: transparent;
+  /* 轨道必须比页面底暗一点：侧栏本身是 --surface-raised 白，透明轨道会让
+     选中胶囊（同一个白）实测 Δlum = 0，选中态只剩一圈描边。 */
+  background: var(--segment-track);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
 }
@@ -442,12 +616,12 @@ button:disabled {
   font-weight: var(--fw-semibold);
   background: transparent;
   border: 0;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   cursor: pointer;
   transition:
-    background 0.16s ease,
-    color 0.16s ease,
-    box-shadow 0.16s ease;
+    background var(--dur-base) var(--ease),
+    color var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease);
 }
 .workspace-segment__item:hover {
   color: var(--text);
@@ -463,11 +637,9 @@ button:disabled {
   white-space: nowrap;
 }
 .workspace-segment__item--active {
-  color: var(--accent-strong);
-  background: var(--surface-raised);
-  box-shadow:
-    0 1px 2px rgb(20 22 26 / 0.08),
-    0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--segment-pill-ink);
+  background: var(--segment-pill);
+  box-shadow: var(--segment-pill-shadow);
 }
 .nav-item,
 .folder-row,
@@ -486,23 +658,46 @@ button:disabled {
   border-radius: var(--radius-control);
   cursor: pointer;
   transition:
-    background 0.14s ease,
-    color 0.14s ease;
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .nav-item {
   grid-template-columns: 20px minmax(0, 1fr) auto;
 }
+/* 侧栏行的指针反馈只有一种语言：透明系统灰蒙层，不位移、不缩放。
+   这里历史上叠了 4 份 :hover（不透明 --surface-muted、82% 灰、88% 灰、
+   translateX(1px)），后写的只盖住先写的同属性，行与行其实一直在变。 */
 .nav-item:hover,
 .folder-row:hover,
 .feed-row:hover {
-  background: var(--surface-muted);
+  color: var(--text);
+  background-color: var(--fill-hover);
+}
+.nav-item:active:not(:disabled),
+.folder-row:active:not(:disabled),
+.feed-row:active:not(:disabled) {
+  background-color: var(--fill-pressed);
 }
 .nav-item--active,
 .folder-row--active,
 .feed-row--active {
   color: var(--text);
-  background: color-mix(in srgb, var(--accent-soft) 62%, var(--surface-raised));
+  background: var(--row-selected);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* 选中行被悬停：上面的 :hover 与这条同特异度，靠书写顺序压过它；
+   选中底必须重述一遍，否则灰蒙会把蓝色顶掉。灰量叠在 background-image 上。 */
+.nav-item--active:hover,
+.folder-row--active:hover,
+.feed-row--active:hover {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.nav-item--active:active:not(:disabled),
+.folder-row--active:active:not(:disabled),
+.feed-row--active:active:not(:disabled) {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 /* Accent rail on the leading edge gives the selected row a clear, modern anchor. */
 .nav-item--active::before,
@@ -536,7 +731,7 @@ button:disabled {
 .feed-row__alert {
   display: inline-flex;
   align-items: center;
-  color: var(--warning);
+  color: var(--warning-strong);
   flex-shrink: 0;
 }
 .feed-row__alert svg {
@@ -559,26 +754,25 @@ button:disabled {
   font-weight: var(--fw-semibold);
   color: var(--text-secondary);
   text-transform: uppercase;
-  letter-spacing: 0;
 }
 .subscription-scroll {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--text-tertiary) 45%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-faint) 45%, transparent) transparent;
 }
 .subscription-scroll::-webkit-scrollbar {
   width: 8px;
 }
 .subscription-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-tertiary) 40%, transparent);
+  background: color-mix(in srgb, var(--text-faint) 40%, transparent);
   border: 2px solid transparent;
   border-radius: var(--radius-md);
   background-clip: padding-box;
 }
 .subscription-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-tertiary) 65%, transparent);
+  background: color-mix(in srgb, var(--text-faint) 65%, transparent);
   background-clip: padding-box;
 }
 .subscription-scroll::-webkit-scrollbar-track {
@@ -601,7 +795,6 @@ button:disabled {
   font-weight: var(--fw-semibold);
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0;
 }
 .folder-row {
   grid-template-columns: 16px minmax(0, 1fr) auto;
@@ -719,8 +912,6 @@ button:disabled {
   margin: 0;
   overflow: hidden;
   font-size: var(--text-2xl);
-  line-height: 1.2;
-  letter-spacing: 0;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -739,7 +930,7 @@ button:disabled {
   padding: 0 var(--space-6);
   font-size: var(--text-base);
   font-weight: var(--fw-semibold);
-  line-height: 1.2;
+  line-height: var(--leading-ui);
   white-space: nowrap;
   text-decoration: none;
   border: 1px solid transparent;
@@ -767,9 +958,9 @@ button:disabled {
   background: var(--surface-muted);
 }
 .button--danger {
-  color: #f7fbfa;
-  background: var(--danger);
-  border-color: var(--danger);
+  color: var(--danger-solid-ink);
+  background: var(--danger-solid);
+  border-color: var(--danger-solid);
 }
 .button--danger:hover {
   filter: brightness(1.07);
@@ -809,12 +1000,6 @@ button:disabled {
   background: transparent;
   border: 0;
   cursor: pointer;
-}
-.timeline-entry:hover {
-  background: color-mix(in srgb, var(--surface-muted) 62%, transparent);
-}
-.timeline-entry--selected {
-  background: var(--surface-muted);
 }
 .timeline-entry--read h2 {
   font-weight: var(--fw-medium);
@@ -858,8 +1043,6 @@ button:disabled {
   overflow: hidden;
   font-size: var(--text-md);
   font-weight: var(--fw-bold);
-  line-height: 1.35;
-  letter-spacing: 0;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -868,7 +1051,6 @@ button:disabled {
   margin: var(--space-3) 0 0;
   overflow: hidden;
   font-size: var(--text-base);
-  line-height: 1.4;
   color: var(--text-secondary);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -888,7 +1070,7 @@ button:disabled {
   padding: var(--space-1) var(--space-3);
   font-size: var(--text-3xs);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-meta);
   color: var(--accent-strong);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
@@ -916,7 +1098,7 @@ button:disabled {
 }
 .entry-star:hover,
 .entry-star--active {
-  color: var(--warning);
+  color: var(--warning-strong);
   background: color-mix(in srgb, var(--warning) 12%, transparent);
 }
 .entry-star svg {
@@ -1020,21 +1202,21 @@ button:disabled {
 .pane-state h2 {
   margin: 0;
   font-size: var(--text-2xl);
-  letter-spacing: 0;
+  line-height: var(--leading-display);
 }
 .timeline__empty p,
 .pane-state p {
   max-width: 34ch;
   margin: var(--space-4) 0 var(--space-9);
   font-size: var(--text-base);
-  line-height: 1.55;
+  line-height: var(--leading-ui);
   color: var(--text-secondary);
 }
 .pane-state > svg {
   width: 30px;
   height: 30px;
   margin-bottom: var(--space-9);
-  color: var(--danger);
+  color: var(--danger-strong);
 }
 .timeline-skeleton {
   padding: var(--space-1) var(--space-9);
@@ -1117,7 +1299,7 @@ button:disabled {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: var(--z-raised)0;
+  z-index: var(--z-overlay);
   display: grid;
   width: min(250px, calc(100vw - 28px));
   max-height: min(320px, calc(100dvh - 90px));
@@ -1143,7 +1325,10 @@ button:disabled {
   cursor: pointer;
 }
 .reader-tag-picker label:hover {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+.reader-tag-picker label:active {
+  background-color: var(--fill-pressed);
 }
 .reader-tag-picker input {
   width: 16px;
@@ -1187,7 +1372,10 @@ button:disabled {
     color 0.14s ease;
 }
 .reader-ai-option:hover:not(:disabled) {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+.reader-ai-option:active:not(:disabled) {
+  background-color: var(--fill-pressed);
 }
 .reader-ai-option:disabled {
   cursor: default;
@@ -1207,7 +1395,7 @@ button:disabled {
   max-height: 40vh;
   overflow-y: auto;
   font-size: var(--text-sm);
-  line-height: 1.6;
+  line-height: var(--leading-prose);
   white-space: pre-wrap;
 }
 .reader-scroll {
@@ -1227,21 +1415,44 @@ button:disabled {
 .article-header {
   padding: var(--space-14) 0 var(--space-11);
   border-bottom: 1px solid var(--border);
+  /* 标题字号该跟着"这一栏有多宽"走，不是窗口宽度：收敛前同一个标题在 26/32/26 之间
+     来回跳——1280 窗 639px 栏给 26px，1100 窗 459px 栏反而给 32px，栏变窄字却变大。
+     根因是字号挂在窗口断点上，而阅读栏宽度在 900/1250 两处被三栏布局重新分配。
+     inline-size 容器把量尺交还给真正的那一栏（与 .wb-table-wrap 的 wbtable 同一套路）。 */
+  container-type: inline-size;
+  container-name: reader-measure;
 }
+/* No max-width on the title: an 18ch cap wrapped CJK titles after ~9 characters.
+   The reading measure is what constrains the line — hence no `max-width: none`
+   guard either, since nothing above it caps a width any more. */
+.article-header h1 {
+  margin: 0;
+  font-family: var(--font-reader);
+  font-size: var(--text-4xl);
+  font-weight: var(--fw-medium);
+  line-height: var(--leading-display);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+/* 负字距只给拉丁标题：中文吃 -0.02em 会把字缝压得发紧。语言标在元素自己的 lang 上
+   （ReaderPane 按标题文字判定），不是界面 locale——中文期刊的标题在英文界面下仍是中文。 */
+.article-header h1:lang(en) {
+  letter-spacing: var(--tracking-display);
+}
+@container reader-measure (max-width: 599px) {
+  .article-header h1 {
+    font-size: var(--text-3xl);
+  }
+  .article-header h1:lang(en) {
+    letter-spacing: var(--tracking-metric);
+  }
+}
+
 .article-header__source {
   margin: 0 0 var(--space-7);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
   color: var(--accent-strong);
-}
-.article-header h1 {
-  margin: 0;
-  font-family: var(--font-reader);
-  font-size: var(--text-4xl);
-  font-weight: var(--fw-semibold);
-  line-height: 1.2;
-  letter-spacing: 0;
-  overflow-wrap: anywhere;
 }
 .article-header__meta {
   display: flex;
@@ -1258,7 +1469,6 @@ button:disabled {
   padding: var(--space-12) 0 var(--space-16);
   font-family: var(--font-reader);
   font-size: var(--text-xl);
-  line-height: 1.75;
   overflow-wrap: anywhere;
 }
 .article-content > :first-child {
@@ -1279,8 +1489,7 @@ button:disabled {
 .article-content h4 {
   margin: 1.7em 0 0.65em;
   font-family: var(--font-ui);
-  line-height: 1.28;
-  letter-spacing: 0;
+  line-height: var(--leading-display);
 }
 .article-content h2 {
   font-size: var(--text-3xl);
@@ -1324,7 +1533,7 @@ button:disabled {
   padding: var(--space-8);
   overflow-x: auto;
   font-size: var(--text-md);
-  line-height: 1.55;
+  line-height: var(--leading-ui);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
@@ -1384,9 +1593,10 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-2);
   padding: var(--space-2);
-  background: transparent;
+  background: var(--segment-track);
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
+  /* 轨道圆角 = 胶囊圆角 + 内衬（8 + 4），和分段器同一套几何 */
+  border-radius: var(--radius-xl);
 }
 .ai-mode-tab {
   display: flex;
@@ -1402,7 +1612,7 @@ button:disabled {
   white-space: nowrap;
   background: transparent;
   border: 0;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 .ai-mode-tab svg {
@@ -1411,9 +1621,9 @@ button:disabled {
   flex: 0 0 15px;
 }
 .ai-mode-tab--active {
-  color: var(--accent-strong);
-  background: var(--surface-raised);
-  box-shadow: 0 1px 3px rgb(20 30 26 / 0.12);
+  color: var(--segment-pill-ink);
+  background: var(--segment-pill);
+  box-shadow: var(--segment-pill-shadow);
 }
 .ai-operation {
   padding-top: var(--space-7);
@@ -1427,7 +1637,7 @@ button:disabled {
   margin: 0;
   font-family: var(--font-ui);
   font-size: var(--text-base);
-  line-height: 1.65;
+  line-height: var(--leading-prose);
   white-space: pre-wrap;
 }
 .ai-result small {
@@ -1461,7 +1671,7 @@ button:disabled {
 .ai-chat__message p {
   margin: 0;
   font-size: var(--text-base);
-  line-height: 1.55;
+  line-height: var(--leading-prose);
   white-space: pre-wrap;
 }
 .ai-chat__form {
@@ -1491,8 +1701,8 @@ button:disabled {
   padding: var(--space-3) var(--space-5);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
-  color: var(--surface-raised);
-  background: var(--warning);
+  color: var(--warning-solid-ink);
+  background: var(--warning-solid);
   border-radius: var(--radius-xs);
   transform: translateX(-50%);
   box-shadow: var(--shadow-panel);
@@ -1501,7 +1711,7 @@ button:disabled {
   position: fixed;
   right: 16px;
   bottom: max(16px, env(safe-area-inset-bottom));
-  z-index: var(--z-sticky)0;
+  z-index: calc(var(--z-modal) - 1);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -1544,7 +1754,6 @@ button:disabled {
   font-weight: var(--fw-semibold);
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0;
 }
 .mobile-library-row {
   display: grid;
@@ -1560,13 +1769,30 @@ button:disabled {
   border: 0;
   border-radius: var(--radius-control);
   cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
+/* 移动抽屉里的行和侧栏里的行是同一件事：选中底走同一个 --row-selected，
+   指针反馈走同一档透明灰。旧写法 hover 与 --active 都是 --surface-muted，
+   悬停当前选中行实测 Δlum = 0，而且选中态在两个入口长得完全不同。 */
 .mobile-library-row:hover {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+.mobile-library-row:active:not(:disabled) {
+  background-color: var(--fill-pressed);
 }
 .mobile-library-row--active {
   color: var(--text);
-  background: var(--surface-muted);
+  background-color: var(--row-selected);
+}
+.mobile-library-row--active:hover {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.mobile-library-row--active:active:not(:disabled) {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 .mobile-library-row__icon {
   display: grid;
@@ -1595,17 +1821,17 @@ button:disabled {
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  z-index: var(--z-sticky)0;
+  z-index: calc(var(--z-modal) - 1);
   background: rgb(15 20 18 / 0.34);
   backdrop-filter: blur(6px) saturate(1.15);
   -webkit-backdrop-filter: blur(6px) saturate(1.15);
-  animation: fade-in 140ms ease-out;
+  animation: fade-in var(--dur-base) var(--ease);
 }
 .dialog-content {
   position: fixed;
   top: 50%;
   left: 50%;
-  z-index: var(--z-sticky)1;
+  z-index: var(--z-modal);
   width: min(480px, calc(100vw - 28px));
   max-height: min(680px, calc(100dvh - 28px));
   padding: 0;
@@ -1615,7 +1841,7 @@ button:disabled {
   border-radius: var(--radius-panel);
   box-shadow: var(--shadow-panel);
   transform: translate(-50%, -50%);
-  animation: dialog-in 170ms ease-out;
+  animation: dialog-in var(--dur-base) var(--ease);
 }
 .dialog-header {
   min-height: 58px;
@@ -1625,7 +1851,7 @@ button:disabled {
 .dialog-header h2 {
   margin: 0;
   font-size: var(--text-xl);
-  letter-spacing: 0;
+  line-height: var(--leading-display);
 }
 .dialog-content--confirm {
   width: min(400px, calc(100vw - 28px));
@@ -1634,7 +1860,7 @@ button:disabled {
   margin: 0;
   padding: var(--space-9) var(--space-9) var(--space-2);
   color: var(--text);
-  line-height: 1.55;
+  line-height: var(--leading-ui);
   white-space: pre-line;
 }
 .dialog-content--confirm .dialog-actions {
@@ -1671,8 +1897,8 @@ button:disabled {
   padding: var(--space-5) var(--space-5);
   margin: var(--space-7) 0 0;
   font-size: var(--text-sm);
-  line-height: 1.45;
-  color: var(--danger);
+  line-height: var(--leading-ui);
+  color: var(--danger-strong);
   background: color-mix(in srgb, var(--danger) 8%, transparent);
   border-left: 3px solid var(--danger);
 }
@@ -1708,13 +1934,12 @@ button:disabled {
 }
 .range-output {
   justify-self: end;
-  margin-top: -var(--space-10);
   font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 .privacy-confirmation {
   padding: var(--space-4) var(--space-5);
-  color: var(--warning);
+  color: var(--warning-strong);
   background: color-mix(in srgb, var(--warning) 8%, transparent);
   border-left: 3px solid var(--warning);
 }
@@ -1732,7 +1957,6 @@ button:disabled {
 .preference-section h2 {
   margin: 0 0 var(--space-6);
   font-size: var(--text-base);
-  letter-spacing: 0;
 }
 .preference-section p {
   margin: var(--space-2) 0 0;
@@ -1808,7 +2032,7 @@ button:disabled {
 .pairing-code-display strong {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-xl);
-  letter-spacing: 0;
+  line-height: var(--leading-metric);
 }
 .pairing-code-display time {
   font-size: var(--text-2xs);
@@ -1910,7 +2134,7 @@ button:disabled {
   color: var(--text-tertiary);
 }
 .sync-account-copy .sync-account-error {
-  color: var(--danger);
+  color: var(--danger-strong);
 }
 .sync-account-actions {
   display: flex;
@@ -1928,8 +2152,8 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: var(--space-2);
-  background: var(--surface-muted);
-  border-radius: var(--radius-control);
+  background: var(--segment-track);
+  border-radius: var(--radius-xl);
 }
 .segmented-control__item {
   min-width: 0;
@@ -1945,9 +2169,9 @@ button:disabled {
   cursor: pointer;
 }
 .segmented-control__item--active {
-  color: var(--accent-strong);
-  background: var(--surface-raised);
-  box-shadow: 0 1px 3px rgb(20 30 26 / 0.12);
+  color: var(--segment-pill-ink);
+  background: var(--segment-pill);
+  box-shadow: var(--segment-pill-shadow);
 }
 .dialog-meta {
   padding: var(--space-7) var(--space-9);
@@ -2002,7 +2226,7 @@ button:disabled {
   padding: var(--space-5) var(--space-5);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-xs);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
   resize: vertical;
 }
 .color-field {
@@ -2074,7 +2298,7 @@ button:disabled {
 .pairing-header h2 {
   margin: 0;
   font-size: var(--text-xl);
-  letter-spacing: 0;
+  line-height: var(--leading-display);
 }
 .pairing-mark {
   display: grid;
@@ -2093,7 +2317,6 @@ button:disabled {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: var(--text-xl);
   font-weight: var(--fw-bold);
-  letter-spacing: 0;
   text-transform: uppercase;
 }
 .pairing-submit {
@@ -2105,7 +2328,7 @@ button:disabled {
   position: fixed;
   top: min(18vh, 150px);
   left: 50%;
-  z-index: var(--z-sticky)1;
+  z-index: var(--z-modal);
   width: min(560px, calc(100vw - 28px));
   max-height: min(560px, calc(100dvh - 40px));
   overflow: hidden;
@@ -2116,7 +2339,7 @@ button:disabled {
   backdrop-filter: blur(32px) saturate(1.65);
   -webkit-backdrop-filter: blur(32px) saturate(1.65);
   transform: translateX(-50%);
-  animation: command-in 150ms ease-out;
+  animation: command-in var(--dur-base) var(--ease);
 }
 .command-search {
   display: grid;
@@ -2220,7 +2443,7 @@ button:disabled {
   }
 }
 
-/* Aurora reference layout: quiet navigation, one primary workspace, immersive reading. */
+/* ReFlow reference layout: quiet navigation, one primary workspace, immersive reading. */
 .app-shell {
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   background: var(--canvas);
@@ -2241,7 +2464,7 @@ button:disabled {
 }
 .workspace-header {
   position: relative;
-  z-index: var(--z-raised)5;
+  z-index: calc(var(--z-overlay) + 5);
   display: grid;
   grid-template-columns: minmax(150px, 1fr) minmax(280px, 420px) minmax(210px, 1fr);
   height: 60px;
@@ -2369,8 +2592,8 @@ button:disabled {
   border-radius: var(--radius-sm);
   cursor: default;
   transition:
-    color 140ms ease,
-    background 140ms ease;
+    color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 .window-control:hover {
   color: var(--text);
@@ -2424,10 +2647,6 @@ button:disabled {
   border-radius: var(--radius-md);
   box-shadow: none;
 }
-.brand__name {
-  font-size: var(--text-xl);
-  font-weight: var(--fw-semibold);
-}
 .nav-list {
   gap: var(--space-1);
   margin-top: var(--space-10);
@@ -2439,21 +2658,12 @@ button:disabled {
   margin: 0;
   color: var(--text-secondary);
   border-radius: var(--radius-xs);
-  transition:
-    color 160ms ease,
-    background 160ms ease;
-}
-.nav-item:hover,
-.folder-row:hover,
-.feed-row:hover {
-  color: var(--text);
-  background: color-mix(in srgb, var(--surface-muted) 82%, transparent);
 }
 .nav-item--active,
 .folder-row--active,
 .feed-row--active {
   color: var(--accent-strong);
-  background: var(--accent-soft);
+  background: var(--row-selected);
   box-shadow: none;
 }
 .subscription-section {
@@ -2468,7 +2678,6 @@ button:disabled {
   color: var(--text-tertiary);
   font-size: var(--text-2xs);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0;
   text-transform: none;
 }
 .library-group {
@@ -2559,14 +2768,14 @@ button:disabled {
 .library-page-header .pane-header__titles h1 {
   font-size: var(--text-xl);
   font-weight: var(--fw-semibold);
-  line-height: 1.3;
+  line-height: var(--leading-display);
 }
 .pane-header__context {
   margin-bottom: var(--space-3);
   color: var(--text-tertiary);
   font-size: var(--text-3xs);
   font-weight: var(--fw-bold);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
 }
 .pane-header h1 {
@@ -2574,14 +2783,14 @@ button:disabled {
   font-family: var(--font-ui);
   font-size: var(--text-3xl);
   font-weight: var(--fw-semibold);
-  line-height: 1.1;
+  line-height: var(--leading-display);
 }
 .pane-header__description {
   max-width: 62ch;
   margin: var(--space-4) 0 0;
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--leading-ui);
 }
 .timeline-filterbar {
   display: flex;
@@ -2605,19 +2814,16 @@ button:disabled {
   border-radius: var(--radius-control);
   cursor: pointer;
   transition:
-    color 160ms ease,
-    background 160ms ease,
-    border-color 160ms ease;
+    color var(--dur-base) var(--ease),
+    background var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease);
 }
 .filter-chip:hover {
   color: var(--text);
   border-color: var(--border-strong);
 }
-.filter-chip--active {
-  color: #fff;
-  background: var(--accent-fill);
-  border-color: var(--accent-fill);
-}
+/* 选中态写在下面分段器那一段：那里有一条同特异度的 .filter-chip 重述，
+   而重述之后才是 .filter-chip--active ——写在这里会被那条重述盖掉。 */
 .timeline-mark-read {
   background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
 }
@@ -2670,7 +2876,7 @@ button:disabled {
   color: var(--accent-strong);
   font-size: var(--text-3xs);
   font-weight: var(--fw-bold);
-  letter-spacing: 0.1em;
+  letter-spacing: var(--tracking-eyebrow);
   text-transform: uppercase;
 }
 .daily-signal__heading h2 {
@@ -2683,7 +2889,7 @@ button:disabled {
   margin: var(--space-7) 0 var(--space-8);
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  line-height: 1.6;
+  line-height: var(--leading-ui);
 }
 .daily-signal dl {
   display: grid;
@@ -2808,7 +3014,7 @@ button:disabled {
   color: var(--text-tertiary);
   font-size: var(--text-2xs);
   font-weight: var(--fw-medium);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--tracking-meta);
 }
 .timeline-group-label i {
   height: 1px;
@@ -2837,17 +3043,30 @@ button:disabled {
   margin: 0;
   border: 0;
   border-radius: var(--radius-md);
-  transition: background 160ms ease;
+  transition: background var(--dur-base) var(--ease);
 }
 .timeline-entry--has-image {
   grid-template-columns: minmax(0, 1fr) 82px 34px;
 }
 .timeline-entry:hover {
-  background: color-mix(in srgb, var(--surface-raised) 54%, transparent);
+  background-color: var(--fill-hover);
+}
+.timeline-entry:active:not(:disabled) {
+  background-color: var(--fill-pressed);
 }
 .timeline-entry--selected {
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
   box-shadow: inset 3px 0 0 var(--accent);
+}
+/* 选中行悬停：通用 :hover 同特异度又写在前面，会把 10% 主色底冲成灰蒙，
+   所以选中底要在这里重述，悬停量仍然走 background-image。 */
+.timeline-entry--selected:hover {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.timeline-entry--selected:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 /* Unread dot lives in the left gutter, outside the text column. */
 .timeline-entry::before {
@@ -2927,12 +3146,12 @@ button:disabled {
   font-family: var(--font-ui);
   font-size: var(--text-lg);
   font-weight: var(--fw-medium);
-  line-height: 1.4;
+  line-height: var(--leading-ui);
 }
 .timeline-entry p {
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  line-height: 1.5;
+  line-height: var(--leading-ui);
 }
 /* Standard keeps the abstract visible — for journal feeds it is the only
    preview available. Compact is the dense, title-only mode. */
@@ -3001,7 +3220,7 @@ button:disabled {
 }
 .timeline-entry--magazine h2 {
   font-size: var(--text-xl);
-  line-height: 1.35;
+  line-height: var(--leading-ui);
 }
 .timeline-entry--magazine .timeline-entry__summary {
   display: -webkit-box;
@@ -3105,15 +3324,18 @@ button:disabled {
   border-radius: var(--radius-md);
 }
 .app-shell--reader-open .timeline-entry:hover {
-  background: color-mix(in srgb, var(--surface-muted) 66%, transparent);
-  border-radius: var(--radius-md);
+  background-color: var(--fill-hover);
+}
+.app-shell--reader-open .timeline-entry:active:not(:disabled) {
+  background-color: var(--fill-pressed);
 }
 .app-shell--reader-open .timeline-entry--selected {
-  background: linear-gradient(
+  --entry-selected-img: linear-gradient(
     145deg,
     color-mix(in srgb, var(--accent) 14%, var(--surface-raised)),
     color-mix(in srgb, var(--accent) 5%, var(--surface-raised))
   );
+  background: var(--entry-selected-img);
   border-color: transparent;
   border-bottom-color: var(--border);
   border-radius: var(--radius-md);
@@ -3121,11 +3343,26 @@ button:disabled {
     inset 3px 0 0 var(--accent),
     inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
 }
+/* 双栏布局里的同一行，悬停/按压必须和单栏列表反应一致（否则同一篇文章在
+   两种布局下"被指到"的样子不同）。选中态的斜向渐变本身占着
+   background-image，所以灰蒙作为第一层叠在它上面。
+   background-color 要一起写 transparent：单栏列表的那条 :hover 还在给
+   background-color 上灰蒙，两层都上就叠成 0.17/0.31（实测），比别的行重一倍。 */
+.app-shell--reader-open .timeline-entry--selected:hover {
+  background-color: transparent;
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover)), var(--entry-selected-img);
+}
+.app-shell--reader-open .timeline-entry--selected:active:not(:disabled) {
+  background-color: transparent;
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed)), var(--entry-selected-img);
+}
 .app-shell--reader-open .timeline-entry__main:focus-visible {
   outline: 0;
 }
 .app-shell--reader-open .timeline-entry:has(.timeline-entry__main:focus-visible) {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
+  /* 整行用内描边：外扩环会压到上下相邻的行，列表里反而看不出焦点在哪一行。
+     1px/28% 淡底实测与行底色只有 1.38:1，换成和控件焦点环同一档的实心 2px。 */
+  box-shadow: var(--focus-ring-inset);
 }
 .app-shell--reader-open .timeline-entry__image {
   display: none;
@@ -3141,13 +3378,13 @@ button:disabled {
   font-family: var(--font-ui);
   font-size: var(--text-md);
   font-weight: var(--fw-semibold);
-  line-height: 1.35;
+  line-height: var(--leading-ui);
 }
 .app-shell--reader-open .timeline-entry__summary {
   display: -webkit-box;
   margin-top: var(--space-4);
   font-size: var(--text-2xs);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -3245,8 +3482,8 @@ button:disabled {
   margin: 0;
   color: var(--text);
   font-size: var(--text-xs);
+  line-height: var(--leading-ui);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0;
   text-transform: none;
 }
 .article-header__meta {
@@ -3268,28 +3505,18 @@ button:disabled {
   color: var(--accent);
   border-bottom-color: var(--accent);
 }
-/* No max-width here: an 18ch cap wrapped CJK titles after ~9 characters.
-   The content column already constrains the measure. */
-.article-header h1 {
-  font-size: var(--text-3xl);
-  font-weight: var(--fw-medium);
-  line-height: 1.3;
-  letter-spacing: -0.01em;
-  text-wrap: pretty;
-}
 .article-header__summary {
   max-width: 62ch;
   margin: var(--space-10) 0 0;
   color: var(--text-secondary);
   font-family: var(--font-reader);
   font-size: var(--text-xl);
-  line-height: 1.55;
+  line-height: var(--leading-prose);
 }
 .article-content {
   width: min(680px, calc(100% - 84px));
   padding: var(--space-15) 0 var(--space-16);
   font-size: var(--text-2xl);
-  line-height: 1.8;
 }
 .article-content h1,
 .article-content h2,
@@ -3408,9 +3635,6 @@ button:disabled {
   }
   .today-overview {
     grid-template-columns: minmax(250px, 0.9fr) minmax(340px, 1.2fr);
-  }
-  .article-header h1 {
-    font-size: var(--text-4xl);
   }
 }
 
@@ -3662,7 +3886,6 @@ button:disabled {
   }
   .timeline-entry h2 {
     font-size: var(--text-xl);
-    line-height: 1.2;
   }
   .timeline-entry__author {
     display: none;
@@ -3699,9 +3922,6 @@ button:disabled {
   }
   .article-header__source-row {
     margin-bottom: var(--space-12);
-  }
-  .article-header h1 {
-    font-size: var(--text-4xl);
   }
   .article-header__summary {
     font-size: var(--text-lg);
@@ -3768,7 +3988,7 @@ button:disabled {
 .ai-workbench,
 .ai-workbench.ai-workbench--open {
   position: relative;
-  z-index: var(--z-raised)0;
+  z-index: var(--z-overlay);
   display: block;
   width: var(--ai-panel-width);
   height: 100%;
@@ -3814,8 +4034,8 @@ button:disabled {
   content: "";
   background: var(--border-strong);
   transition:
-    width 120ms ease,
-    background 120ms ease;
+    width var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
 }
 .ai-workbench__resize:hover::after,
 .ai-workbench__resize:focus-visible::after {
@@ -3888,7 +4108,7 @@ button:disabled {
   box-shadow: var(--shadow-panel);
 }
 .reader-toast--error {
-  color: var(--danger);
+  color: var(--danger-strong);
 }
 
 @media (min-width: 901px) and (max-width: 1365px) {
@@ -3922,7 +4142,7 @@ button:disabled {
   .ai-workbench.ai-workbench--open {
     position: fixed;
     inset: 54px 0 calc(var(--mobile-nav-height) + env(safe-area-inset-bottom));
-    z-index: var(--z-sticky)2;
+    z-index: calc(var(--z-modal) + 1);
     width: 100% !important;
     height: auto;
     border-left: 0;
@@ -3965,11 +4185,6 @@ button:disabled {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-}
-.brand__name {
-  font-size: var(--text-xl);
-  font-weight: var(--fw-bold);
-  letter-spacing: 0;
 }
 .subscription-section {
   min-height: 0;
@@ -4031,15 +4246,6 @@ button:disabled {
   height: 38px;
   border-radius: var(--radius-md);
 }
-.sidebar .folder-row:hover,
-.sidebar .feed-row:hover {
-  background: color-mix(in srgb, var(--accent-soft) 48%, var(--surface-raised));
-}
-.sidebar .folder-row--active,
-.sidebar .feed-row--active {
-  color: var(--accent-strong);
-  background: color-mix(in srgb, var(--accent-soft) 80%, var(--surface-raised));
-}
 .sidebar__footer {
   display: none;
 }
@@ -4052,12 +4258,6 @@ button:disabled {
 }
 .app-shell--reader-open .article-header {
   padding: var(--space-13) 0 var(--space-11);
-}
-.app-shell--reader-open .article-header h1 {
-  max-width: none;
-  font-size: clamp(30px, 3vw, 38px);
-  line-height: 1.12;
-  text-wrap: pretty;
 }
 .app-shell--reader-open .article-header__summary {
   max-width: none;
@@ -4085,7 +4285,7 @@ button:disabled {
   inset: 0;
   background: var(--border-strong);
   border-radius: var(--radius-lg);
-  transition: background 180ms ease;
+  transition: background var(--dur-base) var(--ease);
 }
 .preference-switch > i::after {
   position: absolute;
@@ -4097,7 +4297,7 @@ button:disabled {
   background: var(--surface-raised);
   border-radius: var(--radius-full);
   box-shadow: 0 1px 3px rgb(18 25 42 / 0.18);
-  transition: transform 180ms ease;
+  transition: transform var(--dur-base) var(--ease);
 }
 .preference-switch input:checked + i {
   background: var(--accent-fill);
@@ -4106,7 +4306,7 @@ button:disabled {
   transform: translateX(16px);
 }
 .preference-switch input:focus-visible + i {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
 }
 .preference-switch input:disabled + i {
@@ -4192,7 +4392,10 @@ button:disabled {
   cursor: pointer;
 }
 .auto-tag-scope-list > label:hover {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+.auto-tag-scope-list > label:active {
+  background-color: var(--fill-pressed);
 }
 .auto-tag-scope-list input {
   width: 15px;
@@ -4260,7 +4463,7 @@ button:disabled {
   margin-top: var(--space-2);
   color: var(--text-tertiary);
   font-size: var(--text-2xs);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .preference-switch-row input {
   position: absolute;
@@ -4274,7 +4477,7 @@ button:disabled {
   height: 20px;
   background: var(--border-strong);
   border-radius: var(--radius-lg);
-  transition: background 180ms ease;
+  transition: background var(--dur-base) var(--ease);
 }
 .preference-switch-row > i::after {
   position: absolute;
@@ -4286,7 +4489,7 @@ button:disabled {
   background: var(--surface-raised);
   border-radius: var(--radius-full);
   box-shadow: 0 1px 3px rgb(18 25 42 / 0.18);
-  transition: transform 180ms ease;
+  transition: transform var(--dur-base) var(--ease);
 }
 .preference-switch-row input:checked + i {
   background: var(--accent-fill);
@@ -4295,7 +4498,7 @@ button:disabled {
   transform: translateX(16px);
 }
 .preference-switch-row input:focus-visible + i {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-strong);
   outline-offset: 2px;
 }
 .preference-switch-row input:disabled + i {
@@ -4309,7 +4512,8 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-6);
-  margin: var(--space-7) auto -var(--space-11);
+  /* a tail `-var(...)` negation invalidates the whole shorthand, centring included */
+  margin: var(--space-7) auto 0;
   color: var(--text-secondary);
   font-size: var(--text-2xs);
 }
@@ -4347,7 +4551,7 @@ button:disabled {
 .dialog-form > .field-label {
   display: block;
   margin: 0 0 var(--space-4);
-  line-height: 1.35;
+  line-height: var(--leading-ui);
 }
 .dialog-form > .field-label:not(:first-child) {
   margin-top: var(--space-9);
@@ -4356,18 +4560,21 @@ button:disabled {
 .dialog-form > .select-input {
   box-sizing: border-box;
   min-width: 0;
+  /* 控件几何，不是行距：这两个控件是固定 40px 高，1.25 只决定单行文字在框里的
+     基线位置（Blink 用 line box 在内容盒里垂直定位选中项文本）。换成 leading 标尺
+     上的任何一档都会让文字上下偏移几分之一像素，所以留字面值并写明理由。 */
   line-height: 1.25;
 }
 .dialog-form > .field-hint {
   margin: var(--space-4) 0 0;
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .dialog-form > .form-error {
   display: flex;
   align-items: flex-start;
   box-sizing: border-box;
   margin-top: var(--space-8);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .dialog-actions {
   align-items: center;
@@ -4390,13 +4597,13 @@ button:disabled {
   margin: 0;
   text-align: right;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  line-height: var(--leading-solid);
 }
 .checkbox-row {
   align-items: flex-start;
   min-height: 24px;
   margin-top: var(--space-8);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .checkbox-row input {
   flex: 0 0 16px;
@@ -4445,25 +4652,26 @@ button:disabled {
 .select-input:focus-visible {
   outline: 0;
   border-color: transparent;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: var(--focus-ring);
 }
 .button {
   border-radius: var(--radius-lg);
   box-shadow: none;
 }
 .button--primary {
-  color: var(--text-on-accent, #fff);
-  background: var(--accent-fill);
-  border-color: var(--accent-fill);
+  color: var(--accent-solid-ink);
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
 }
 .button--primary:hover {
-  background: color-mix(in srgb, var(--accent-fill) 90%, #fff);
+  background: var(--accent-solid-hover);
+  border-color: var(--accent-solid-hover);
 }
 .field-hint {
   margin: var(--space-4) 0 0;
   color: var(--text-tertiary);
-  font-size: var(--text-2xs);
-  line-height: 1.45;
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
 }
 .sync-provider-note {
   display: flex;
@@ -4518,7 +4726,7 @@ button:disabled {
   margin-top: var(--space-2);
   color: var(--text-secondary);
   font-size: var(--text-2xs);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .sync-provider-note__action {
   flex: 0 0 auto;
@@ -4535,7 +4743,7 @@ button:disabled {
   padding: var(--space-5) var(--space-5);
   margin: var(--space-8) 0 0;
   font-size: var(--text-sm);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .form-status svg {
   flex: 0 0 auto;
@@ -4631,16 +4839,29 @@ button:disabled {
   border-radius: var(--radius-lg);
   cursor: pointer;
   transition:
-    color 160ms ease,
-    background 160ms ease;
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .preferences-nav__item:hover {
   color: var(--text);
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+.preferences-nav__item:active:not(:disabled) {
+  background-color: var(--fill-pressed);
 }
 .preferences-nav__item--active {
   color: var(--accent-strong);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.preferences-nav__item--active:hover {
+  color: var(--accent-strong);
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.preferences-nav__item--active:active:not(:disabled) {
+  color: var(--accent-strong);
+  background-color: color-mix(in srgb, var(--accent) 12%, transparent);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 .preferences-nav__item--active svg {
   color: var(--accent-strong);
@@ -4679,13 +4900,14 @@ button:disabled {
 }
 .preferences-header h2 {
   font-size: var(--text-2xl);
+  line-height: var(--leading-display);
   font-weight: var(--fw-semibold);
 }
 .preferences-header p {
   margin: var(--space-2) 0 0;
   color: var(--text-secondary);
   font-size: var(--text-xs);
-  line-height: 1.45;
+  line-height: var(--leading-ui);
 }
 .preferences-scroll {
   min-height: 0;
@@ -4703,11 +4925,12 @@ button:disabled {
 }
 .preference-section h2 {
   font-size: var(--text-base);
+  line-height: var(--leading-ui);
   font-weight: var(--fw-semibold);
 }
 .preference-section p {
   max-width: 62ch;
-  line-height: 1.55;
+  line-height: var(--leading-ui);
 }
 .preference-heading--intro {
   min-height: 74px;
@@ -4723,17 +4946,12 @@ button:disabled {
 .segmented-control {
   gap: var(--space-2);
   padding: var(--space-2);
-  background: color-mix(in srgb, var(--surface-muted) 76%, var(--surface-raised));
-  border-radius: var(--radius-lg);
+  background: var(--segment-track);
+  border-radius: var(--radius-xl);
 }
 .segmented-control__item {
   height: 34px;
   border-radius: var(--radius-md);
-}
-.segmented-control__item--active {
-  color: var(--accent-strong);
-  background: var(--surface-raised);
-  box-shadow: 0 1px 3px rgb(18 25 42 / 0.1);
 }
 .sync-provider-section {
   padding: var(--space-4) 0 var(--space-10);
@@ -4764,9 +4982,9 @@ button:disabled {
   cursor: pointer;
   box-shadow: 0 8px 24px rgb(29 42 68 / 0.06);
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease,
-    transform 100ms ease-out;
+    border-color var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease),
+    transform var(--dur-fast) var(--ease);
 }
 .sync-provider-card--icloud {
   --provider-accent: #7869e6;
@@ -4814,7 +5032,7 @@ button:disabled {
   overflow: hidden;
   color: var(--text-secondary);
   font-size: var(--text-2xs);
-  line-height: 1.4;
+  line-height: var(--leading-ui);
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -4828,7 +5046,7 @@ button:disabled {
 .preferences-nav__item:focus-visible,
 .segmented-control__item:focus-visible {
   outline: 0;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: var(--focus-ring);
 }
 .sync-account-list,
 .device-list {
@@ -4945,12 +5163,7 @@ button:disabled {
 .folder-row--active,
 .feed-row--active {
   color: var(--accent-strong);
-  background: var(--accent-soft);
-}
-.nav-item:hover,
-.folder-row:hover,
-.feed-row:hover {
-  background: color-mix(in srgb, var(--surface-muted) 88%, var(--surface));
+  background: var(--row-selected);
 }
 .library-group__heading {
   display: flex;
@@ -5014,12 +5227,6 @@ button:disabled {
 .filter-chip {
   border-radius: var(--radius-md);
 }
-.field-hint {
-  margin: -var(--space-2) 0 var(--space-5);
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  line-height: 1.45;
-}
 
 .subscription-context-menu {
   position: fixed;
@@ -5075,12 +5282,17 @@ button:disabled {
   background: var(--surface-muted);
   outline: 0;
 }
+/* 菜单项把全局 outline 关掉了，只剩一层灰底——--surface-muted 压在菜单面板上
+   不到 1.2:1，键盘用户看不出自己在第几项。内描边：不外扩，不撑破菜单。 */
+.subscription-context-menu__item:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+}
 .subscription-context-menu__item svg {
   width: 16px;
   height: 16px;
 }
 .subscription-context-menu__item--danger {
-  color: var(--danger);
+  color: var(--danger-strong);
 }
 .subscription-context-menu__separator {
   height: 1px;
@@ -5147,7 +5359,7 @@ button:disabled {
   font-family: var(--font-ui);
   font-size: var(--text-lg);
   font-weight: var(--fw-semibold);
-  line-height: 1.5;
+  line-height: var(--leading-ui);
 }
 .article-header__translation svg {
   width: 18px;
@@ -5186,7 +5398,7 @@ button:disabled {
   color: var(--accent-strong) !important;
   font-size: var(--text-md) !important;
   font-weight: var(--fw-semibold);
-  line-height: 1.45 !important;
+  line-height: var(--leading-ui) !important;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -5204,7 +5416,7 @@ button:disabled {
 .reader--article .article-content {
   font-family: var(--reader-content-font, var(--font-reader));
   font-size: var(--reader-content-size, 19px);
-  line-height: var(--reader-content-leading, 1.8);
+  line-height: var(--reader-content-leading, var(--leading-reader));
 }
 @media (min-width: 1101px) {
   .reader--inspector-open .reader-scroll {
@@ -5235,7 +5447,7 @@ button:disabled {
   backdrop-filter: blur(30px) saturate(1.65);
   -webkit-backdrop-filter: blur(30px) saturate(1.65);
   transform-origin: top right;
-  animation: inspector-in 160ms ease-out;
+  animation: inspector-in var(--dur-base) var(--ease);
 }
 @keyframes inspector-in {
   from {
@@ -5376,7 +5588,7 @@ button:disabled {
   overflow: hidden;
   font-size: var(--text-2xs);
   font-weight: var(--fw-semibold);
-  line-height: 1.4;
+  line-height: var(--leading-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5385,7 +5597,7 @@ button:disabled {
   overflow: hidden;
   color: var(--text-secondary);
   font-size: var(--text-3xs);
-  line-height: 1.35;
+  line-height: var(--leading-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -5403,7 +5615,7 @@ button:disabled {
   margin: 0;
   color: var(--text-tertiary);
   font-size: var(--text-2xs);
-  line-height: 1.5;
+  line-height: var(--leading-ui);
 }
 .reader-selection-tools {
   position: fixed;
@@ -5421,7 +5633,7 @@ button:disabled {
   -webkit-backdrop-filter: blur(24px) saturate(1.7);
   transform: translate(-50%, -100%);
   transform-origin: bottom center;
-  animation: selection-tools-in 120ms ease-out;
+  animation: selection-tools-in var(--dur-fast) var(--ease);
 }
 @keyframes selection-tools-in {
   from {
@@ -5470,10 +5682,10 @@ button:disabled {
 }
 .reader-selection-note button {
   padding: 0 var(--space-5);
-  color: #fff;
+  color: var(--accent-solid-ink);
   font-size: var(--text-2xs);
   font-weight: var(--fw-semibold);
-  background: var(--accent-fill);
+  background: var(--accent-solid);
   border: 0;
   border-radius: var(--radius-md);
   cursor: pointer;
@@ -5800,10 +6012,6 @@ button:disabled {
   border-radius: var(--radius-lg);
   box-shadow: 0 5px 12px rgb(28 52 110 / 0.18);
 }
-.brand__name {
-  font-size: var(--text-2xl);
-  font-weight: var(--fw-bold);
-}
 .nav-list {
   gap: var(--space-2);
   margin-top: var(--space-10);
@@ -5818,35 +6026,30 @@ button:disabled {
   font-weight: var(--fw-medium);
   border-radius: var(--radius-lg);
   transition:
-    color 180ms ease,
-    background 180ms ease,
-    box-shadow 180ms ease,
-    transform 180ms ease;
+    color var(--dur-base) var(--ease),
+    background var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
 }
 .nav-item--saved {
   margin-top: var(--space-5);
 }
 .nav-item--active {
-  color: #fff;
-  background: var(--accent-fill);
-  box-shadow: 0 7px 16px rgb(48 102 217 / 0.22);
+  color: var(--accent-solid-ink);
+  background: var(--accent-solid);
+  box-shadow: 0 7px 16px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .nav-item--active svg {
-  color: #fff;
+  color: var(--accent-solid-ink);
 }
 .nav-item--active .nav-item__count {
-  color: rgb(255 255 255 / 0.84);
+  color: color-mix(in srgb, var(--accent-solid-ink) 84%, transparent);
 }
 .folder-row--active,
 .feed-row--active {
   color: var(--accent-strong);
-  background: color-mix(in srgb, var(--accent-soft) 84%, transparent);
+  background: var(--row-selected);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
-}
-.nav-item:hover,
-.folder-row:hover,
-.feed-row:hover {
-  transform: translateX(1px);
 }
 .subscription-section {
   margin-top: var(--space-10);
@@ -5861,7 +6064,7 @@ button:disabled {
   color: var(--text-secondary);
   font-size: var(--text-sm);
   font-weight: var(--fw-bold);
-  line-height: 1.35;
+  line-height: var(--leading-ui);
 }
 .section-heading h2,
 .library-group__heading h3,
@@ -5890,7 +6093,12 @@ button:disabled {
   border-radius: var(--radius-md);
 }
 .library-group__heading .icon-button:hover {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
+}
+/* 与通用 .icon-button:active 同特异度，必须写在后面才压得住（否则按下不动）。 */
+.library-group__heading .icon-button:active:not(:disabled) {
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 .sidebar-library-empty {
   display: flex;
@@ -5915,21 +6123,23 @@ button:disabled {
 .sidebar-add {
   min-height: 42px;
   padding: 0 var(--space-6);
-  color: #fff;
+  color: var(--accent-solid-ink);
   font-size: var(--text-base);
   font-weight: var(--fw-semibold);
-  background: var(--accent-fill);
+  background: var(--accent-solid);
   border: 0;
   border-radius: var(--radius-xl);
-  box-shadow: 0 8px 18px rgb(48 102 217 / 0.2);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--accent) 20%, transparent);
 }
+/* hover 方向统一到 --accent-solid-hover：这里原来是往 #173f9a 压暗，
+   而 .button--primary 是提亮，同一件事两种反应。 */
 .sidebar-add:hover {
-  color: #fff;
-  background: color-mix(in srgb, var(--accent-fill) 88%, #173f9a);
-  box-shadow: 0 10px 22px rgb(48 102 217 / 0.26);
+  color: var(--accent-solid-ink);
+  background: var(--accent-solid-hover);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 .sidebar-add kbd {
-  color: rgb(255 255 255 / 0.72);
+  color: color-mix(in srgb, var(--accent-solid-ink) 72%, transparent);
   background: transparent;
   border: 0;
 }
@@ -5975,17 +6185,23 @@ button:disabled {
 }
 .filter-chip:hover {
   color: var(--text);
-  background: color-mix(in srgb, var(--surface-raised) 70%, transparent);
+  background: var(--fill-hover);
 }
-.filter-chip--active,
-:root[data-theme="dark"] .filter-chip--active {
-  color: #fff;
-  background: var(--accent-fill);
-  box-shadow: 0 4px 10px rgb(48 102 217 / 0.2);
+/* 选中的筛选泡是实心主色面：字/底用 --accent-solid 那一对，深色模式自动换档。
+   这里曾有一份 :root[data-theme="dark"] 的同选择器复制，只把 --accent-fill +
+   #fff 又写了一遍（深色实测 2.80–4.72:1）。必须写在上面那条 .filter-chip
+   重述之后——同特异度靠文件顺序，写早了会被盖掉。
+   光晕从 --accent 派生：原来写死 rgb(48 102 217)，切到 wine / warm-paper
+   就变成"蓝色发光的红泡"。 */
+.filter-chip--active {
+  color: var(--accent-solid-ink);
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .filter-chip--active:hover {
-  color: #fff;
-  background: color-mix(in srgb, var(--accent-fill) 90%, #173f9a);
+  background: var(--accent-solid-hover);
+  border-color: var(--accent-solid-hover);
 }
 
 @media (max-width: 620px) {
@@ -5997,10 +6213,12 @@ button:disabled {
   }
 }
 
-/* Sidebar brand alignment: Heiti text, Aurora blue accents, and an unframed lockup. */
+/* Sidebar brand alignment: Heiti text, an unframed lockup. 侧栏曾经私藏过
+   --sidebar-blue: #245fba / --sidebar-blue-soft: #e9f1ff 两个令牌，但选中行的
+   最终样式早已被下面 .sidebar .feed-row--active 那一版（走 --accent-soft）覆盖，
+   私有色只剩下"文件夹图标 + 悬停文字"两处仍然写死蓝色——切到 wine / forest 主题
+   时全应用变色、唯独这里仍是蓝。所以删令牌、两处改回主色体系。 */
 .sidebar {
-  --sidebar-blue: #245fba;
-  --sidebar-blue-soft: #e9f1ff;
   background: var(--surface-raised);
 }
 .sidebar__header {
@@ -6026,11 +6244,6 @@ button:disabled {
   border-radius: var(--radius-lg);
   box-shadow: none;
 }
-.brand__name {
-  color: var(--text);
-  font-size: var(--text-2xl);
-  font-weight: var(--fw-bold);
-}
 .sidebar .folder-row,
 .sidebar .feed-row {
   color: var(--text);
@@ -6038,7 +6251,7 @@ button:disabled {
 
 /* Match the filter rail to the Today signal card surface. */
 .timeline-filterbar__scopes {
-  background: var(--surface-raised);
+  background: var(--segment-track);
   border-color: var(--border);
   border-radius: var(--radius-xl);
   box-shadow: none;
@@ -6052,30 +6265,8 @@ button:disabled {
   text-align: start;
 }
 
-.app-shell--reader-open .timeline-filterbar__scopes {
-  background: var(--surface-raised);
-  border-color: var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: none;
-}
-.app-shell--reader-open .timeline-filterbar .filter-chip--active {
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
-}
-.sidebar .folder-row--active,
-.sidebar .feed-row--active {
-  color: var(--sidebar-blue);
-  background: var(--sidebar-blue-soft);
-  box-shadow: inset 0 0 0 1px rgb(36 95 186 / 0.12);
-}
 .sidebar .folder-tree-row .folder-row > svg {
-  color: var(--sidebar-blue);
-}
-.sidebar .folder-row:hover,
-.sidebar .feed-row:hover {
-  color: #243b61;
-  background: color-mix(in srgb, var(--sidebar-blue-soft) 62%, var(--surface-raised));
+  color: var(--accent-strong);
 }
 
 /* Final chrome pass: use tonal separation instead of hard vertical rules. */
@@ -6139,9 +6330,11 @@ button:disabled {
 .brand__name {
   font-size: var(--text-2xl);
   font-weight: var(--fw-bold);
+  /* 21px 走 display 档：和同字号的 .preferences-header h2 / .wb-cal-head h2 同一行距，
+     也让 body 的 ui 默认值不至于把字标的行盒撑到 30px。字标在 .brand 的 min-height:46
+     里垂直居中，所以这一档只决定字形自身的行盒，不改侧栏顶栏高度。 */
+  line-height: var(--leading-display);
 }
-
-/* Dense library navigation: scopes stay scannable while folders own their feeds. */
 .subscription-section {
   margin-top: var(--space-7);
 }
@@ -6312,16 +6505,39 @@ button:disabled {
 .folder-row__toggle {
   height: 36px;
 }
+/* 悬停/按压一律用 --fill-*：侧栏底色就是 --surface-raised，旧写法
+   color-mix(--surface-raised 58%, transparent) 等于白盖白，实测两个主题的
+   亮度差都是 0.0000——主导航列表此前完全没有指针反馈。
+   必须写 background-color 长写：`background` 简写会把选中行叠层的
+   background-image 一并重置成 none，于是悬停选中行时蓝色选中底被灰蒙顶掉
+   （实测 rest rgb(241,246,255) → hover rgba(120,120,128,.09)）。 */
 .sidebar .folder-row:hover,
 .sidebar .feed-row:hover {
   transform: none;
-  background: color-mix(in srgb, var(--surface-raised) 58%, transparent);
+  background-color: var(--fill-hover);
+}
+.sidebar .folder-row:active:not(:disabled),
+.sidebar .feed-row:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
 }
 .sidebar .folder-row--active,
 .sidebar .feed-row--active {
   color: var(--text);
-  background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-raised));
+  background-color: var(--row-selected);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* 选中行再叠一层：透明灰压在主题色底上两种主题都成立，不必为深色另调 alpha。
+   特异度和上面两条 :hover/:active 打平，所以一定要写在它们后面。 */
+.sidebar .folder-row--active:hover,
+.sidebar .feed-row--active:hover {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.sidebar .folder-row--active:active:not(:disabled),
+.sidebar .feed-row--active:active:not(:disabled) {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 
 /* A folder row is one visual unit: the hover/active surface lives on the
@@ -6329,17 +6545,34 @@ button:disabled {
    frame instead of reading as two separate boxes. */
 .folder-tree-row {
   border-radius: var(--radius-sm);
-  transition: background 0.14s ease;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .sidebar .folder-tree-row:hover {
-  background: color-mix(in srgb, var(--surface-raised) 58%, transparent);
+  background-color: var(--fill-hover);
+}
+.sidebar .folder-tree-row:has(.folder-row:active) {
+  background-color: var(--fill-pressed);
 }
 .sidebar .folder-tree-row:has(.folder-row--active) {
-  background: color-mix(in srgb, var(--accent-soft) 68%, var(--surface-raised));
+  background-color: var(--row-selected);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+/* 选中文件夹行的悬停/按压：底色列在上面的通用 :hover 里会被灰蒙顶掉，
+   所以这里把选中色重述一遍（:has 让特异度多一档，天然压得住），
+   悬停量用 background-image 叠上去，一个框里同时保住"选中"和"在这儿"。 */
+.sidebar .folder-tree-row:has(.folder-row--active):hover {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.sidebar .folder-tree-row:has(.folder-row--active):has(.folder-row:active) {
+  background-color: var(--row-selected);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 .sidebar .folder-tree-row .folder-row,
 .sidebar .folder-tree-row .folder-row:hover,
+/* 按压也要一起压平：父行已经用 :has(.folder-row:active) 上了 17%，内层再涂一次
+   会叠成 ~24%，同一个语义动作在文件夹行比在订阅行深一档。 */
+.sidebar .folder-tree-row .folder-row:active:not(:disabled),
 .sidebar .folder-tree-row .folder-row--active {
   background: transparent;
   box-shadow: none;
@@ -6359,7 +6592,7 @@ button:disabled {
   padding-bottom: 0;
 }
 .feed-row--nested .feed-row__title {
-  line-height: 1.25;
+  line-height: var(--leading-ui);
 }
 .feed-row--nested .feed-row__mark,
 .feed-row--nested .feed-row__alert,
@@ -6386,9 +6619,9 @@ button:disabled {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-1);
   padding: var(--space-2);
-  background: color-mix(in srgb, var(--surface-muted) 78%, transparent);
+  background: var(--segment-track);
   border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-xl);
 }
 .app-shell--reader-open .timeline-filterbar .filter-chip {
   width: 100%;
@@ -6396,17 +6629,9 @@ button:disabled {
   min-width: 0;
   padding: 0 var(--space-3);
   gap: var(--space-2);
-  color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
-  background: transparent;
-  border: 0;
-  border-radius: var(--radius-sm);
-}
-.app-shell--reader-open .timeline-filterbar .filter-chip--active {
-  color: var(--accent-strong);
-  background: var(--surface-raised);
-  box-shadow: 0 1px 3px rgb(25 35 55 / 0.1);
+  border-radius: var(--radius-md);
 }
 .app-shell--reader-open .timeline-mark-read {
   width: 100%;
@@ -6446,12 +6671,6 @@ button:disabled {
   min-height: 30px;
 }
 
-.app-shell--reader-open .article-header h1 {
-  max-width: none;
-  font-size: var(--text-3xl);
-  font-weight: var(--fw-medium);
-  line-height: 1.32;
-}
 
 @media (max-width: 1250px) {
   .app-shell--reader-open .reader-toolbar .ai-workbench__quick-label {
@@ -6473,9 +6692,6 @@ button:disabled {
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
   }
-  .app-shell--reader-open .article-header h1 {
-    font-size: var(--text-4xl);
-  }
 }
 
 @media (max-width: 620px) {
@@ -6492,15 +6708,6 @@ button:disabled {
     min-width: 0;
     font-size: var(--text-2xs);
   }
-  .app-shell--reader-open .article-header h1 {
-    font-size: var(--text-3xl);
-  }
-}
-
-/* Keep the article title on the same reading measure as its summary and body. */
-.app-shell--reader-open .article-header h1 {
-  max-width: none;
-  text-wrap: pretty;
 }
 
 /* Final sidebar surface lock: exactly match the reader surface and remove the logo frame. */
@@ -6546,14 +6753,34 @@ button:disabled {
   color: var(--text-secondary);
   font-size: var(--text-base);
   font-weight: var(--fw-medium);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .app-view-switch__item:hover {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
   color: var(--text);
 }
+/* 与侧栏其余控件同一套语言：按压只上灰蒙，不缩放——两张并排的卡挤一下，
+   读起来像整块侧栏在抖。 */
+.app-view-switch__item:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
+}
 .app-view-switch__item--active {
-  background: var(--accent-soft);
+  background-color: var(--accent-soft);
   border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.app-view-switch__item--active:hover {
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+  color: var(--accent-strong);
+}
+.app-view-switch__item--active:active:not(:disabled) {
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
   color: var(--accent-strong);
 }
 
@@ -6571,46 +6798,24 @@ button:disabled {
 .workspace > .reader--placeholder {
   grid-row: 1 / -1;
 }
+/* 结构骨架：几何、材质、配色统一由下面的 “Apple 设计感刷新” 与
+   “工作台去灰阶” 两段负责，这里只留必须存在的布局属性。 */
 .wb-nav {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-2);
-  margin-bottom: var(--space-9);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
   overflow-x: auto;
 }
 .wb-nav-item {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-4) var(--space-7);
   border: 0;
-  border-radius: var(--radius-md);
   background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--text-base);
-  font-weight: var(--fw-medium);
   white-space: nowrap;
-  transition:
-    background var(--dur-fast) var(--ease),
-    color var(--dur-fast) var(--ease);
-}
-.wb-nav-item:hover {
-  background: var(--surface-muted);
-  color: var(--text);
-}
-.wb-nav-item--active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: var(--fw-semibold);
 }
 .wb-main {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: var(--space-11) var(--space-13) 60px;
+  padding: var(--space-11) var(--space-13) var(--space-15);
 }
 .wb-header {
   display: flex;
@@ -6619,34 +6824,72 @@ button:disabled {
   gap: var(--space-9);
   margin-bottom: var(--space-11);
 }
+/* 标题层级：eyebrow（小标签）→ 大标题 → 说明。中文一律不加 uppercase，
+   字距只在拉丁标题上收紧；数值全部走 --text/--fw 标尺。 */
 .wb-eyebrow {
-  color: var(--accent);
-  font-size: var(--text-xs);
-  letter-spacing: 1.5px;
-  font-weight: var(--fw-bold);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-label);
 }
 .wb-header h1 {
-  margin: var(--space-3) 0 var(--space-2);
-  font-size: var(--text-3xl);
+  margin: var(--space-2) 0 var(--space-2);
+  font-size: clamp(var(--text-3xl), 3vw, var(--text-4xl));
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-display);
+}
+/* 页面大标题是界面文案，所以语言门走界面 locale（documentElement.lang 由 AppShell
+   跟着 locale 设置）：英文界面下这些字本来就是拉丁字母，该吃负字距；中文界面下
+   :lang(en) 不命中，中文标题保持零字距。文章标题不能用这条——那是外部内容，中文
+   期刊的标题在英文界面下仍是中文，所以它按自己的文字判定（ReaderPane 的 textLang）。 */
+.wb-header h1:lang(en) {
+  letter-spacing: var(--tracking-display);
 }
 .wb-header p {
   margin: 0;
   color: var(--text-secondary);
   font-size: var(--text-base);
+  line-height: var(--leading-ui);
+  max-width: 62ch;
 }
+/* 抬头指标：不做三个小盒子，用鬓发线分隔的一行数字，
+   和右侧大标题同轴，减少“框中框”的割裂感。 */
 .wb-status-bar {
   display: flex;
+  align-items: center;
   gap: var(--space-7);
 }
 .wb-status-item {
-  text-align: center;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: 0 var(--space-7);
+  border-left: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+.wb-status-item:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+/* 两端对称归零。:first-child 早就把左内距去了，让计数条从头部左轴起排；末项却还留着
+   14px 右内距，于是整条数字"在 1226 就停住"，而它正下方的面板/表格右缘在 1240——
+   同一根轴上差了 14px。分隔线本身画在每项的左边缘，去掉末项右内距不影响任何两条线之间的距离。 */
+.wb-status-item:last-child {
+  padding-right: 0;
 }
 .wb-status-item strong {
-  display: block;
   font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-metric);
+  /* 和同字号的 .wb-section-head > b / .wb-stat-number 走同一档：都是 21-26px 的
+     tabular 大数字，原来这一处吃 -0.01em、别处吃 -0.015em，同一根计数条上
+     左右两段数字的字缝宽度不一样。 */
+  letter-spacing: var(--tracking-metric);
+  font-variant-numeric: tabular-nums;
 }
 .wb-status-item span {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--text-tertiary);
 }
 
@@ -6667,85 +6910,71 @@ button:disabled {
   min-width: 200px;
   padding: var(--space-5) var(--space-7);
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--text);
 }
-.wb-select {
-  padding: var(--space-5) var(--space-6);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--text);
-}
+/* 带上只允许一种高度：高度由 --wb-band-h 决定、padding-block 归零。
+   原来这两件事写在 .wb-toolbar .wb-btn 上，基条还是 min-height:34 ＋ padding 10/14，
+   于是不在工具栏里的次级动词按钮（日历导航行的"今天"）实测 37.6 ＋ 胶囊圆角，
+   和同屏工具栏里的 38 ＋ 10px 圆角并排就是两种外形。
+   表内按钮走 --wb-field-h（更矮一档，见下面 .wb-table .wb-btn）。 */
 .wb-btn {
   display: inline-flex;
-  min-height: 34px;
+  min-height: var(--wb-band-h);
   align-items: center;
   justify-content: center;
   gap: var(--space-4);
-  padding: var(--space-5) var(--space-7);
+  padding: 0 var(--space-7);
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--text);
   font-weight: var(--fw-semibold);
   font-size: var(--text-base);
-  line-height: 1.2;
+  line-height: var(--leading-ui);
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    background-color var(--dur-base) var(--ease),
-    border-color var(--dur-base) var(--ease),
-    box-shadow var(--dur-base) var(--ease);
 }
 .wb-btn:focus-visible {
   outline: 0;
   border-color: transparent;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent);
 }
 .wb-btn:hover {
-  background: var(--surface-muted);
+  background-color: var(--fill-hover);
+}
+/* 描边按钮的按压也用透明灰蒙而不是缩放：工作台工具条是毛玻璃，实心
+   --surface-muted 压在玻璃上是一块不吸光的死斑；缩放又会让工具条横移。 */
+.wb-btn:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
 }
 .wb-btn:disabled {
   opacity: 0.5;
 }
 .wb-btn--primary {
-  background: var(--accent-fill);
-  border-color: var(--accent-fill);
-  color: var(--text-on-accent, #fff);
+  color: var(--accent-solid-ink);
 }
-.wb-btn--primary:hover {
-  background: color-mix(in srgb, var(--accent-fill) 90%, #fff);
-}
+/* 删除按钮的危险色反馈写在下面的 .wb-icon-btn--danger:hover/:active 里，
+   且都带 :not(:disabled)——这里曾有一条 :hover 直接把字色/描边涂成危险色，
+   禁用行的按钮也会跟着亮红。 */
 .wb-icon-btn {
   border: 1px solid var(--border);
   background: transparent;
-  color: var(--text-tertiary);
-  border-radius: var(--radius-control);
-  width: 28px;
-  height: 28px;
-  line-height: 1;
-}
-.wb-icon-btn:hover {
-  color: var(--danger);
-  border-color: var(--danger);
+  width: var(--wb-icon-h);
+  height: var(--wb-icon-h);
+  line-height: var(--leading-solid);
 }
 
 /* cards */
 .wb-cards-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: var(--space-9);
 }
 .wb-card {
   background: var(--surface-raised);
   border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
   padding: var(--space-9) var(--space-9);
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
   box-shadow: var(--shadow-panel);
 }
 .wb-card--drop-top {
@@ -6757,25 +6986,10 @@ button:disabled {
 .wb-card--compact {
   gap: var(--space-4);
 }
-.wb-card-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--space-5);
-}
-.wb-card-actions {
-  display: flex;
-  gap: var(--space-3);
-  align-items: flex-start;
-}
 .wb-card-eyebrow {
-  font-size: var(--text-2xs);
-  letter-spacing: 1px;
   color: var(--text-tertiary);
-  font-weight: var(--fw-semibold);
 }
 .wb-card-title {
-  font-size: var(--text-lg);
   font-weight: var(--fw-semibold);
   margin-top: var(--space-2);
 }
@@ -6783,23 +6997,9 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   gap: var(--space-5);
-  font-size: var(--text-base);
 }
 .wb-card-line strong {
   text-align: right;
-}
-.wb-next-action {
-  background: var(--surface-muted);
-  border-radius: var(--radius-control);
-  padding: var(--space-5) var(--space-6);
-  font-size: var(--text-base);
-}
-.wb-next-action b {
-  display: block;
-  font-size: var(--text-2xs);
-  letter-spacing: 1px;
-  color: var(--accent);
-  margin-bottom: var(--space-2);
 }
 .wb-path-row {
   display: flex;
@@ -6815,7 +7015,6 @@ button:disabled {
   align-self: flex-start;
 }
 .wb-empty {
-  padding: var(--space-13);
   text-align: center;
   color: var(--text-tertiary);
   grid-column: 1 / -1;
@@ -6824,17 +7023,10 @@ button:disabled {
 /* inline editing */
 .wb-editable {
   cursor: text;
-  border-radius: var(--radius-xs);
-  padding: var(--space-1) var(--space-2);
-}
-.wb-editable:hover {
-  background: var(--accent-soft);
 }
 .wb-inline-input {
   width: 100%;
-  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--accent);
-  border-radius: var(--radius-xs);
   background: var(--surface);
   color: var(--text);
   font: inherit;
@@ -6860,12 +7052,6 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: var(--space-3);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  border-radius: var(--radius-md);
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-  font-weight: var(--fw-medium);
   cursor: grab;
 }
 .wb-chip-del,
@@ -6874,23 +7060,17 @@ button:disabled {
   background: transparent;
   color: inherit;
   font-size: var(--text-sm);
-  line-height: 1;
+  line-height: var(--leading-solid);
   cursor: pointer;
 }
 .wb-chip-add {
-  color: var(--accent);
   border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-4);
 }
 
 /* priority + badges */
-.wb-priority--High {
-  color: var(--danger);
-}
-.wb-priority--Medium {
-  color: var(--warning);
-}
+/* 徽章家族：色相本体做淡底，-ink 令牌做文字。两个令牌都由 .wb-badge--* Modifier
+   挂在元素上，文字色随主题在 .wb-shell 里换档（浅底 700 级 / 深底 400 级）。 */
 .wb-badge {
   display: inline-flex;
   align-items: center;
@@ -6898,40 +7078,73 @@ button:disabled {
   padding: var(--space-1) var(--space-5);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
-}
-.wb-badge--green {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-}
-.wb-badge--orange {
-  background: color-mix(in srgb, var(--warning) 16%, transparent);
-  color: var(--warning);
-}
-.wb-badge--red {
-  background: color-mix(in srgb, var(--danger) 16%, transparent);
-  color: var(--danger);
+  background: color-mix(in srgb, var(--wb-badge-hue, var(--text-tertiary)) var(--wb-badge-tint, 12%), transparent);
+  color: var(--wb-badge-ink, var(--text-secondary));
 }
 .wb-badge--blue {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  --wb-badge-hue: var(--wb-hue-blue);
+  --wb-badge-ink: var(--wb-hue-blue-ink);
+}
+.wb-badge--green {
+  --wb-badge-hue: var(--wb-hue-green);
+  --wb-badge-ink: var(--wb-hue-green-ink);
+}
+.wb-badge--teal {
+  --wb-badge-hue: var(--wb-hue-teal);
+  --wb-badge-ink: var(--wb-hue-teal-ink);
+}
+.wb-badge--amber {
+  --wb-badge-hue: var(--wb-hue-amber);
+  --wb-badge-ink: var(--wb-hue-amber-ink);
+  --wb-badge-tint: 14%;
+}
+.wb-badge--orange {
+  --wb-badge-hue: var(--wb-hue-orange);
+  --wb-badge-ink: var(--wb-hue-orange-ink);
+}
+.wb-badge--violet {
+  --wb-badge-hue: var(--wb-hue-violet);
+  --wb-badge-ink: var(--wb-hue-violet-ink);
+}
+.wb-badge--red {
+  --wb-badge-hue: var(--wb-hue-red);
+  --wb-badge-ink: var(--wb-hue-red-ink);
+  --wb-badge-tint: 10%;
+}
+.wb-badge--gray {
+  --wb-badge-hue: var(--wb-hue-gray);
+  --wb-badge-ink: var(--wb-hue-gray-ink);
 }
 
 /* progress */
 .wb-progress-row {
   display: flex;
   justify-content: space-between;
-  font-size: var(--text-sm);
+  align-items: baseline;
+  gap: var(--space-4);
+  font-size: var(--text-base);
   margin-bottom: var(--space-3);
 }
+.wb-progress-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-progress-row b {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+/* 进度条：唯一的规范定义。底槽用主色的极淡版而不是中性灰，
+   填充是渐变，所以计算样式里 background-color 为空是正常的。 */
 .wb-progress-track {
-  height: 7px;
+  height: 6px;
   border-radius: var(--radius-full);
-  background: var(--surface-muted);
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
   overflow: hidden;
 }
 .wb-progress-fill {
   height: 100%;
-  background: var(--accent);
+  background: linear-gradient(90deg, var(--accent-fill), var(--accent));
   border-radius: var(--radius-full);
 }
 
@@ -6940,12 +7153,8 @@ button:disabled {
   margin-top: var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
 }
 .wb-stage-children {
-  margin-left: var(--space-9);
-  border-left: 1px solid var(--border);
-  padding-left: var(--space-4);
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
@@ -6954,13 +7163,7 @@ button:disabled {
 .wb-stage-row {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-3) var(--space-3);
-  border-radius: var(--radius-control);
   font-size: var(--text-base);
-}
-.wb-stage-row:hover {
-  background: var(--surface-muted);
 }
 .wb-stage-row--done .wb-stage-name {
   color: var(--text-tertiary);
@@ -6968,54 +7171,41 @@ button:disabled {
 }
 .wb-stage-handle {
   cursor: grab;
-  color: var(--text-tertiary);
+  color: var(--text-faint);
 }
 .wb-stage-toggle {
-  width: 18px;
-  height: 18px;
   border-radius: var(--radius-full);
   border: 1.5px solid var(--border-strong);
   background: transparent;
-  color: #fff;
-  font-size: var(--text-xs);
-  line-height: 1;
+  /* 勾号坐在实心主色泡上，用的就是主按钮那一对令牌（两种模式下都过 AA）。
+     原来勾号底色是 --accent：深色模式 --accent 是淡蓝 #65a4ff，白勾只有 2.5:1。 */
+  color: var(--accent-solid-ink);
+  line-height: var(--leading-solid);
 }
 .wb-stage-row--done .wb-stage-toggle {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
 }
 .wb-stage-name {
   flex: 1;
-}
-.wb-stage-state {
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
 }
 .wb-stage-tools {
   display: flex;
   gap: var(--space-1);
 }
-.wb-stage-tool {
-  border: 0;
-  background: transparent;
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
-  width: 22px;
-  height: 22px;
-  border-radius: var(--radius-sm);
-}
-.wb-stage-tool:hover {
-  background: var(--surface);
-  color: var(--text);
-}
+/* 阶段行里的 ＋/✕ 就是纯图标控件，直接用 .wb-icon-btn（＋ .wb-icon-btn--danger），
+   这里不再另立一个 .wb-stage-tool：它此前是 24×24 的 6px 方块 + 主色淡底反馈，
+   和同一屏里 28×28 圆形、中性灰反馈的表内删除键是两族东西。 */
 .wb-stage-add-btn {
   align-self: flex-start;
   margin-top: var(--space-2);
   border: 1px dashed var(--border-strong);
   background: transparent;
-  color: var(--accent);
-  border-radius: var(--radius-control);
-  padding: var(--space-3) var(--space-6);
+  color: var(--accent-strong);
+  /* 会新建记录的控件走字段档（32 / 粗指针 40）：原来是 padding 6/12 叠出来的
+     31px，既不在标尺上，粗指针下也一毫米不长。 */
+  min-height: var(--wb-field-h);
+  padding: 0 var(--space-6);
   font-size: var(--text-sm);
 }
 
@@ -7024,12 +7214,10 @@ button:disabled {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--space-3);
 }
 .wb-timeline {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
 }
 .wb-timeline-item {
   display: flex;
@@ -7038,21 +7226,13 @@ button:disabled {
 }
 .wb-timeline-date {
   flex: none;
-  width: 92px;
   color: var(--text-tertiary);
-  font-size: var(--text-sm);
 }
 .wb-timeline-content {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
   flex-wrap: wrap;
 }
-.wb-hist-status {
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--text-sm);
-}
-
 /* citation */
 .wb-citation-box {
   border-radius: var(--radius-control);
@@ -7068,28 +7248,23 @@ button:disabled {
   color: var(--text-tertiary);
   margin-top: var(--space-1);
 }
-.wb-citation-actions {
-  margin-top: var(--space-4);
-}
 .wb-abstract-label {
   margin-bottom: var(--space-3);
   font-size: var(--text-sm);
 }
 .wb-abstract {
   font-size: var(--text-base);
-  line-height: 1.7;
+  line-height: var(--leading-prose);
 }
 
 /* published references */
 .wb-helper-note {
-  font-size: var(--text-sm);
   color: var(--text-tertiary);
   margin-bottom: var(--space-6);
 }
 .wb-email-row {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
   margin-bottom: var(--space-6);
   flex-wrap: wrap;
 }
@@ -7098,8 +7273,6 @@ button:disabled {
   min-width: 220px;
   padding: var(--space-5) var(--space-6);
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
   color: var(--text);
 }
 .wb-reference-copy-row {
@@ -7108,7 +7281,6 @@ button:disabled {
 .wb-view-switch {
   display: inline-flex;
   border: 1px solid var(--border);
-  border-radius: var(--radius-control);
   overflow: hidden;
 }
 .wb-view-btn {
@@ -7117,10 +7289,6 @@ button:disabled {
   color: var(--text-secondary);
   padding: var(--space-4) var(--space-7);
   font-size: var(--text-base);
-}
-.wb-view-btn--active {
-  background: var(--accent);
-  color: #fff;
 }
 .wb-reference-layout {
   display: grid;
@@ -7142,7 +7310,6 @@ button:disabled {
 }
 .wb-reference-column-head h2 {
   margin: 0;
-  font-size: var(--text-lg);
 }
 .wb-reference-column-head p {
   margin: var(--space-2) 0 0;
@@ -7156,46 +7323,30 @@ button:disabled {
   flex-direction: column;
   gap: var(--space-6);
 }
-.wb-reference-list li {
-  font-size: var(--text-base);
-  line-height: 1.7;
-}
 .wb-reference-meta {
   display: block;
   font-size: var(--text-xs);
   color: var(--text-tertiary);
-  margin-top: var(--space-1);
 }
 .wb-reference-empty {
   color: var(--text-tertiary);
   list-style: none;
-  margin-left: -var(--space-10);
+  /* cancels the ol's marker indent so the empty state reads flush-left */
+  margin-left: calc(var(--space-10) * -1);
 }
 
 /* dashboard */
 .wb-stats-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--space-8);
   margin-bottom: var(--space-10);
 }
 .wb-stat-card {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
-  padding: var(--space-9) var(--space-9);
-}
-.wb-stat-label {
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
-}
-.wb-stat-number {
-  font-size: var(--text-4xl);
-  font-weight: var(--fw-bold);
-  margin: var(--space-2) 0;
 }
 .wb-stat-foot {
-  font-size: var(--text-sm);
   color: var(--text-tertiary);
 }
 .wb-dashboard-grid {
@@ -7208,27 +7359,21 @@ button:disabled {
   background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
-  padding: var(--space-10) var(--space-10);
 }
 .wb-section-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--space-6);
 }
 .wb-section-head h2 {
   margin: 0;
-  font-size: var(--text-lg);
 }
 .wb-section-head p {
   margin: var(--space-2) 0 0;
-  font-size: var(--text-sm);
   color: var(--text-tertiary);
 }
 .wb-dashboard-progress-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-7);
   margin-top: var(--space-8);
 }
 
@@ -7270,13 +7415,12 @@ button:disabled {
 }
 
 .wb-stat-card:hover {
-  box-shadow: var(--elev-raised);
   border-color: var(--border-strong);
 }
 
 .wb-content,
 .reader-scroll {
-  scrollbar-color: color-mix(in srgb, var(--text-tertiary) 45%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-faint) 45%, transparent) transparent;
   scrollbar-width: thin;
 }
 
@@ -7287,7 +7431,7 @@ button:disabled {
 
 .wb-content::-webkit-scrollbar-thumb,
 .reader-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-tertiary) 45%, transparent);
+  background: color-mix(in srgb, var(--text-faint) 45%, transparent);
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: var(--radius-full);
@@ -7314,48 +7458,34 @@ button:disabled {
    published) with an expandable detail row, replacing the old card wall.
    Rows keep the card reorder contract: the drop hint is an inset accent edge
    on the <tr> rather than a card outline. */
+/* The paper tables are a flat grid, not a card: no border, no radius, no scroll
+   box. A scroll container is what clips the right-hand columns, and it also
+   gives the absolutely positioned MenuSelect popover a scrollable ancestor whose
+   sticky columns shift the moment the popover opens.
+   Inline-size containment lets the grid shed columns by its own width: the shell
+   keeps the reader sidebar down to ~1000px, so a viewport breakpoint fires far
+   too late and the table is already 589px wide by then. */
 .wb-table-wrap {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-raised);
-  overflow-x: auto;
-  scrollbar-width: thin;
+  overflow: visible;
+  container-type: inline-size;
+  container-name: wbtable;
 }
 .wb-table {
-  width: 100%;
-  min-width: 940px;
   border-collapse: separate;
   border-spacing: 0;
   font-size: var(--text-base);
 }
 .wb-table thead th {
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--border-strong);
-  background: var(--surface);
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  font-weight: var(--fw-semibold);
-  letter-spacing: 0.6px;
   text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 .wb-table tbody td {
   padding: var(--space-6);
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
 }
 .wb-table tbody tr:last-child > td {
   border-bottom: 0;
 }
 .wb-table td.wb-empty {
   padding: var(--space-13);
-}
-.wb-row {
-  transition: background-color var(--dur-fast) var(--ease);
-}
-.wb-row:hover {
-  background: color-mix(in srgb, var(--surface-muted) 55%, transparent);
 }
 .wb-row--drop-top > td {
   box-shadow: inset 0 2px 0 var(--accent);
@@ -7378,14 +7508,11 @@ button:disabled {
 
 /* expanded detail row */
 .wb-table .wb-row-detail > td {
-  padding: var(--space-8) var(--space-9);
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
 }
 .wb-detail-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: var(--space-10);
 }
 .wb-detail-side {
   display: flex;
@@ -7393,49 +7520,20 @@ button:disabled {
   gap: var(--space-6);
   min-width: 0;
 }
-.wb-detail-meta {
-  font-size: var(--text-sm);
-}
 
 /* column metrics */
 .wb-col-grip {
-  width: 92px;
   white-space: nowrap;
-}
-.wb-col-stage {
-  width: 184px;
-}
-.wb-col-priority {
-  width: 116px;
-}
-.wb-col-status {
-  width: 136px;
 }
 .wb-col-date,
 .wb-col-year,
 .wb-col-count {
   white-space: nowrap;
 }
-.wb-col-date {
-  width: 136px;
-}
-.wb-col-year {
-  width: 78px;
-}
-.wb-col-count {
-  width: 92px;
-}
-.wb-col-vol {
-  width: 132px;
-}
 .wb-col-doi {
-  width: 180px;
-}
-.wb-col-citations {
-  width: 208px;
+  font-variant-numeric: tabular-nums;
 }
 .wb-col-actions {
-  width: 1%;
   white-space: nowrap;
   text-align: right;
 }
@@ -7446,7 +7544,7 @@ button:disabled {
 /* row furniture: drag handle, code, title, expand toggle */
 .wb-drag-handle {
   margin-right: var(--space-3);
-  color: var(--text-tertiary);
+  color: var(--text-faint);
   cursor: grab;
   opacity: 0.4;
   transition: opacity var(--dur-fast) var(--ease);
@@ -7454,37 +7552,23 @@ button:disabled {
 .wb-row:hover .wb-drag-handle {
   opacity: 1;
 }
-.wb-code {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: var(--fw-semibold);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 0.4px;
-}
 .wb-cell-title {
   margin-bottom: var(--space-3);
-  font-size: var(--text-md);
-  font-weight: var(--fw-semibold);
-  line-height: 1.45;
 }
 .wb-expand {
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: var(--wb-icon-h);
+  height: var(--wb-icon-h);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: transparent;
   color: var(--text-tertiary);
-  line-height: 1;
+  line-height: var(--leading-solid);
   cursor: pointer;
   transition:
     background-color var(--dur-fast) var(--ease),
     color var(--dur-fast) var(--ease),
     transform var(--dur-fast) var(--ease);
-}
-.wb-expand:hover {
-  background: var(--surface-muted);
-  color: var(--text);
 }
 .wb-expand--open {
   color: var(--accent-strong);
@@ -7493,13 +7577,7 @@ button:disabled {
 
 /* compact controls inside table cells */
 .wb-table .wb-btn {
-  min-height: 28px;
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
-}
-.wb-table .wb-select {
-  padding: var(--space-2) var(--space-5);
-  font-size: var(--text-sm);
+  min-height: var(--wb-field-h);
 }
 /* Author/keyword pills sit directly under the title in a cell; the label is
    redundant there and only pushes the row taller. */
@@ -7507,8 +7585,11 @@ button:disabled {
   display: none;
 }
 /* The dashed add-chip wraps onto its own line and inflates every resting row.
-   Collapse it until the row is hovered or the editor is focused so rows stay
-   compact but the control is still reachable. */
+   Collapse it until the row is hovered or the editor is focused.
+   触屏上这一条必须反过来：:hover 永远不会命中，而 display:none 的按钮也拿不到焦点，
+   "悬停才出现"在没有悬停的设备上等于把"加作者/加关键词"整个动作删掉（实测
+   display:none、0×0、getClientRects()=0）。所以无悬停能力的设备让它常驻，行里
+   本来就有的 ＋ 只是多占一格。 */
 .wb-table .wb-chip-editor .wb-chip-add {
   display: none;
 }
@@ -7516,23 +7597,10 @@ button:disabled {
 .wb-table .wb-chip-editor:focus-within .wb-chip-add {
   display: inline-flex;
 }
-.wb-table .wb-priority {
-  border-color: transparent;
-  border-radius: var(--radius-full);
-  background: transparent;
-  font-weight: var(--fw-semibold);
-}
-.wb-table .wb-priority:hover {
-  background: var(--surface-muted);
-}
-/* Status reads as a pill; the wb-badge--* colour classes supply the fill. */
-.wb-status {
-  border: 1px solid transparent;
-  border-radius: var(--radius-full);
-  padding: var(--space-2) var(--space-6);
-  font-size: var(--text-sm);
-  font-weight: var(--fw-semibold);
-  cursor: pointer;
+@media (hover: none) {
+  .wb-table .wb-chip-editor .wb-chip-add {
+    display: inline-flex;
+  }
 }
 .wb-stage-cell {
   display: flex;
@@ -7546,23 +7614,30 @@ button:disabled {
 }
 .wb-progress-text {
   min-width: 32px;
-  color: var(--text-secondary);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
 .wb-deadline-hint {
-  display: block;
-  margin-top: var(--space-2);
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  color: var(--accent-strong);
 }
-.wb-deadline--soon {
-  color: var(--warning);
+/* 截止倒计时：和日历事件条共用一支色相——临近与今天同为琥珀、只换浓度，
+   逾期才是红。三个 --wb-badge-* 令牌沿用徽章家族的协议，底色由
+   phase3-submitted.css 从同一组令牌读出，所以这里改色相，药丸跟着变。 */
+.wb-deadline--soon,
+.wb-deadline--today {
+  --wb-badge-hue: var(--wb-hue-amber);
+  --wb-badge-tint: 12%;
+  color: var(--wb-hue-amber-ink);
 }
-.wb-deadline--today,
+.wb-deadline--today {
+  --wb-badge-tint: 20%;
+  font-weight: var(--fw-semibold);
+}
 .wb-deadline--overdue {
-  color: var(--danger);
+  --wb-badge-hue: var(--wb-hue-red);
+  --wb-badge-tint: 12%;
+  color: var(--wb-hue-red-ink);
   font-weight: var(--fw-semibold);
 }
 .wb-col-citations .wb-citation-box {
@@ -7581,14 +7656,14 @@ button:disabled {
 }
 .wb-col-citations .wb-citation-number {
   min-width: 26px;
-  font-size: var(--text-md);
-  font-weight: var(--fw-semibold);
 }
 .wb-col-citations .wb-citation-label {
   margin-top: 0;
 }
+/* "从 Crossref 更新"会写记录，和"转至已发表"是同一族行内动词，
+   所以它跟着 --wb-field-h 走（原来另写 min-height:26，是同一行里的第四种高度）。
+   横向 padding 保持 --space-4：这列只有 156px 内容宽，按钮文字已占 96px。 */
 .wb-col-citations .wb-citation-fetch {
-  min-height: 26px;
   padding: var(--space-1) var(--space-4);
   font-size: var(--text-xs);
 }
@@ -7608,12 +7683,21 @@ button:disabled {
   gap: var(--space-9);
   flex-wrap: wrap;
 }
+/* 月历大标题：苹果月历质感。字距只在拉丁上收紧，中文保持 0。 */
 .wb-cal-head h2 {
   margin: 0;
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-display);
+}
+.wb-cal-head h2:lang(en) {
+  letter-spacing: var(--tracking-metric);
 }
 .wb-cal-head p {
   margin: var(--space-2) 0 0;
+  /* 这一行是"共 N 个截止"的说明文字。继承来的 .wb-muted 是 tertiary，
+     12px 下只有 3.2:1；副标题级别的信息不该靠降对比度来表达次要。 */
+  color: var(--text-secondary);
   font-size: var(--text-sm);
 }
 .wb-cal-nav {
@@ -7621,37 +7705,38 @@ button:disabled {
   align-items: center;
   gap: var(--space-4);
 }
-.wb-cal-nav .wb-icon-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent-strong);
-}
 .wb-cal-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
   overflow: hidden;
 }
+/* 星期表头：只靠字色和 0.5px 鬓发线分层，不做灰底条。它是 --surface-muted
+   （hover/药丸才浮起来）之外的另一类面，所以这里明确用 transparent 而不是
+   --surface——深色下 --surface 比纸面更亮，会把表头推到内容之前。
+   字色用 secondary 而不是 tertiary：11px 表头在 tertiary 下只有 3.2:1。 */
 .wb-cal-weekday {
-  padding: var(--space-5) var(--space-4);
+  padding: var(--space-5) var(--space-2);
   border-bottom: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-tertiary);
+  background: transparent;
+  color: var(--text-secondary);
   font-size: var(--text-xs);
   font-weight: var(--fw-semibold);
-  letter-spacing: 0.6px;
+  letter-spacing: 0;
   text-align: center;
 }
 .wb-cal-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   min-width: 0;
-  min-height: 104px;
+  min-height: 96px;
+  gap: var(--space-2);
   padding: var(--space-4);
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 /* The seven weekday labels offset the cell list by exactly one row, so the
    7n / last-7 matches still land on the grid's outer edges. */
@@ -7661,15 +7746,24 @@ button:disabled {
 .wb-cal-cell:nth-last-child(-n + 7) {
   border-bottom: 0;
 }
+/* 非本月的格子往纸面里沉，而不是只把数字变灰——6 周窗口里首尾两行常常整行
+   都是邻月，没有底色分区时读起来像数据缺失。 */
 .wb-cal-cell--other {
-  background: var(--surface);
+  background: var(--wb-recede);
 }
 .wb-cal-cell--other .wb-cal-day {
-  color: var(--text-tertiary);
+  /* 非本月的日期数字：比本月低一档，但仍要过 AA——原来用 --text-tertiary，
+     实测在白底上只有 3.2:1（13px 半粗按正文算，需要 4.5:1）。本月/邻月 =
+     text/text-secondary 这一档差，正好是苹果月历"本月黑、邻月灰"的读法，
+     而 secondary 本身是合规灰。 */
+  color: var(--text-secondary);
 }
-.wb-cal-cell--today {
-  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+.wb-cal-cell:hover {
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
+/* 没有 .wb-cal-cell--today 规则，这是有意的：当天已经由实心日期圆点承担，
+   整格再铺一层淡底就成了"同一日期强调三次"，而且那层淡蓝和邻月沉底、hover
+   淡底都极接近，反而互相看不清。markup 上的 wb-cal-cell--today 只作为语义标记。 */
 .wb-cal-day {
   display: inline-flex;
   align-items: center;
@@ -7679,15 +7773,24 @@ button:disabled {
   height: 22px;
   padding: 0 var(--space-2);
   border-radius: var(--radius-full);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
+  /* 本月日期是主信息，用正文级近黑；邻月降一档到 secondary（见上面的规则），
+     两档都在 AA 之上。 */
+  color: var(--text);
+  font-size: var(--text-base);
   font-weight: var(--fw-semibold);
   font-variant-numeric: tabular-nums;
 }
+/* 当天圆点是实心主色面，和主按钮、阶段勾选泡共用同一对令牌：
+   浅档深蓝底+近白字 5.21:1，深档淡蓝底+深墨字 7.92:1。 */
 .wb-cal-day--today {
-  background: var(--accent-fill);
-  color: var(--text-on-accent, #fff);
+  background: var(--accent-solid);
+  color: var(--accent-solid-ink);
 }
+/* 事件条：几何/字号/色相三层都只写在这里。
+   色相走全局 --wb-hue-*：逾期=红、今天与临近=同一支琥珀只是更浓，
+   和表里的状态药丸共用一个色相池，不再引入第三套 --warning/--danger。
+   文字用 -ink（深底/浅底自动换档），淡底只有 10–22%，AA 靠字色而不是靠浓底。
+   左侧 2px 实色条保留：它是 Apple 日历的"提醒事项"式分区记号。 */
 .wb-cal-event {
   display: flex;
   align-items: center;
@@ -7696,35 +7799,38 @@ button:disabled {
   min-width: 0;
   padding: var(--space-2) var(--space-3);
   border: 0;
-  border-left: 2px solid var(--accent);
+  border-left: 2px solid var(--wb-cal-hue, var(--accent));
   border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: color-mix(
+    in srgb,
+    var(--wb-cal-hue, var(--accent)) var(--wb-cal-tint, 10%),
+    transparent
+  );
+  color: var(--wb-cal-ink, var(--accent-strong));
   font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
   text-align: left;
   cursor: pointer;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
+  transition: box-shadow var(--dur-fast) var(--ease);
 }
 .wb-cal-event:hover {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 35%, transparent);
 }
 .wb-cal-event--soon {
-  border-left-color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 14%, transparent);
-  color: var(--warning);
+  --wb-cal-hue: var(--wb-hue-amber);
+  --wb-cal-ink: var(--wb-hue-amber-ink);
+  --wb-cal-tint: 12%;
 }
 .wb-cal-event--today {
-  border-left-color: var(--warning);
-  background: color-mix(in srgb, var(--warning) 26%, transparent);
-  color: var(--warning);
+  --wb-cal-hue: var(--wb-hue-amber);
+  --wb-cal-ink: var(--wb-hue-amber-ink);
+  --wb-cal-tint: 20%;
   font-weight: var(--fw-semibold);
 }
 .wb-cal-event--overdue {
-  border-left-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 14%, transparent);
-  color: var(--danger);
+  --wb-cal-hue: var(--wb-hue-red);
+  --wb-cal-ink: var(--wb-hue-red-ink);
+  --wb-cal-tint: 12%;
 }
 .wb-cal-event-code {
   flex: none;
@@ -7741,10 +7847,13 @@ button:disabled {
   align-self: flex-start;
   padding: 0 var(--space-2);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-full);
   background: transparent;
-  color: var(--text-tertiary);
+  /* 11px 半粗的"+N"是交互控件，tertiary 只有 3.2:1；提到 secondary 后 5.3:1。
+     hover 仍换到主色，所以静置和悬停之间还有明确的一档差。 */
+  color: var(--text-secondary);
   font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
   cursor: pointer;
 }
 .wb-cal-more:hover {
@@ -7768,16 +7877,18 @@ button:disabled {
   width: 8px;
   height: 8px;
   border-radius: var(--radius-full);
-  background: var(--text-tertiary);
+  background: var(--text-faint);
 }
+/* 图例点：颜色即事件条的色相本体，不再是 --warning/--danger。
+   临近比今天低一档浓度，和上面 tint 的 12% / 22% 关系一致。 */
 .wb-cal-dot--overdue {
-  background: var(--danger);
+  background: var(--wb-hue-red);
 }
 .wb-cal-dot--today {
-  background: var(--warning);
+  background: var(--wb-hue-amber);
 }
 .wb-cal-dot--soon {
-  background: color-mix(in srgb, var(--warning) 55%, transparent);
+  background: color-mix(in srgb, var(--wb-hue-amber) 55%, transparent);
 }
 
 @media (max-width: 900px) {
@@ -7872,147 +7983,107 @@ button:disabled {
   --accent-soft: #2a2116;
 }
 
-/* ── Workbench visual refresh（中文版） ───────────────────────────────
-   目标：去掉原生 select 的割裂感、去掉满屏“双击填写”噪音、统一药丸 /
-   按钮 / 表头语言。中文不做 uppercase + 大字距。 */
+/* ── 工作台排版 ────────────────────────────────────────────────────────
+   中文标题不做 uppercase / 大字距；字号、字重、圆角一律落在标尺上。
+   段内只写“文字层级”，几何与材质放在后面的 “Apple 设计感刷新”，配色放在
+   “工作台去灰阶”。历史上这里被追加过三轮、同一个选择器写三遍，只有最后
+   一遍生效——再要改样式请按“谁在后面”定位，别继续往后追加第四遍。 */
 
-/* 顶部标题：中文收紧字距 */
-.wb-eyebrow {
-  letter-spacing: 2px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-tertiary);
-}
-.wb-header h1 {
-  font-size: 26px;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-.wb-header p {
-  font-size: 13px;
-}
-.wb-status-bar {
-  align-items: stretch;
-}
-.wb-status-item {
-  min-width: 64px;
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-}
-.wb-status-item strong {
-  font-size: 22px;
-  font-variant-numeric: tabular-nums;
-}
-.wb-status-item span {
-  font-size: 12px;
-  letter-spacing: 0;
-}
-
-/* 工具栏：搜索框 + 筛选 + 主按钮 */
-.wb-toolbar {
-  gap: 10px;
-}
-.wb-search {
-  min-height: 38px;
-  border-radius: 10px;
-  background: var(--surface);
-  font-size: 14px;
-}
-.wb-search::placeholder {
-  color: var(--text-tertiary);
-}
-.wb-btn--primary {
-  min-height: 38px;
-  padding: 0 16px;
-  border-radius: 10px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
-}
-.wb-flow-btn {
-  border-radius: 999px;
-  color: var(--accent-strong);
-}
-.wb-icon-btn {
-  border-color: var(--border);
-  color: var(--text-tertiary);
-  border-radius: 8px;
-}
-.wb-icon-btn:hover {
-  color: var(--danger);
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-}
-
-/* 表头：中文不做大写 + 字距 */
+/* 表头：中文保持原样（几何尺寸由后面的段负责） */
 .wb-table thead th {
   text-transform: none;
   letter-spacing: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  background: color-mix(in srgb, var(--surface-muted) 45%, var(--surface));
-  padding: 10px 14px;
   white-space: nowrap;
 }
 .wb-table tbody td {
-  padding: 12px 14px;
   vertical-align: middle;
 }
+/* 论文标题是表里唯一需要成层级的文字：比正文大一号，收紧行高 */
 .wb-cell-title {
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-ui);
+  letter-spacing: var(--tracking-micro);
 }
 .wb-code {
-  color: var(--text-tertiary);
-  background: var(--surface-muted);
-  border-radius: 6px;
-  padding: 2px 6px;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  font-variant-numeric: tabular-nums;
 }
 
-/* 空值占位：由“（双击填写）”改为“—”，只保留极淡提示 */
+/* 空值占位"—"是装饰性记号，走 faint 档。这里不再叠 opacity：旧写法
+   tertiary + 0.45 叠加后实测约 1.7:1，等于完全看不见；令牌本身已经是降档的一步。 */
 .wb-ph {
-  color: var(--text-tertiary);
-  opacity: 0.45;
-  font-weight: 400;
+  color: var(--text-faint);
+  font-weight: var(--fw-regular);
 }
 .wb-editable {
-  border-radius: 6px;
-  padding: 2px 6px;
-  margin-left: -6px;
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-3);
+  margin-left: calc(var(--space-3) * -1);
 }
 .wb-editable:hover {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .wb-inline-input {
-  border-radius: 8px;
-  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-5);
 }
 
-/* 作者小药丸：更淡、更紧凑 */
+/* 作者小药丸：更淡、更紧凑。
+   内 padding 写成令牌：✕ 要用等量负 margin 抵掉它，才能把热区和自己的
+   反馈底纹一起铺满整颗药丸；粗指针换档时两处同步，不会出现"药丸变高了、✕ 没变"。 */
 .wb-chip {
+  --wb-chip-pad-y: var(--space-1);
+  --wb-chip-pad-end: var(--space-2);
   background: color-mix(in srgb, var(--accent) 9%, transparent);
   color: var(--text-secondary);
   border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
-  border-radius: 999px;
-  padding: 2px 4px 2px 10px;
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: var(--radius-full);
+  padding: var(--wb-chip-pad-y) var(--wb-chip-pad-end) var(--wb-chip-pad-y) var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
 }
 .wb-chip-del {
-  border-radius: 999px;
-  padding: 0 6px;
-  color: var(--text-tertiary);
+  border-radius: var(--radius-full);
+  padding: 0 var(--space-3);
+  /* 原来是行里最小的一颗可点控件（实测 12×21），而它做的是删除。
+     stretch + 负 margin 让它吃掉药丸的内 padding（19×21），::after 再往外扩
+     var(--space-2)——药丸之间留 6px 间距，扩 4px 不会吃到邻居的热区。 */
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: calc(var(--wb-chip-pad-y) * -1) calc(var(--wb-chip-pad-end) * -1) calc(var(--wb-chip-pad-y) * -1) 0;
+  /* 三级墨压在酒红档的 accent 9% 药丸底上实测 4.46:1，差一点点不过 AA；
+     这是一颗可点的删除控件而不是装饰符号，升到二级墨。 */
+  color: var(--text-secondary);
+}
+.wb-chip-del::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-2) * -1);
 }
 .wb-chip-del:hover {
-  color: var(--danger);
-  background: rgb(0 0 0 / 0.06);
+  /* 危险色而不是黑色底：删除是唯一需要预热的动作，用色相而非灰块提示。
+     收进全局 --wb-hue-red 色相池，和日历逾期条、表内逾期药丸同一个红。
+     浓度与 .wb-icon-btn--danger 共用一对（10%/18%），墨走 -strong 档。 */
+  color: var(--wb-hue-red-ink-strong);
+  background-color: color-mix(in srgb, var(--wb-hue-red) 10%, transparent);
 }
 .wb-chip-add {
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   border-style: solid;
   border-color: var(--border);
   color: var(--text-tertiary);
+}
+/* 这颗 ＋ 只在行悬停时才出现，出现之后指针就在它上面——却没有自己的悬停态，
+   要点下去才第一次看到它是个按钮（实测 hover 底色仍是透明）。补上图标控件同族
+   的第一档反馈。 */
+.wb-chip-add:hover:not(:disabled) {
+  background-color: var(--fill-hover);
+  color: var(--text-secondary);
 }
 
 /* 自定义下拉菜单 */
@@ -8023,76 +8094,60 @@ button:disabled {
 .wb-menu-btn {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  min-height: 32px;
+  gap: var(--space-3);
+  min-height: var(--wb-field-h);
   max-width: 100%;
-  padding: 5px 10px 5px 12px;
+  padding: var(--space-2) var(--space-5) var(--space-2) var(--space-6);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--surface);
   color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
   white-space: nowrap;
   cursor: pointer;
-  transition:
-    border-color var(--dur-fast) var(--ease),
-    background-color var(--dur-fast) var(--ease),
-    box-shadow var(--dur-fast) var(--ease);
-}
-.wb-menu-btn:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-muted);
 }
 .wb-menu-label {
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .wb-menu-chevron {
-  color: var(--text-tertiary);
-  font-size: 12px;
+  color: var(--text-faint);
+  font-size: var(--text-sm);
   transition: transform var(--dur-fast) var(--ease);
 }
 .wb-menu-chevron--open {
   transform: rotate(180deg);
 }
+/* 结构骨架：材质/圆角/配色由下面的弹层与去灰阶两段负责 */
 .wb-menu-pop {
   position: absolute;
-  top: calc(100% + 6px);
+  top: calc(100% + var(--space-3));
   left: 0;
-  z-index: 60;
-  min-width: 148px;
+  z-index: var(--z-popover);
   max-height: 288px;
   overflow-y: auto;
-  padding: 6px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-raised);
-  box-shadow:
-    0 12px 32px rgb(0 0 0 / 0.14),
-    0 2px 6px rgb(0 0 0 / 0.08);
 }
 .wb-menu-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-4);
   width: 100%;
-  padding: 8px 10px;
+  padding: var(--space-4) var(--space-5);
   border: 0;
-  border-radius: 8px;
   background: transparent;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--text-base);
   text-align: left;
   cursor: pointer;
 }
-.wb-menu-item:hover {
-  background: var(--surface-muted);
-}
 .wb-menu-item--active {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
-  font-weight: 600;
+  /* 现值这一条不靠蓝字表达：勾选符号、色相圆点、accent-soft 底三重信号已经够了，
+     而 accent-strong 墨压在自己的 17% 灰蒙上实测 4.32:1（13px/600，不过 AA）。
+     墨色回到 --text，"当前是哪条"由底色＋对勾承担，扫读时反而更稳。 */
+  color: var(--text);
+  font-weight: var(--fw-semibold);
 }
 .wb-menu-item-label {
   flex: 1;
@@ -8100,17 +8155,21 @@ button:disabled {
 }
 .wb-menu-check {
   color: var(--accent-strong);
-  font-weight: 700;
+  font-weight: var(--fw-bold);
 }
+/* 工具栏带是一条矩形族：筛选泡、搜索框、主按钮全部 38px 高 / --radius-lg 圆角，
+   与表内的"药丸族"（状态胶囊＋图标圆）按语义分区，不是随手写的 10px/500。 */
 .wb-filter-menu .wb-menu-btn {
-  min-height: 38px;
-  border-radius: 10px;
-  font-weight: 500;
+  min-height: var(--wb-band-h);
+  border-radius: var(--radius-lg);
+  font-weight: var(--fw-medium);
   color: var(--text-secondary);
 }
+/* "小号"只降字级，不另开一档高度：这里原来写 min-height:30，
+   既不在带（38）也不在控件档（32），粗指针下也不跟着 --wb-field-h 长。
+   高度交回 .wb-menu-btn 的 var(--wb-field-h)（32 / 触屏 40）。 */
 .wb-menu--sm .wb-menu-btn {
-  min-height: 30px;
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 /* 圆点 */
@@ -8118,104 +8177,58 @@ button:disabled {
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 999px;
-  background: var(--text-tertiary);
+  border-radius: var(--radius-full);
+  background: var(--text-faint);
 }
-.wb-dot--blue { background: #3b82f6; }
-.wb-dot--green { background: #16a34a; }
-.wb-dot--teal { background: #0d9488; }
-.wb-dot--amber { background: #d97706; }
-.wb-dot--orange { background: #ea580c; }
-.wb-dot--violet { background: #7c3aed; }
-.wb-dot--red { background: #dc2626; }
-.wb-dot--gray { background: #9ca3af; }
+.wb-dot--blue { background: var(--wb-hue-blue); }
+.wb-dot--green { background: var(--wb-hue-green); }
+.wb-dot--teal { background: var(--wb-hue-teal); }
+.wb-dot--amber { background: var(--wb-hue-amber); }
+.wb-dot--orange { background: var(--wb-hue-orange); }
+.wb-dot--violet { background: var(--wb-hue-violet); }
+.wb-dot--red { background: var(--wb-hue-red); }
+.wb-dot--gray { background: var(--accent); }
 
-/* 状态药丸：淡底 + 深字，替代原生 select */
-.wb-status-pill .wb-menu-btn {
-  border-color: transparent;
-  font-weight: 600;
+/* 状态/优先级药丸：颜色完全由外层 .wb-badge--* 的色相令牌继承。
+   外层不再自己涂底——它和里面的按钮是同一个矩形，两块淡底叠起来浓度会翻倍。 */
+.wb-status-pill,
+.wb-priority-pill {
+  background: none;
+  color: inherit;
 }
-.wb-status-pill.wb-badge--blue .wb-menu-btn {
-  background: rgb(59 130 246 / 0.12);
-  color: #1d4ed8;
-}
-.wb-status-pill.wb-badge--green .wb-menu-btn {
-  background: rgb(22 163 74 / 0.12);
-  color: #15803d;
-}
-.wb-status-pill.wb-badge--teal .wb-menu-btn {
-  background: rgb(13 148 136 / 0.12);
-  color: #0f766e;
-}
-.wb-status-pill.wb-badge--amber .wb-menu-btn {
-  background: rgb(217 119 6 / 0.14);
-  color: #b45309;
-}
-.wb-status-pill.wb-badge--orange .wb-menu-btn {
-  background: rgb(234 88 12 / 0.12);
-  color: #c2410c;
-}
-.wb-status-pill.wb-badge--violet .wb-menu-btn {
-  background: rgb(124 58 237 / 0.12);
-  color: #6d28d9;
-}
-.wb-status-pill.wb-badge--red .wb-menu-btn {
-  background: rgb(220 38 38 / 0.1);
-  color: #b91c1c;
-}
-:root[data-theme="dark"] .wb-status-pill .wb-menu-btn {
-  color: var(--text);
-}
-.wb-status-pill--sm .wb-menu-btn {
-  min-height: 28px;
-  font-size: 12px;
-  padding: 4px 10px;
-}
+.wb-status-pill .wb-menu-btn,
 .wb-priority-pill .wb-menu-btn {
   border-color: transparent;
-  border-radius: 999px;
-  background: var(--surface-muted);
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
+  background: color-mix(in srgb, var(--wb-badge-hue, var(--text-tertiary)) var(--wb-badge-tint, 12%), transparent);
+  color: var(--wb-badge-ink, var(--text-secondary));
 }
-
-/* 新增徽章底色 */
-.wb-badge--violet {
-  background: rgb(124 58 237 / 0.12);
-  color: #6d28d9;
+/* 展开详情里的状态药丸：字级和横向 padding 比表内更紧，但它同样会改记录，
+   所以高度和表内那颗共用 --wb-field-h，不再另写 28。 */
+.wb-status-pill--sm .wb-menu-btn {
+  font-size: var(--text-sm);
+  padding: var(--space-2) var(--space-5);
 }
-.wb-badge--teal {
-  background: rgb(13 148 136 / 0.12);
-  color: #0f766e;
+/* 优先级药丸收成胶囊，和状态药丸在形状上分层：状态是方形标签，优先级是圆点级 */
+.wb-priority-pill .wb-menu-btn {
+  border-radius: var(--radius-full);
 }
-.wb-badge--amber {
-  background: rgb(217 119 6 / 0.14);
-  color: #b45309;
+/* 「一般」优先级原来是灰药丸，现在收进蓝色梯度里，避免出现中性灰填充 */
+.wb-priority-pill.wb-badge--gray {
+  --wb-badge-hue: var(--wb-hue-blue);
+  --wb-badge-ink: var(--wb-hue-blue-ink);
+  --wb-badge-tint: 10%;
 }
 
 /* 行内操作列右对齐更克制 */
 .wb-col-actions .wb-btn {
-  border-radius: 999px;
-}
-.wb-deadline-hint {
-  font-size: 12px;
+  border-radius: var(--radius-full);
 }
 .wb-detail-grid {
-  gap: 24px;
+  gap: var(--space-10);
 }
 .wb-table .wb-row-detail > td {
   background: color-mix(in srgb, var(--surface-muted) 35%, var(--surface));
-}
-
-/* 移动端：状态栏可横滑 */
-@media (max-width: 900px) {
-  .wb-header {
-    flex-direction: column;
-  }
-  .wb-status-bar {
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
 }
 
 /* ── Apple 设计感刷新 ────────────────────────────────────────────────
@@ -8224,46 +8237,32 @@ button:disabled {
    才允许轻微 overshoot；分组表走 iOS 内嵌分组列表（大圆角 + 鬓发线）。
    无障碍：跟随 prefers-reduced-motion / transparency / contrast。 */
 
+/* 大标题与 eyebrow 的字号/字距见上面的排版段，这里只留渲染微调 */
 .wb-main {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-optical-sizing: auto;
 }
 
-/* 大标题：中文不收负字距，拉丁收紧；行高收紧 */
-.wb-header h1 {
-  font-size: clamp(26px, 3vw, 32px);
-  font-weight: 800;
-  line-height: 1.18;
-  letter-spacing: 0;
-}
-.wb-header h1:lang(en) {
-  letter-spacing: -0.02em;
-}
-.wb-eyebrow {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
-.wb-header p {
-  line-height: 1.55;
-  max-width: 62ch;
-}
-
-/* 分段控制器：毛玻璃底 + 悬浮拇指 */
+/* 分段控制器：低对比轨道 + 轻拇指，避免与内容区形成割裂的"框中框"。
+   高度由 --wb-nav-h 决定，工具栏按同一个值停靠，两栏之间不会露出行内容。 */
 .wb-nav {
   position: sticky;
   top: 0;
   z-index: var(--z-sticky);
+  display: flex;
+  align-items: center;
   gap: 2px;
-  padding: 4px;
+  box-sizing: border-box;
+  height: var(--wb-nav-h);
+  padding: 0 var(--space-2);
   margin-bottom: 20px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--glass-toolbar);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
-  box-shadow: 0 1px 2px rgb(20 22 26 / 0.04);
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--wb-chrome-glass);
+  -webkit-backdrop-filter: var(--wb-chrome-blur);
+  backdrop-filter: var(--wb-chrome-blur);
+  box-shadow: var(--wb-chrome-ring);
   scrollbar-width: none;
 }
 .wb-nav::-webkit-scrollbar {
@@ -8272,58 +8271,90 @@ button:disabled {
 .wb-nav-item {
   flex: 1 1 auto;
   justify-content: center;
-  padding: 7px 12px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
+  min-height: 34px;
+  padding: 0 var(--space-6);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  font-weight: var(--fw-medium);
   color: var(--text-secondary);
+  transition:
+    background-color var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .wb-nav-item:hover {
-  background: rgb(120 120 128 / 0.12);
+  background-color: var(--fill-hover);
   color: var(--text);
 }
-.wb-nav-item:active {
-  transform: scale(0.97);
-  transition: transform 100ms ease-out;
+/* 按压不动几何：分段器里缩放一个拇指，视觉上等于整条导航在抖。
+   :not(:disabled) 不能省——全局 `button:active:not(:disabled)` 的特异度比
+   .wb-nav-item:active 高，少了它就继续继承 0.985 的按压缩放。 */
+.wb-nav-item:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
 }
 .wb-nav-item--active {
-  background: var(--surface-raised);
-  color: var(--text);
-  font-weight: 600;
-  box-shadow:
-    0 1px 3px rgb(20 22 26 / 0.12),
-    0 0 0 0.5px rgb(20 22 26 / 0.04);
+  font-weight: var(--fw-semibold);
 }
-:root[data-theme="dark"] .wb-nav-item--active {
-  background: rgb(99 99 102 / 0.55);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.12),
-    0 1px 4px rgb(0 0 0 / 0.4);
+/* 悬停在当前页签上不能把选中底冲掉（通用 :hover 与它同特异度、又写在前面）：
+   重述一次 --nav-selected，灰蒙量叠在 background-image 上。 */
+.wb-nav-item--active:hover {
+  background-color: var(--nav-selected);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.wb-nav-item--active:active:not(:disabled) {
+  background-color: var(--nav-selected);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
 
-/* 悬浮工具栏：内容从毛玻璃下流过 */
+/* 悬浮工具栏：与导航条同一套材质，停靠时重叠一圈，接缝隐入同一层玻璃 */
 .wb-toolbar {
   position: sticky;
-  top: 60px;
-  z-index: calc(var(--z-sticky) - 1);
-  padding: 8px;
-  margin: 0 -8px 16px;
-  border: 1px solid transparent;
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--glass-toolbar) 88%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-  backdrop-filter: blur(20px) saturate(180%);
+  /* 12px 的overlap：两条同为 --wb-chrome-glass 的材质互相盖住对方的圆角缺口，
+     滚动时不会在两栏之间露出正在滑过的行。 */
+  top: calc(var(--wb-nav-h) - var(--space-6));
+  /* Above the sticky nav so a filter popover that flips up is not painted over
+     by it. The two bars never overlap vertically, so nothing else changes. */
+  z-index: calc(var(--z-sticky) + 1);
+  padding: var(--space-4);
+  margin: 0 calc(var(--space-4) * -1) var(--space-8);
+  border: 0;
+  border-radius: var(--radius-xl);
+  background: var(--wb-chrome-glass);
+  -webkit-backdrop-filter: var(--wb-chrome-blur);
+  backdrop-filter: var(--wb-chrome-blur);
+  box-shadow: var(--wb-chrome-ring);
+}
+/* 带上只允许一种高度。修复前实测同一条工具栏里搜索框 39、次级按钮 37.6、
+   主按钮 38、视图分段器 40：四块 10px 圆角并排，居中对齐救不回边线，
+   看着就是"没对齐"。次级按钮那一条现在写在 .wb-btn 基条上（工具栏内外同一高度）。 */
+.wb-toolbar .wb-view-switch {
+  display: flex;
+  align-items: center;
+  min-height: var(--wb-band-h);
+}
+/* 轨道 38 − 上下内衬 2×2 − 描边 2×1 = 拇指 32 */
+.wb-toolbar .wb-view-btn {
+  display: inline-flex;
+  align-items: center;
+  padding-block: 0;
+  min-height: calc(var(--wb-band-h) - var(--space-1) * 2 - 2px);
 }
 .wb-search {
-  min-height: 36px;
+  min-height: var(--wb-band-h);
+  /* 行高等于内容盒：单行输入的文字位置由行盒决定，不靠 UA 的垂直居中，
+     换引擎也不会顶到上沿。padding-block 归零后 38 − 描边 2 = 这一条行高。 */
+  line-height: calc(var(--wb-band-h) - 2px);
+  padding-block: 0;
   padding-left: 34px;
   border-color: transparent;
-  border-radius: 10px;
-  background-color: color-mix(in srgb, var(--surface-muted) 75%, var(--surface));
+  border-radius: var(--radius-lg);
+  font-size: var(--text-md);
+  background-color: var(--surface-muted);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 16 16' fill='none'%3E%3Ccircle cx='7' cy='7' r='5' stroke='%238d9096' stroke-width='1.6'/%3E%3Cpath d='M11 11l3 3' stroke='%238d9096' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: 11px center;
-  box-shadow: inset 0 0 0 0.5px var(--border);
+  box-shadow: var(--wb-chrome-ring);
   transition:
     box-shadow var(--dur-fast) var(--ease),
     background-color var(--dur-fast) var(--ease);
@@ -8333,20 +8364,24 @@ button:disabled {
   background-color: var(--surface-raised);
   box-shadow:
     inset 0 0 0 0.5px var(--border-strong),
-    0 0 0 3.5px color-mix(in srgb, var(--accent) 22%, transparent);
+    var(--focus-ring);
 }
 
-/* 按钮：按压即时反馈 + 苹果式焦点环 */
+.wb-search::placeholder {
+  color: var(--text-tertiary);
+}
+
+/* 按钮：按压即时反馈 + 苹果式焦点环。表格内的按压见下面的“只换颜色”覆盖 */
 .wb-btn {
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   transition:
     background-color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
+    transform var(--dur-fast) var(--ease);
 }
 .wb-btn:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--press-scale));
 }
 .wb-btn:focus-visible,
 .wb-menu-btn:focus-visible,
@@ -8354,64 +8389,115 @@ button:disabled {
 .wb-expand:focus-visible,
 .wb-nav-item:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: var(--focus-ring);
 }
 .wb-btn--primary {
-  border-color: transparent;
-  background: var(--accent-fill);
+  min-height: var(--wb-band-h);
+  padding: 0 var(--space-8);
+  background: var(--accent-solid);
+  border-color: var(--accent-solid);
+  /* 顶沿高光从字色派生而不是写死白：浅档字色近白，观感和原来一致；
+     深档字色是深墨，淡面上才会出现正确的暗压边。 */
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    inset 0 1px 0 color-mix(in srgb, var(--accent-solid-ink) 18%, transparent),
     0 1px 2px rgb(20 22 26 / 0.16);
 }
 .wb-btn--primary:hover {
-  background: color-mix(in srgb, var(--accent-fill) 92%, #fff);
+  background: var(--accent-solid-hover);
+  border-color: var(--accent-solid-hover);
 }
 .wb-btn--primary:active:not(:disabled) {
-  transform: scale(0.97);
+  /* 实心面按回本体色（悬停是提亮档），否则上面 .wb-btn:active 的灰蒙会盖住蓝面。 */
+  background-color: var(--accent-solid);
+  border-color: var(--accent-solid);
+  transform: scale(var(--press-scale));
   filter: brightness(0.96);
 }
-
-/* 内嵌分组表：大连续圆角 + 鬓发分隔线 */
-.wb-table-wrap {
-  border-radius: 14px;
-  box-shadow: 0 1px 2px rgb(20 22 26 / 0.05);
+/* 行内“流转到在投”：文本按钮，按压只换底色，不给行加几何 */
+.wb-flow-btn {
+  border-color: transparent;
+  border-radius: var(--radius-full);
+  color: var(--accent-strong);
 }
-.wb-table thead th {
-  font-size: 12px;
-  font-weight: 600;
+.wb-flow-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  border-color: transparent;
+}
+/* 悬停已经是主色淡底，按压就不能退回灰块（实测灰 17% 压在蓝 10% 上读作换色）。
+   行内控件不给行加几何，顺带关掉全局按钮缩放。 */
+.wb-flow-btn:active:not(:disabled) {
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+/* 删除按钮：静置不带框，避免每行都出现一个小方框 */
+.wb-icon-btn {
+  border-color: transparent;
+  /* 形状语言只有两条：带文字的动作用胶囊，纯图标的动作用圆。
+     此前表内删除是 8px 方、日历翻页是圆，同一个 .wb-icon-btn 在两个视图里
+     是两种东西；且方按钮挨着胶囊流转按钮，一行里出现三种圆角。 */
+  border-radius: var(--radius-full);
   color: var(--text-tertiary);
-  background: color-mix(in srgb, var(--surface-muted) 55%, var(--surface));
-  padding: 9px 14px;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
-.wb-table thead th:first-child {
-  border-top-left-radius: 14px;
+/* 纯图标控件是一族：静置无底、悬停 --fill-hover、按压 --fill-pressed，
+   和侧栏行 / 阅读列表行 / 分段器同一份配方。以前把删除的红直接烧进通用类，
+   日历翻页只能再覆盖一套主色 8%/15%/24%——同一个类在不同视图里两种反应。
+   危险语义改由 .wb-icon-btn--danger 变体承担。 */
+.wb-icon-btn:hover:not(:disabled) {
+  border-color: transparent;
+  background-color: var(--fill-hover);
+  /* 灰蒙会把自己的底色压暗（浅色）/提亮（深色），三级墨留在原地就掉到 AA 以下：
+     实测 --text-tertiary 在 --fill-pressed 上浅色 4.17、深色 3.73。指针落到控件上时
+     墨色升一级，既是"它应答了我"的提示，也把对比拉回 6.5 以上。 */
+  color: var(--text-secondary);
 }
-.wb-table thead th:last-child {
-  border-top-right-radius: 14px;
+.wb-icon-btn:active:not(:disabled) {
+  /* 图标控件住在密集行里，按压缩放会带着整行抖，反馈只走颜色。 */
+  transform: none;
+  background-color: var(--fill-pressed);
+  color: var(--text-secondary);
+}
+/* 删除是唯一需要"预热"的图标动作：整族留在红色相里，
+   按压加深一档而不是退回中性灰（实测旧行为 hover 红 10% → active 主色 14%，
+   危险色在按下那一刻被换掉了）。10%/18% 这一对浓度是删除族通用的，
+   .wb-chip-del 也走同一份，靠 --wb-hue-red-ink-strong 守住药丸底上的对比。 */
+.wb-icon-btn--danger:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--wb-hue-red) 10%, transparent);
+  color: var(--wb-hue-red-ink-strong);
+}
+.wb-icon-btn--danger:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--wb-hue-red) 18%, transparent);
+  color: var(--wb-hue-red-ink-strong);
+}
+
+/* 平铺表格：只留行与行之间的鬓发线，不做卡片圆角，也不做表头色带。
+   表头纵向 padding 与行同为 12px，两条鬓发线才落在同一套节奏上。 */
+.wb-table thead th {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  padding: var(--space-6) var(--space-5);
 }
 .wb-table tbody td {
   border-bottom: 0.5px solid var(--border);
-}
-.wb-table tbody tr:last-child > td:first-child {
-  border-bottom-left-radius: 14px;
-}
-.wb-table tbody tr:last-child > td:last-child {
-  border-bottom-right-radius: 14px;
 }
 .wb-row {
   transition: background-color var(--dur-fast) var(--ease);
 }
 .wb-row:hover {
-  background: color-mix(in srgb, var(--surface-muted) 45%, transparent);
+  /* 与侧栏行、时间轴行同一档悬停量：以前表格用 color-mix(--surface-muted 45%)，
+     比别处的行淡一半，同一个"指到了"在两屏上深浅不一。 */
+  background-color: var(--fill-hover);
 }
-.wb-row:active {
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
-}
+/* No :active row tint: pressing a pill inside a row also activates the
+   <tr>, so the whole row darkened and read as the layout jumping. */
 
-/* 弹出菜单：毛玻璃材质 + 从触发点生长 */
+/* 弹出菜单：毛玻璃材质 + 从触发点生长（材质“凝结”而不是单纯淡入） */
 .wb-menu-pop {
   border-color: color-mix(in srgb, var(--border-strong) 60%, transparent);
-  border-radius: 14px;
+  border-radius: var(--radius-xl);
   background: var(--glass-panel);
   -webkit-backdrop-filter: blur(24px) saturate(180%);
   backdrop-filter: blur(24px) saturate(180%);
@@ -8420,8 +8506,10 @@ button:disabled {
     0 2px 8px rgb(20 22 26 / 0.08),
     inset 0 1px 0 rgb(255 255 255 / 0.5);
   transform-origin: top left;
-  animation: wb-pop-in var(--dur-base) var(--ease);
-  padding: 5px;
+  animation:
+    wb-pop-in var(--dur-base) var(--ease),
+    wb-pop-materialize var(--dur-base) var(--ease);
+  padding: var(--space-3);
 }
 :root[data-theme="dark"] .wb-menu-pop {
   box-shadow:
@@ -8438,63 +8526,66 @@ button:disabled {
     transform: scale(1) translateY(0);
   }
 }
-.wb-menu-item {
-  border-radius: 9px;
-  transition: background-color var(--dur-fast) var(--ease);
+@keyframes wb-pop-materialize {
+  from {
+    -webkit-backdrop-filter: blur(8px) saturate(120%);
+    backdrop-filter: blur(8px) saturate(120%);
+  }
+  to {
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    backdrop-filter: blur(24px) saturate(180%);
+  }
 }
-.wb-menu-item:active {
-  transform: scale(0.98);
-  transition: transform 100ms ease-out;
+.wb-menu-item {
+  border-radius: var(--radius-md);
+  transition: background-color var(--dur-fast) var(--ease);
 }
 .wb-menu-btn {
   transition:
     background-color var(--dur-fast) var(--ease),
     border-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
+    transform var(--dur-fast) var(--ease);
 }
-.wb-menu-btn:active {
-  transform: scale(0.97);
+.wb-menu-btn:active:not(:disabled) {
+  /* 悬停已经是 7% 主色淡底，按压要接着加深而不是退回白底（实测旧行为
+     hover rgb(242,246,254) → active rgb(255,255,255)，颜色在按下瞬间反向消失）。
+     表格内的缩放已单独禁掉，那里只留这一档色相变化。 */
+  background-color: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  transform: scale(var(--press-scale));
+}
+/* Inside a table cell a scaling trigger nudges the whole row, so press
+   feedback there stays chromatic. :not(:disabled) 必须一起写上——
+   上面的 .wb-menu-btn:active:not(:disabled) 是 (0,3,1)，少了它这条只有
+   (0,3,0)，会反而输给前者又把缩放放回表格里。 */
+.wb-table .wb-menu-btn:active:not(:disabled),
+.wb-table .wb-btn:active:not(:disabled) {
+  transform: none;
+}
+/* 表格里取消了缩放，就得把按压量换成色相：悬停 7% → 按压 14%，
+   与 --fill-* 两档的加深比例一致。 */
+.wb-table .wb-menu-btn:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent) 14%, var(--surface));
 }
 .wb-status-pill .wb-menu-btn,
 .wb-priority-pill .wb-menu-btn {
-  box-shadow: inset 0 0 0 0.5px rgb(20 22 26 / 0.05);
+  box-shadow: var(--ring-hairline);
 }
 
-/* 总览卡片：分层 + 悬浮 */
+/* 总览卡片：静置只有 1px 鬓发线，悬浮才抬升 */
 .wb-stat-card,
 .wb-panel,
 .wb-card,
-.wb-reference-column {
-  border-radius: 14px;
-}
-.wb-stat-card:hover {
-  transform: translateY(-1px);
-  transition: transform var(--dur-base) var(--ease);
-}
-.wb-stat-number {
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
+.wb-reference-column,
+.wb-detail-grid {
+  border-radius: var(--radius-xl);
 }
 .wb-progress-fill {
   transition: width var(--dur-slow) var(--ease);
 }
 
-/* 日历：当天实心圆 + 事件药丸 */
-.wb-cal-grid {
-  border-radius: 14px;
-}
-.wb-cal-event {
-  border-radius: 7px;
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
-}
-.wb-cal-event:active {
-  transform: scale(0.97);
-}
-
-/* 无障碍：动效 / 透明 / 对比 */
+/* 无障碍：动效 / 透明 / 对比。浮动 chrome 的材质由 .wb-shell 上的三个变量
+   决定，所以降级只需要改那三个值，不必逐条覆盖 background。 */
 @media (prefers-reduced-motion: reduce) {
   .wb-menu-pop {
     animation: none;
@@ -8503,58 +8594,49 @@ button:disabled {
     animation: none;
   }
   .wb-btn:active:not(:disabled),
-  .wb-menu-btn:active,
-  .wb-menu-item:active,
-  .wb-nav-item:active,
-  .wb-cal-event:active {
+  .wb-menu-btn:active:not(:disabled),
+  .wb-menu-item:active:not(:disabled),
+  .wb-stat-card:hover {
     transform: none;
+  }
+  .wb-stat-card:hover {
+    box-shadow: none;
   }
   .wb-progress-fill {
     transition: none;
   }
+  .wb-stat-goto {
+    opacity: 1;
+    transform: none;
+  }
 }
 @media (prefers-reduced-transparency: reduce) {
-  .wb-nav,
-  .wb-toolbar,
+  .wb-shell {
+    --wb-chrome-glass: var(--surface-raised);
+    --wb-chrome-blur: none;
+  }
   .wb-menu-pop {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
-  }
-  .wb-nav {
-    background: var(--surface);
-  }
-  .wb-toolbar {
-    background: var(--surface);
-  }
-  .wb-menu-pop {
     background: var(--surface-raised);
   }
 }
 @media (prefers-contrast: more) {
-  .wb-nav,
-  .wb-table-wrap,
+  .wb-shell {
+    --wb-chrome-glass: var(--surface-raised);
+    --wb-chrome-ring: inset 0 0 0 1px var(--border-strong);
+  }
   .wb-menu-pop,
   .wb-stat-card,
-  .wb-panel {
+  .wb-panel,
+  .wb-detail-grid {
     border-color: var(--border-strong);
   }
-  .wb-ph {
-    opacity: 0.75;
-  }
-}
-
-/* 移动端：状态栏可横滑，悬浮工具栏取消粘性避免遮挡 */
-@media (max-width: 900px) {
-  .wb-header {
-    flex-direction: column;
-  }
-  .wb-status-bar {
-    width: 100%;
-    overflow-x: auto;
-    padding-bottom: 4px;
-  }
-  .wb-toolbar {
-    position: static;
+  /* 装饰档并到可读档：占位符、拖拽把手、▾ 箭头在高对比偏好下都要看得清。
+     两个选择器分别压过浅色 :root 与深色 :root[data-theme]（后者是 (0,2,0)）。 */
+  :root,
+  :root[data-theme="dark"] {
+    --text-faint: var(--text-tertiary);
   }
 }
 
@@ -8562,113 +8644,118 @@ button:disabled {
 
 /* 总览：图标分层卡片 */
 .wb-stats-grid {
-  gap: 12px;
+  gap: var(--space-6);
 }
 .wb-stat-card {
-  padding: 14px 16px;
+  padding: var(--space-7) var(--space-8);
   transition:
+    background-color var(--dur-base) var(--ease),
     transform var(--dur-base) var(--ease),
     box-shadow var(--dur-base) var(--ease),
     border-color var(--dur-base) var(--ease);
 }
 .wb-stat-card:hover {
   transform: translateY(-1px);
+  box-shadow: var(--elev-raised);
 }
-.wb-stat-card:active {
-  transform: scale(0.99);
+/* 按压不给缩放：整张卡缩 1% 会连带里面的数字一起动，读起来像页面在抖 */
+.wb-stat-card:active:not(:disabled) {
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 5%, var(--surface-raised));
 }
 .wb-stat-top {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
 }
+/* 图标底板：和表内药丸同一套“淡色底 + 同色图形”，色相令牌共用，
+   所以总览卡的蓝和状态列的蓝一定是同一个蓝。 */
 .wb-stat-icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 8px;
-  color: #fff;
-  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.25);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--radius-md);
+  color: var(--wb-tint-ink, var(--text-secondary));
+  background: color-mix(in srgb, var(--wb-tint-hue, var(--text-tertiary)) 12%, transparent);
 }
-.wb-tint--blue { background: linear-gradient(180deg, #5aa0ff, #2f6df0); }
-.wb-tint--orange { background: linear-gradient(180deg, #ffa25e, #f07a1a); }
-.wb-tint--green { background: linear-gradient(180deg, #4cc38a, #269e63); }
-.wb-tint--violet { background: linear-gradient(180deg, #a985ff, #7c5cf0); }
+.wb-tint--blue {
+  --wb-tint-hue: var(--wb-hue-blue);
+  --wb-tint-ink: var(--wb-hue-blue-ink);
+}
+.wb-tint--orange {
+  --wb-tint-hue: var(--wb-hue-orange);
+  --wb-tint-ink: var(--wb-hue-orange-ink);
+}
+.wb-tint--green {
+  --wb-tint-hue: var(--wb-hue-green);
+  --wb-tint-ink: var(--wb-hue-green-ink);
+}
+.wb-tint--violet {
+  --wb-tint-hue: var(--wb-hue-violet);
+  --wb-tint-ink: var(--wb-hue-violet-ink);
+}
 .wb-stat-label {
-  font-size: 13px;
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
   color: var(--text-secondary);
 }
 .wb-stat-number {
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
+  font-size: var(--text-3xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-metric);
+  letter-spacing: var(--tracking-metric);
   font-variant-numeric: tabular-nums;
-  margin: 2px 0 4px;
+  margin: var(--space-1) 0 var(--space-2);
 }
 .wb-stat-foot {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 /* 面板标题：iOS 分组头 */
 .wb-panel {
-  padding: 18px 20px;
-  box-shadow: 0 1px 2px rgb(20 22 26 / 0.05);
+  padding: var(--space-9) var(--space-10);
 }
 .wb-section-head {
   align-items: baseline;
-  margin-bottom: 12px;
+  margin-bottom: var(--space-6);
 }
 .wb-section-head h2 {
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.005em;
+  font-size: var(--text-lg);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-display);
+}
+/* 负字距只给拉丁标题：中文标题吃 -0.005em 会把"整体研究进度"的字缝压到发紧，
+   而字距本来就是随字号变化的量，不是越小越高级。h1 与日历 h2 早就用 :lang(en)
+   分了两种语言（AppShell 会把 documentElement.lang 跟着 locale 走），这里补上同一套。 */
+.wb-section-head h2:lang(en) {
+  letter-spacing: var(--tracking-micro);
 }
 .wb-section-head p {
-  font-size: 12px;
-  margin-top: 2px;
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
 }
 .wb-section-head > b {
-  font-size: 22px;
-  font-weight: 800;
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
+  letter-spacing: var(--tracking-metric);
+  line-height: var(--leading-metric);
 }
 
-/* 进度条：更粗 + 胶囊 + 渐变 */
-.wb-progress-track {
-  height: 8px;
-  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
-  box-shadow: inset 0 0 0 0.5px rgb(20 22 26 / 0.04);
-}
-.wb-progress-fill {
-  background: linear-gradient(90deg, var(--accent-fill), var(--accent));
-}
+/* 进度条底槽/填充见上方规范定义，这里只留看板特有的容器 */
 .wb-dashboard-progress-list {
-  gap: 12px;
+  gap: var(--space-6);
 }
 .wb-dashboard-progress-item {
-  padding: 10px 12px;
-  border-radius: 10px;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
   transition: background-color var(--dur-fast) var(--ease);
 }
 .wb-dashboard-progress-item:hover {
-  background: color-mix(in srgb, var(--surface-muted) 55%, transparent);
-}
-.wb-progress-row {
-  font-size: 13px;
-}
-.wb-progress-row span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.wb-progress-row b {
-  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 /* 最近动态：圆点 + 连接线 */
@@ -8683,7 +8770,7 @@ button:disabled {
   top: 8px;
   width: 7px;
   height: 7px;
-  border-radius: 999px;
+  border-radius: var(--radius-full);
   background: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
@@ -8700,26 +8787,23 @@ button:disabled {
   display: none;
 }
 .wb-timeline-date {
-  width: 86px;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
 }
 .wb-timeline-content strong {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1.45;
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-ui);
 }
 .wb-timeline-content .wb-muted {
-  font-size: 12px;
+  font-size: var(--text-sm);
 }
 
 /* 优先卡片：顶行 + 百分比 */
 .wb-cards-grid {
-  gap: 12px;
+  gap: var(--space-6);
 }
 .wb-card {
-  border-radius: 14px;
-  gap: 10px;
+  border-radius: var(--radius-xl);
+  gap: var(--space-5);
   transition:
     transform var(--dur-base) var(--ease),
     box-shadow var(--dur-base) var(--ease);
@@ -8732,190 +8816,134 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-4);
 }
 .wb-card-eyebrow {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-label);
 }
 .wb-card-pct {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
   color: var(--accent-strong);
 }
 .wb-card-title {
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: var(--text-md);
+  line-height: var(--leading-ui);
 }
 
-/* 日历：苹果月历质感 */
-.wb-cal-head h2 {
-  font-size: 22px;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-}
-.wb-cal-head p {
-  font-size: 12px;
-}
+/* 日历：导航按钮只改字形大小，几何与反馈族都继承 .wb-icon-btn / .wb-btn。
+   这里原来另写了一套主色 8%→15%→24% 的阶梯，和表内同名按钮的红、
+   弹层项的蓝各不相同——三处"纯图标控件"三种反应。
+   又写过 30×30 和胶囊圆角：同一个 .wb-icon-btn 在表里 28、在日历 30，
+   同一排"今天"和工具栏的"导出成果"一个胶囊一个 10px 圆角。高度/圆角
+   现在都由令牌给（--wb-icon-h / .wb-btn 的 radius-lg），此处不再另写。 */
 .wb-cal-nav .wb-icon-btn {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  border-color: transparent;
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
   color: var(--text-secondary);
-  font-size: 16px;
-}
-.wb-cal-nav .wb-icon-btn:hover {
-  border-color: transparent;
-  background: color-mix(in srgb, var(--surface-muted) 100%, transparent);
-  color: var(--text);
-}
-.wb-cal-nav .wb-icon-btn:active {
-  transform: scale(0.93);
-}
-.wb-cal-nav .wb-btn {
-  border-radius: 999px;
-}
-.wb-cal-weekday {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  padding: 10px 4px;
-}
-.wb-cal-cell {
-  min-height: 108px;
-  gap: 3px;
-  transition: background-color var(--dur-fast) var(--ease);
-}
-.wb-cal-cell:hover {
-  background: color-mix(in srgb, var(--surface-muted) 40%, transparent);
-}
-.wb-cal-cell--today {
-  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
-}
-.wb-cal-day {
-  font-size: 13px;
-}
-.wb-cal-event {
-  font-weight: 500;
-}
-.wb-cal-more {
-  border-radius: 999px;
-  font-weight: 600;
-}
-.wb-cal-legend {
-  font-size: 12px;
+  font-size: var(--text-lg);
 }
 
 /* 展开详情：内嵌卡片 + 历史时间线轨道 */
 .wb-table .wb-row-detail > td {
-  padding: 14px 16px;
+  padding: var(--space-7) var(--space-8);
+  /* 详情行是挂载出来的，没有这一步就是一块内容突然砸进表格。
+     只做淡入，不做高度动画——<tr> 的高度动画必然引起整表跳动。 */
+  animation: wb-detail-in var(--dur-base) var(--ease);
+}
+@keyframes wb-detail-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 .wb-detail-grid {
-  padding: 16px 18px;
-  border: 0.5px solid var(--border);
-  border-radius: 12px;
+  padding: var(--space-8) var(--space-9);
+  border: 1px solid var(--border);
   background: var(--surface-raised);
-  box-shadow: 0 1px 2px rgb(20 22 26 / 0.04);
 }
 .wb-history-head {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-4);
 }
+/* 历史面板的小标题和 .wb-eyebrow / .wb-card-eyebrow 是同一类"眉标"：12px 以下放宽
+   字距是为了看得清，不是装饰。原来这里只放宽一半（0.01em），同一段里三处眉标两种松紧。 */
 .wb-history-head .wb-muted {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-.wb-timeline-item {
-  position: relative;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-label);
 }
 .wb-card-line {
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 .wb-detail-meta {
-  font-size: 12px;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
 }
 
 /* 空状态：居中呼吸感 */
 .wb-empty {
-  padding: 48px 24px;
-  font-size: 13px;
-  line-height: 1.6;
-}
-td.wb-empty {
-  border-radius: 0 0 14px 14px;
+  padding: var(--space-14) var(--space-10);
+  font-size: var(--text-base);
+  line-height: var(--leading-prose);
 }
 
 /* 引用视图：双栏卡片 */
 .wb-reference-column-head h2 {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-ui);
 }
 .wb-reference-list li {
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 .wb-helper-note {
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--text-sm);
+  line-height: var(--leading-prose);
 }
 .wb-email-row,
 .wb-reference-copy-row {
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 .wb-email-input {
-  min-height: 36px;
-  border-radius: 10px;
+  /* 控件高度归控件标尺：body 的 ui 默认值让 13px 的行盒从 16.5 涨到 18.9，
+     原来 min-height:36 加 padding 10/12 实测已经是 38（写的设计值 36 根本没生效），
+     再涨就是 40.8——和带上其它控件差 2.8px。改成走 --wb-band-h 并用 solid 档把行盒
+     压回内容以下，于是 38 由 min-height 说话，和工具栏那一条带同高。 */
+  min-height: var(--wb-band-h);
+  line-height: var(--leading-solid);
+  border-radius: var(--radius-lg);
 }
 .wb-view-switch {
-  border-radius: 10px;
-  padding: 2px;
-  gap: 2px;
-  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-1);
+  gap: var(--space-1);
+  background: var(--segment-track);
   border-color: transparent;
 }
 .wb-view-btn {
-  border-radius: 8px;
-  font-weight: 500;
+  border-radius: var(--radius-md);
+  font-weight: var(--fw-medium);
 }
 .wb-view-btn--active {
-  background: var(--surface-raised);
-  color: var(--text);
-  box-shadow: 0 1px 3px rgb(20 22 26 / 0.14);
-  font-weight: 600;
+  background: var(--segment-pill);
+  color: var(--segment-pill-ink);
+  box-shadow: var(--segment-pill-shadow);
+  font-weight: var(--fw-semibold);
 }
 
-/* 阶段树：复选圆点苹果化 */
-.wb-stage-row {
-  border-radius: 8px;
-}
-.wb-stage-toggle {
-  transition:
-    background-color var(--dur-fast) var(--ease),
-    border-color var(--dur-fast) var(--ease),
-    transform 100ms ease-out;
-}
-.wb-stage-toggle:active {
-  transform: scale(0.88);
-}
-.wb-stage-name {
-  font-size: 13px;
-}
+/* 阶段勾选泡的几何与按压缩在 phase3-research.css（它在 styles.css 之后加载，
+   同特异度才是生效的那一份）；这里只留圆角与静置态。 */
 
-/* 深色模式：tint 图标保持鲜艳 */
+/* 深色模式：淡色底要更实一点才压得住黑底 */
 :root[data-theme="dark"] .wb-stat-icon {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.25),
-    0 2px 8px rgb(0 0 0 / 0.35);
-}
-:root[data-theme="dark"] .wb-detail-grid {
-  box-shadow: none;
+  background: color-mix(in srgb, currentColor 24%, transparent);
 }
 
-/* 移动端：状态栏可横滑，悬浮工具栏取消粘性避免遮挡 */
+/* 移动端：抬头指标可横滑。工具栏的停靠见下面 phase5 的 760px 分支——
+   那一档里搜索会换成独占一行，工具栏变成两行，再粘在导航下面就吃掉太多高度。 */
 @media (max-width: 900px) {
   .wb-header {
     flex-direction: column;
@@ -8923,12 +8951,656 @@ td.wb-empty {
   .wb-status-bar {
     width: 100%;
     overflow-x: auto;
-    padding-bottom: 4px;
-  }
-  .wb-toolbar {
-    position: static;
+    padding-bottom: var(--space-2);
   }
   .wb-stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ── 工作台：整屏表格 / 浮层定位 / 可跳转总览卡 ───────────────────────── */
+
+/* 总览统计卡是导航入口：按钮需要左对齐并露出前往指示 */
+.wb-stat-card--link {
+  text-align: left;
+  cursor: pointer;
+}
+.wb-stat-goto {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-faint);
+  opacity: 0;
+  transform: translateX(-3px);
+  transition:
+    opacity var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
+}
+.wb-stat-card--link:hover .wb-stat-goto,
+.wb-stat-card--link:focus-visible .wb-stat-goto {
+  opacity: 1;
+  transform: none;
+}
+.wb-stat-card--link:hover {
+  border-color: var(--border-strong);
+}
+
+/* 浮层至少与触发控件同宽，并支持上翻 / 右对齐，避免贴边时被裁切 */
+.wb-menu-pop {
+  min-width: max(148px, 100%);
+}
+.wb-menu-pop--up {
+  top: auto;
+  bottom: calc(100% + var(--space-3));
+  transform-origin: bottom left;
+  /* animation-name 会整条替换，必须把材质动画一起写上 */
+  animation-name: wb-pop-in-up, wb-pop-materialize;
+}
+.wb-menu-pop--right {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
+}
+.wb-menu-pop--up.wb-menu-pop--right {
+  transform-origin: bottom right;
+}
+@keyframes wb-pop-in-up {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-menu-pop--up {
+    animation: none;
+  }
+  .wb-stat-goto {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 工作台去灰阶 + 固定列宽表格 ─────────────────────────────────────────
+   1) 灰阶：把工作台子树里的 --surface / --surface-muted 重映射成"白底 / 极淡
+      蓝底"，控件不再落在 #f5f6f8、#eceff3 这类中性灰上；层次交给鬓发线与蓝色
+      状态色，参考 Notion / WPS 智能表格。子树内的声明永远优先于 :root 继承值，
+      所以一处即可覆盖全部既有规则，阅读器侧不受影响。
+   2) 列宽：table-layout: fixed 后列宽只由表头 <th> 上的确定值决定——控制列给
+      像素，文本列按权重瓜分剩余空间并随窗口延展。改标题、选下拉都不会再让
+      浏览器按内容重算列宽，整表因此不再横向跳动。 */
+.wb-shell {
+  --surface: var(--surface-raised);
+  --surface-muted: #f3f7fe;
+  /* 浮动 chrome 只有一套材质：导航条和工具栏共用，滚动叠放时看不出接缝。 */
+  --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+  --wb-chrome-ring: inset 0 0 0 0.5px rgb(20 22 26 / 0.07);
+  --wb-chrome-blur: blur(20px) saturate(160%);
+  --wb-nav-h: 46px;
+  /* 工具栏带高度：搜索框、视图分段器、筛选泡、次级与主按钮共用这一条，
+     带上的控件只允许这一种高度（修复前实测 37.6/38/39/40 四种）。 */
+  --wb-band-h: 38px;
+  /* 控件只有两条高度，按"它改不改记录"分：
+     --wb-field-h 32 = 会改动记录的控件（状态下拉、优先级药丸、"转至在投"这类流转动词）；
+     --wb-icon-h 28 = 纯图标的圆控件（展开箭头、删除）。
+     修复前实测同一行里 21/22/28/32 四种高度、其中展开箭头 22 挨着删除 28。
+     作者药丸不在这两条上：它在标题的文字流里，跟 14px 文字同排，不是带上控件。 */
+  --wb-field-h: 32px;
+  --wb-icon-h: 28px;
+  /* 勾选泡不在这三条上：它是状态开关而不是图标动作，视觉要缩到和 13px 阶段名
+     同排才像 Reminders 的那一颗（21px）。触摸热区不靠把泡撑大——撑大到 32 会把
+     34px 的阶段行顶高，行与行之间的节奏就散了——由 ::after 向外借行内空白补出来。 */
+  --wb-check-h: 21px;
+  /* 状态色相：语义色，故意不跟随 data-accent——总览卡的阶段色必须和表内药丸
+     同色，否则一屏里会出现两种蓝。强调色只留给交互（选中、焦点、进度条）。
+     每个色相三层：本体（图形/淡底）、浅底文字 -ink、深底文字（见 dark 块）。
+     -ink 不是本体变暗那么简单：黄色系掉对比度最快，所以逐色手挑，
+     保证药丸文字在淡底上至少 4.5:1。而且余量要按最重的按压底算（tint+9%），
+     不是按静置底算——青绿原来取 700 级 #0f766e，静置 4.75 过关，一按到 18%
+     就掉到 4.47/4.25，故降到 800 级。 */
+  --wb-hue-blue: #3b82f6;
+  --wb-hue-green: #16a34a;
+  --wb-hue-teal: #0d9488;
+  --wb-hue-amber: #d97706;
+  --wb-hue-orange: #ea580c;
+  --wb-hue-violet: #7c3aed;
+  --wb-hue-red: #dc2626;
+  --wb-hue-gray: #787880;
+  --wb-hue-blue-ink: #1d4ed8;
+  --wb-hue-green-ink: #166534;
+  --wb-hue-teal-ink: #115e59;
+  --wb-hue-amber-ink: #92400e;
+  --wb-hue-orange-ink: #9a3412;
+  --wb-hue-violet-ink: #6d28d9;
+  --wb-hue-red-ink: #b91c1c;
+  --wb-hue-gray-ink: #55555c;
+  /* 危险控件专用的一档红墨：删除键可能坐在裸纸面上（行内图标按钮），也可能坐在
+     accent 9% 的作者药丸上，同一片 18% 红蒙在后者上会把 12px 字压到 4.33:1。
+     底不能按上下文改浓度（那会让"按下删除"在两个地方深浅不一样），所以加深墨。 */
+  --wb-hue-red-ink-strong: #991b1b;
+  /* 退底色：日历里非本月的格子——"内容还在但不属于当前范围"的区域。
+     它和 --surface-muted 是两件相反的事：muted 是浮起来（hover、控件底），
+     recede 是沉下去，所以深色模式必须往更暗混，否则邻月格子会凸到纸面之前。
+     浅底用色相池里的中性灰而不是蓝调：hover/当天都是主色淡底，邻月若也用蓝
+     就会和它们撞色（实测 6% 蓝和 5% 主色算出来是同一个 rgb）。控件不铺灰，
+     但"整片区域退到纸后"这件事本来就该是灰的。 */
+  --wb-recede: color-mix(in srgb, var(--wb-hue-gray) 6%, var(--surface-raised));
+  /* 页签选中底：深浅两档只在这一处换值，:hover 里重述底色时才不会漏掉深色档。 */
+  --nav-selected: var(--accent-soft);
+}
+:root[data-theme="dark"] .wb-shell {
+  --surface: #191c22;
+  --surface-muted: #21262f;
+  --nav-selected: color-mix(in srgb, var(--accent) 22%, transparent);
+  --wb-recede: color-mix(in srgb, #000 34%, var(--surface-raised));
+  --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  --wb-chrome-ring: inset 0 0 0 0.5px rgb(255 255 255 / 0.09);
+  /* 深色底上同一色相要提亮，否则 700 级字色直接糊进背景 */
+  --wb-hue-blue-ink: #93c5fd;
+  --wb-hue-green-ink: #86efac;
+  --wb-hue-teal-ink: #5eead4;
+  --wb-hue-amber-ink: #fcd34d;
+  --wb-hue-orange-ink: #fdba74;
+  --wb-hue-violet-ink: #c4b5fd;
+  --wb-hue-red-ink: #fca5a5;
+  --wb-hue-red-ink-strong: #fecaca;
+  --wb-hue-gray-ink: #aeaec0;
+}
+
+/* 分段导航的配色：选中态用蓝色而不是灰拇指（材质见上面的 .wb-nav） */
+.wb-nav-item--active {
+  background: var(--nav-selected);
+  color: var(--accent-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent);
+}
+/* 深色只换描边浓度：底色已经由 --nav-selected 分档，这里再写一次 background
+   简写会把上面 :hover 叠的 background-image 灰蒙重置掉。 */
+:root[data-theme="dark"] .wb-nav-item--active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
+}
+
+/* 搜索框：底色更实一点，聚焦才上蓝色环 */
+.wb-search:hover {
+  background-color: color-mix(in srgb, var(--surface-muted) 70%, var(--surface-raised));
+}
+
+/* 表头：不再用灰色色带，白底 + 一条稍重的鬓发线 */
+.wb-table thead th {
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-secondary);
+}
+
+/* 编号不再是一坨灰底药丸，退成等宽小字 */
+.wb-code {
+  padding: 0;
+  background: none;
+  color: var(--text-tertiary);
+}
+
+/* 下拉项是一行可点的列表项，和侧栏行、阅读列表行同族：悬停/按压铺 --fill-*。
+   原来写的是 9% 主色淡底（实测浅底 rgb(242,246,254)），而"当前就是它"的
+   --accent-soft 是 rgb(234,241,255)——两者只差 (8,5,1)，鼠标扫过整列时满屏都像选中，
+   分不清哪条才是现值。灰蒙叠在 accent-soft 上由下面的 --active 规则负责。 */
+.wb-menu-item:hover,
+.wb-menu-item--focus {
+  background-color: var(--fill-hover);
+}
+.wb-menu-item:active:not(:disabled) {
+  /* 列表项按压只变色不缩放：0.985 的挤压缩放在整宽的选项上读作“闪一下”，
+     iOS 的下拉高亮同样是纯颜色反馈。:not(:disabled) 是为了赢过全局
+     button:active:not(:disabled) 的缩放。 */
+  transform: none;
+  background-color: var(--fill-pressed);
+}
+.wb-menu-item--active {
+  background: var(--accent-soft);
+}
+/* 下拉里“当前就是它”那一条要单独重述底色：通用 :hover 与 .wb-menu-item--active
+   特异性同为 (0,2,0) 且写在前面，被后者整条挡掉——实测选中项悬停时
+   background 仍是 rgb(234,241,255)、反馈为零。和侧栏行、分段器同一套做法：
+   留住自己的底色，灰蒙叠在 background-image 上（background 简写会清掉它）。 */
+.wb-menu-item--active:hover,
+.wb-menu-item--active.wb-menu-item--focus {
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.wb-menu-item--active:active:not(:disabled) {
+  background-color: var(--accent-soft);
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
+}
+.wb-menu-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
+/* 状态/优先级药丸是"这是什么状态"的颜色，不是普通按钮底色。上面两条通用配方
+   特异性只有 (0,2,0)/(0,3,0)，会把药丸自己的色相整个洗掉——实测琥珀 14% 悬停变
+   rgb(242,246,254)、按压变 rgb(229,237,253)，正是交互那一刻状态色消失。
+   药丸的反馈改成在自己的色相里加深：静置 tint → 悬停 +5% → 按压 +9%。
+   档位是算出来的而不是随手取的：+6/+13 时"被拒"红药丸按压 12px/600 实测 4.49:1，
+   刚好掉出 AA；+5/+9 让最紧的一档（红 10→15→19）停在 4.80:1。 */
+.wb-status-pill .wb-menu-btn:hover,
+.wb-priority-pill .wb-menu-btn:hover {
+  border-color: transparent;
+  background: color-mix(
+    in srgb,
+    var(--wb-badge-hue, var(--text-tertiary)) calc(var(--wb-badge-tint, 12%) + 5%),
+    transparent
+  );
+}
+.wb-status-pill .wb-menu-btn:active:not(:disabled),
+.wb-priority-pill .wb-menu-btn:active:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--wb-badge-hue, var(--text-tertiary)) calc(var(--wb-badge-tint, 12%) + 9%),
+    transparent
+  );
+}
+/* 展开箭头是纯图标控件，与 .wb-icon-btn 同族：中性灰填充，字色不动。
+   以前它悬停铺主色淡底、并把墨色提成 accent-strong，于是同一行里
+   箭头变蓝、删除变红、下拉变蓝——三种反应三种含义。 */
+.wb-expand:hover {
+  background-color: var(--fill-hover);
+  color: var(--text-secondary);
+}
+/* ── 固定列宽 ─────────────────────────────────────────────────────────── */
+.wb-table {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+.wb-table tbody td,
+.wb-table thead th {
+  padding-right: 10px;
+  padding-left: 10px;
+}
+/* 控制列给确定像素：宽度按内容实测留足，永远不会挤掉药丸文字。 */
+.wb-col-grip {
+  width: 68px;
+  padding-left: 8px;
+  padding-right: 4px;
+}
+/* 标题是这张表里唯一的弹性列：其余列都给确定宽度，窗口变宽时长出来的余量
+   全部归主字段。实测修复前标题用百分比（22%/20%）被钉死，"研究领域"这类
+   次要列反而用 width:auto 吃余量——容器 1800px 时次要列胀到 442-454px、
+   标题只有 396px，主字段比次要字段还窄，行还要多绕一圈。 */
+.wb-col-title {
+  width: auto;
+  min-width: 96px;
+}
+.wb-col-stage {
+  width: 100px;
+}
+.wb-col-priority {
+  width: 118px;
+}
+.wb-col-status {
+  width: 124px;
+}
+.wb-col-date {
+  width: 84px;
+}
+.wb-col-count {
+  width: 58px;
+}
+.wb-col-year {
+  width: 76px;
+}
+.wb-col-vol {
+  width: 124px;
+}
+.wb-col-citations {
+  width: 176px;
+}
+/* 操作列：三张表各写各的宽度，因为控件串不一样。宽度＝左右 10px 衬 ＋ 控件 ＋
+   每处 6px 间隔（.wb-col-actions > * + *），按实测内容右边缘取整再留 1px：
+   在研 展开 28 ＋ 流转 67 ＋ 删除 28 ＝ 135 → 156；
+   在投 展开 28 ＋ 流转 79 ＋ 删除 28 ＝ 147 → 168；
+   已发表 展开 28 ＋ 删除 28 ＝ 62 → 84。
+   展开箭头三张表都在操作列的第一颗（此前在研把它放在"研究阶段"里，同一个
+   "展开详情"控件在一屏里出现在两个位置）。窄档衬宽降到 6px，见下面的 ≤640 档。 */
+.wb-table--research .wb-col-actions {
+  width: 156px;
+}
+.wb-table--submitted .wb-col-actions {
+  width: 168px;
+}
+.wb-table--published .wb-col-actions {
+  width: 84px;
+}
+/* 触屏档：--wb-icon-h 从 28 升到 32，操作列里两颗图标控件各宽 4px，实测删除键
+   越出列边 7px（在研/在投）与 6px（已发表）。三条都写在 ≤640 档的同名覆盖之前，
+   所以窄档另给一组（见下面容器档位段）。 */
+@media (pointer: coarse) {
+  .wb-table--research .wb-col-actions {
+    width: 164px;
+  }
+  .wb-table--submitted .wb-col-actions {
+    width: 176px;
+  }
+  .wb-table--published .wb-col-actions {
+    width: 90px;
+  }
+}
+/* 次要字段定宽，不参与分余量（余量全给标题，见上面 .wb-col-title）。
+   宽度按内容实测：期刊/领域 12 个汉字、DOI 常见串两行换行。
+   DOI 原来另有一条 max-width:180 + text-overflow:ellipsis（写在 phase3-published.css），
+   是这排里唯一"藏字"的列——同一段文字在标题列换行显示，在 DOI 列被截成"10.13502/j…"，
+   同一个字段在展开详情里又是完整可编辑的。现在它和别的文本列一样换行。 */
+.wb-col-text {
+  width: 168px;
+}
+.wb-col-doi {
+  width: 180px;
+}
+/* 表内控件比页面别处更紧凑，给文本列让出宽度 */
+.wb-table .wb-menu-btn {
+  padding: var(--space-2) var(--space-4) var(--space-2) var(--space-5);
+  font-size: var(--text-sm);
+}
+.wb-table .wb-btn {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+}
+/* 日期是行内正文值（和投稿次数/期刊/DOI 一样可直接点改），所以它跟正文那一档 13，
+   这里以前另写 --text-sm：同排两个可编辑字段一个 12 一个 13。表头另有
+   .wb-table thead th 的 12 档，不受这条影响。 */
+.wb-col-date {
+  font-variant-numeric: tabular-nums;
+}
+/* 换行而不是省略：固定列宽下换行只长高这一行，不会挪动别的列，
+   也不会像截断那样把内容藏起来。 */
+.wb-table .wb-editable {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.wb-col-vol .wb-editable {
+  display: inline-block;
+  max-width: calc(100% - 8px);
+  vertical-align: bottom;
+}
+
+/* 窄表格不横向滚动、也不把主列挤成 0px：按 Notion 的做法收起次要列。
+   按容器宽度判断而不是视口宽度——侧栏占位时视口 900px 下表格只有 575px。
+   收起的字段仍在展开的详情行里可编辑。
+   档位线是按"标题至少还容得下 ~300px"倒推的：次要列定宽之后，每收一颗列就把它的
+   宽度还给标题。让位顺序是 备注 → 最宽的次要字段 → 元数据 → 状态药丸 → 拖拽柄：
+   越靠后的越接近"这一行是什么"，越靠前的越接近"关于它的附注"。
+
+   收列的写法必须是"0 宽的列"，不能是 display:none。fixed 布局下没有盒子的单元格
+   让那一列变成 auto，跟着标题一起平分剩余宽度——实测容器 968（视口 1280）时标题只有
+   152px，两颗被"收掉"的文本列各留下 152px 的死带宽，右边空出 305px，行底鬓发线就在
+   那里断掉。0 宽＋padding 归零才是真的把宽度还给唯一的弹性列；visibility:hidden 让
+   格子里的控件连同焦点可达性一起消失，overflow:hidden 保证 0 宽盒子里的内容不外溢。
+
+   white-space:nowrap 是这条配方里不能省的一条：0 宽的格子＋正文列本就有的
+   overflow-wrap:anywhere，等于让每个汉字/DOI 字符各占一行——实测已发表行从 80px 被顶到
+   540px（行高取各格内容的最大值，格子看不见不代表它不占高）。禁掉软换行后内容只有一行，
+   横向溢出的部分交给上面那两条 overflow/visibility 处理。 */
+@container wbtable (max-width: 1240px) {
+  /* 在研/在投各有一颗"下一步行动"列。两颗文本列同时出现要 336px，实测容器 1128px
+     （视口 1440）时标题被压到 272px——比单颗次要列还窄一档，长标题绕三行。
+     备注是最先该让位的信息：它不在这里也在展开详情里改。 */
+  .wb-table .wb-col-note {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 1200px) {
+  /* DOI 是这排里最宽的次要字段（180px），先收它。 */
+  .wb-table--published .wb-col-doi {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 1040px) {
+  .wb-table .wb-col-text {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 1000px) {
+  .wb-table--published .wb-col-vol {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 880px) {
+  .wb-table .wb-col-date {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 740px) {
+  /* 优先级和投稿次数是排序/统计用的元数据，不是这一行的身份。药丸列本身收不动：
+     实测优先级药丸 96px ＋左右 6px 内衬＝108px，再窄就截字。所以整列收掉。
+     留下阶段/状态：在研的"写作中"、在投的"退修"是判断该行要不要处理的第一依据。 */
+  .wb-table .wb-col-priority,
+  .wb-table .wb-col-count {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 700px) {
+  /* 已发表在这一档只剩 拖拽柄 58 ＋ 年份 76 ＋ 操作 74 ＋ 引用 136 ＝ 344px，
+     实测视口 655（用户的常用窗口，容器 575）时标题只有 231px，且引用框把行撑到
+     119px 高三行。引用数字＋"从 Crossref 更新"整块收进展开详情，那里本来就有。 */
+  .wb-table--published .wb-col-citations {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+@container wbtable (max-width: 640px) {
+  .wb-table tbody td,
+  .wb-table thead th {
+    padding-right: 6px;
+    padding-left: 6px;
+  }
+  .wb-col-grip {
+    width: 58px;
+  }
+  .wb-col-stage {
+    width: 92px;
+  }
+  .wb-col-status {
+    width: 112px;
+  }
+  /* 窄档衬宽从 10px 降到 6px（上面第一条），三张表的操作列各减 8px：
+     在研 135＋12＝147→148，在投 147＋12＝159→160，已发表 62＋12＝74→76。 */
+  .wb-table--research .wb-col-actions {
+    width: 148px;
+  }
+  .wb-table--submitted .wb-col-actions {
+    width: 160px;
+  }
+  .wb-table--published .wb-col-actions {
+    width: 76px;
+  }
+  /* 触屏档在这一档再各减 8px 衬：实测内容 143/155/70，配 156/168/82 留 1～13px。
+     写在同一档位里，是为了让上面那组宽屏数（164/176/90）在这条之前生效。 */
+  @media (pointer: coarse) {
+    .wb-table--research .wb-col-actions {
+      width: 156px;
+    }
+    .wb-table--submitted .wb-col-actions {
+      width: 168px;
+    }
+    .wb-table--published .wb-col-actions {
+      width: 82px;
+    }
+  }
+}
+/* 再窄一档（容器 ≤560px）连状态药丸列一起收：grip 58 ＋ 阶段 92 ＋ 操作 148 ＝ 298px，
+   留给标题只有 163px（实测容器 575 时 11 个汉字、行高三行）——手机和窄窗口上最该看的
+   字段反而最小。收起的阶段/状态在展开详情行里照样可改；标题由 .wb-col-title 的
+   width:auto 接管剩下的全部宽度。已发表这一档再收年份：4 位数字在展开详情里就在标题旁边。 */
+@container wbtable (max-width: 560px) {
+  .wb-table .wb-col-stage,
+  .wb-table .wb-col-status,
+  .wb-table--published .wb-col-year {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+/* 手机档（容器 ≤430px）：连拖拽柄列也收起——拖拽排序和论文编号都是桌面动作。
+   年份/引用/阶段/优先级/状态都由上面几档依次让位，这一档只剩标题＋操作，
+   操作列沿用 ≤640 档按控件实测出来的宽度，这里不再改数。 */
+@container wbtable (max-width: 430px) {
+  .wb-table .wb-col-grip {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}
+
+/* ── 工作台交互补全：键盘焦点 / 过渡 / 无抖动按压 ────────────────────────
+   阶段树那批控件的同类修补写在 components/workbench/phase*.css 里——它们在
+   main.tsx 中排在 styles.css 之后，写在这里会被那份文件覆盖。 */
+
+/* 单元格里的可编辑文本是 role="button" + tabIndex=0，之前一点焦点样式都没有，
+   键盘用户 Tab 进去就找不到自己在哪一格。 */
+.wb-editable:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: var(--focus-ring);
+}
+.wb-inline-input:focus {
+  outline: none;
+  border-color: transparent;
+  box-shadow: var(--focus-ring);
+}
+.wb-stat-card--link:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--focus-ring),
+    var(--elev-raised);
+}
+.wb-chip-add:focus-visible,
+.wb-chip-del:focus-visible {
+  outline-offset: 1px;
+}
+/* 作者药丸的加减按钮：之前是 0s，出现/消失硬切 */
+.wb-chip-add,
+.wb-chip-del {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-base) var(--ease);
+}
+/* 药丸住在单元格里，按压缩放会带着整行一起抖，所以只换颜色。
+   ＋ 走中性灰，✕ 留在自己悬停时的那套红色相里——原写法两颗都压成主色 14%，
+   删除键会在按下的瞬间从红翻蓝，等于在最该保持警告色的一刻换了语义。 */
+.wb-chip-add:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
+  color: var(--text-secondary);
+}
+.wb-chip-del:active:not(:disabled) {
+  /* 与行内删除按钮同一个 18% 底。药丸坐在 accent 9% 自有底色上，同一档红蒙
+     在它上面更浅（旧 --wb-hue-red-ink 实测 4.33:1），所以墨用 -strong 档补回，
+     最坏一档（浅色 / 酒红档）5.56:1。 */
+  transform: none;
+  background-color: color-mix(in srgb, var(--wb-hue-red) 18%, transparent);
+  color: var(--wb-hue-red-ink-strong);
+}
+
+/* 状态/优先级药丸自带 0.5px inset 描边，和通用焦点环是同一条 box-shadow 属性，
+   后面那条会把焦点环整条替换掉——Tab 到状态列时看不见焦点。焦点态两层一起写。 */
+.wb-status-pill .wb-menu-btn:focus-visible,
+.wb-priority-pill .wb-menu-btn:focus-visible {
+  box-shadow:
+    var(--focus-ring),
+    var(--ring-hairline);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-chip-add,
+  .wb-chip-del,
+  .wb-editable {
+    transition: none;
+  }
+}
+
+/* 分段器族的悬停/按压反馈：此前只有 .workspace-segment 换了字色，ai-mode-tab、
+   segmented-control、wb-view-btn 连 :hover 都没有——按下毫无回应。用灰阶蒙层而不
+   是改底色，同一份反馈压在浅轨道和白色胶囊上才都显形（深档同理自动换档）。 */
+.workspace-segment__item,
+.ai-mode-tab,
+.segmented-control__item,
+.wb-view-btn {
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.workspace-segment__item:not(.workspace-segment__item--active):hover,
+.ai-mode-tab:not(.ai-mode-tab--active):hover,
+.segmented-control__item:not(.segmented-control__item--active):hover,
+.wb-view-btn:not(.wb-view-btn--active):hover {
+  color: var(--text);
+  background: var(--fill-hover);
+}
+.workspace-segment__item:not(.workspace-segment__item--active):active:not(:disabled),
+.ai-mode-tab:not(.ai-mode-tab--active):active:not(:disabled),
+.segmented-control__item:not(.segmented-control__item--active):active:not(:disabled),
+.wb-view-btn:not(.wb-view-btn--active):active:not(:disabled) {
+  background: var(--fill-pressed);
+}
+/* 已经选中的那一档同样要回应：应用里每一处"已选中"的行与页签（侧栏行、工作台
+   导航、视图切换）都是"保留自己的底色 + 叠一层灰蒙"，分段器单独点了没反应就是
+   割裂（实测选中档 rest/hover/press 三个值完全相同）。
+   灰蒙走 background-image，白色胶囊的 background-color 才不会被涂掉。 */
+.workspace-segment__item--active:hover,
+.ai-mode-tab--active:hover,
+.segmented-control__item--active:hover,
+.wb-view-btn--active:hover {
+  background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.workspace-segment__item--active:active:not(:disabled),
+.ai-mode-tab--active:active:not(:disabled),
+.segmented-control__item--active:active:not(:disabled),
+.wb-view-btn--active:active:not(:disabled) {
+  background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
+}
+
+/* 行内"可展开"走图标控件的灰填充；"可改写"仍然靠主色淡底提示（它不是控件而是一格
+   文本，加深比例与 --fill-* 两档一致：10% → 18%）。 */
+.wb-expand:active:not(:disabled) {
+  transform: none;
+  background-color: var(--fill-pressed);
+  color: var(--text-secondary);
+}
+.wb-editable:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent) 18%, transparent);
 }

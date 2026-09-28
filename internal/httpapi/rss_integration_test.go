@@ -14,9 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 const integrationRSS = `<?xml version="1.0"?><rss version="2.0"><channel>
@@ -37,7 +37,7 @@ func TestRSSAPICoreFlow(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

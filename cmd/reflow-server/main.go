@@ -10,11 +10,11 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/config"
-	"github.com/Zijinn/Aurora/internal/httpapi"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
-	"github.com/Zijinn/Aurora/internal/version"
+	"github.com/Zijinn/ReFlow/internal/config"
+	"github.com/Zijinn/ReFlow/internal/httpapi"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/version"
 )
 
 func main() {
@@ -59,7 +59,7 @@ func main() {
 
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Info("Aurora server started", "address", cfg.Address, "version", version.Version, "lan_mode", cfg.LANMode)
+		logger.Info("ReFlow server started", "address", cfg.Address, "version", version.Version, "lan_mode", cfg.LANMode)
 		var serveErr error
 		if cfg.TLSCertPath != "" {
 			serveErr = server.ListenAndServeTLS(cfg.TLSCertPath, cfg.TLSKeyPath)

@@ -3,6 +3,9 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import App from "./App"
+import { stubMediaQueries } from "./test/media-queries"
+
+const PREFERS_DARK = "(prefers-color-scheme: dark)"
 import { useReaderStore } from "./store/reader"
 
 beforeEach(() => {
@@ -112,9 +115,11 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   localStorage.clear()
   delete (window as Window & { _wails?: unknown })._wails
   delete document.documentElement.dataset.desktop
+  delete document.documentElement.dataset.theme
 })
 
 describe("Bootstrap boundary", () => {
@@ -183,7 +188,7 @@ describe("Bootstrap boundary", () => {
   })
 })
 
-describe("Aurora reading experience", () => {
+describe("ReFlow reading experience", () => {
   it("renders the empty reading state and reports a ready library", async () => {
     renderApp()
     expect(await screen.findByRole("heading", { name: "Today" })).toBeInTheDocument()
@@ -194,7 +199,7 @@ describe("Aurora reading experience", () => {
   it("opens the home AI panel without starting a model request", async () => {
     renderApp()
     fireEvent.click(await screen.findByRole("button", { name: "AI assistant" }))
-    expect(await screen.findByText("Aurora Insight")).toBeInTheDocument()
+    expect(await screen.findByText("ReFlow Insight")).toBeInTheDocument()
     expect(document.querySelector(".workspace-body")).toHaveClass("workspace-body--ai-open")
     expect(
       vi.mocked(fetch).mock.calls.some(([input, init]) => {
@@ -337,10 +342,10 @@ describe("Aurora reading experience", () => {
     expect(screen.getByRole("heading", { name: "界面" })).toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: "关闭" }))
     expect(screen.getByRole("heading", { name: "今天" })).toBeInTheDocument()
-    expect(localStorage.getItem("cairn-reader-preferences")).toContain("zh-CN")
+    expect(localStorage.getItem("reflow-reader-preferences")).toContain("zh-CN")
   })
 
-  it("switches between Aurora light and dark skins", async () => {
+  it("switches between ReFlow light and dark skins", async () => {
     renderApp()
     fireEvent.click(await screen.findByRole("button", { name: "Preferences" }))
     const theme = screen.getByRole("combobox", { name: "Theme" })
@@ -351,7 +356,18 @@ describe("Aurora reading experience", () => {
     expect(document.documentElement.dataset.theme).toBe("light")
   })
 
-  it("integrates window controls into the Aurora header on Windows", async () => {
+  it("resolves the system theme against the OS and keeps tracking it", async () => {
+    // AppShell used to delete data-theme in system mode while no CSS rule reads
+    // prefers-color-scheme, so a dark-OS user got the entire light palette.
+    const os = stubMediaQueries({ [PREFERS_DARK]: true })
+    renderApp()
+    await screen.findByRole("button", { name: "Preferences" })
+    expect(document.documentElement.dataset.theme).toBe("dark")
+    act(() => os.set(PREFERS_DARK, false))
+    expect(document.documentElement.dataset.theme).toBe("light")
+  })
+
+  it("integrates window controls into the ReFlow header on Windows", async () => {
     const desktopHost = window as Window & { _wails?: { environment: { OS: string } } }
     desktopHost._wails = { environment: { OS: "windows" } }
     document.documentElement.dataset.desktop = "windows"

@@ -24,7 +24,7 @@ The findings below use official product and help pages. The Inoreader homepage c
 - [Folo](https://folo.is/) presents itself as an AI RSS reader: “Discover” finds sources across the open web, “Vibe Read” lets AI process the stream and keep the signal, and “Built Open” highlights inspectable open-source code. These are useful concepts for a later discovery/summarization layer, but not substitutes for predictable feed navigation.
 - [Inoreader](https://www.inoreader.com/) was attempted as a comparison source, but the fetch failed at `robots.txt` and no claims are made here about its current UI.
 
-## Patterns applicable to Aurora
+## Patterns applicable to ReFlow
 
 ### 1. Onboarding should be a short sequence of concrete actions
 
@@ -32,15 +32,15 @@ Use the Readwise ordering as a model: (1) import OPML or existing content, (2) a
 
 ### 2. Keep automatic intake separate from deliberate saves
 
-The Library/Feed split is a strong mental model for a three-pane RSS workspace. Aurora can keep incoming/unread stream state distinct from user-curated saved items, with explicit actions to save, archive, or mark seen. Avoid making “unread” and “saved” the same state; they answer different questions.
+The Library/Feed split is a strong mental model for a three-pane RSS workspace. ReFlow can keep incoming/unread stream state distinct from user-curated saved items, with explicit actions to save, archive, or mark seen. Avoid making “unread” and “saved” the same state; they answer different questions.
 
 ### 3. Make saved views first-class, not hidden filters
 
-Readwise's Filtered Views and Feedbin's saved searches turn recurring queries into one-click destinations. Aurora should support named views backed by simple predicates (source, unread/read, starred/saved, tag, date) and show them in the primary navigation. A later syntax layer can remain optional; the first version should be form-driven and predictable.
+Readwise's Filtered Views and Feedbin's saved searches turn recurring queries into one-click destinations. ReFlow should support named views backed by simple predicates (source, unread/read, starred/saved, tag, date) and show them in the primary navigation. A later syntax layer can remain optional; the first version should be form-driven and predictable.
 
 ### 4. Treat the reader surface as a focus mode
 
-Fullscreen/long-form reading and independently collapsible side panels are directly relevant to Aurora's existing three-pane layout. Preserve source metadata and actions, but allow the content column to become dominant, remember panel visibility, and provide typography/line-width controls. Vertical pagination or continuous scroll should preserve text selection and highlighting rather than forcing horizontal page transitions.
+Fullscreen/long-form reading and independently collapsible side panels are directly relevant to ReFlow's existing three-pane layout. Preserve source metadata and actions, but allow the content column to become dominant, remember panel visibility, and provide typography/line-width controls. Vertical pagination or continuous scroll should preserve text selection and highlighting rather than forcing horizontal page transitions.
 
 ### 5. Search should be fast, keyboard-accessible, and saveable
 
@@ -52,10 +52,10 @@ The useful combination is: Add Feed in the navigation, source-level Subscribe wh
 
 ### 7. Keep AI/discovery additive
 
-Folo's Discover/Vibe Read framing shows where an AI layer can sit: source discovery and stream summarization. It should augment, not replace, deterministic views, chronological ordering, read/unread state, and user-controlled saves. Aurora's initial reader should remain useful with AI disabled.
+Folo's Discover/Vibe Read framing shows where an AI layer can sit: source discovery and stream summarization. It should augment, not replace, deterministic views, chronological ordering, read/unread state, and user-controlled saves. ReFlow's initial reader should remain useful with AI disabled.
 
 ## Limitations
 
 - This is a small primary-source sweep rather than a usability test; screenshots and interaction details were taken from product/help descriptions, not hands-on authenticated sessions.
-- Readwise Reader's feature set is broader than an RSS-only reader, so some capabilities (highlight sync, Ghostreader, podcast transcripts) may be outside Aurora's immediate scope.
+- Readwise Reader's feature set is broader than an RSS-only reader, so some capabilities (highlight sync, Ghostreader, podcast transcripts) may be outside ReFlow's immediate scope.
 - Inoreader's current interface was not assessed because its public page was blocked by a robots fetch failure.

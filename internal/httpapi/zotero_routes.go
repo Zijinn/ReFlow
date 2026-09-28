@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/service"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/service"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func (s *Server) getZoteroStatus(w http.ResponseWriter, r *http.Request) {

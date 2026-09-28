@@ -80,6 +80,7 @@ import type {
 import { useTranslation } from "../lib/i18n"
 import { useOnlineState } from "../lib/online"
 import { keyboardChord } from "../lib/shortcuts"
+import { applyTheme } from "../lib/theme"
 import { enqueueStateMutation, flushMutationOutbox, queueStateMutation } from "../offline/database"
 import { useReaderStore, type PaneLayout } from "../store/reader"
 import { toast } from "../store/toast"
@@ -207,13 +208,15 @@ export function AppShell() {
   }, [locale])
 
   useEffect(() => {
-    if (theme === "system") {
-      delete document.documentElement.dataset.theme
-      document.documentElement.style.colorScheme = "light dark"
-    } else {
-      document.documentElement.dataset.theme = theme
-      document.documentElement.style.colorScheme = theme
-    }
+    applyTheme(theme)
+    if (theme !== "system") return
+    // "system" is not a one-time read: the resolved value has to keep tracking the
+    // OS, because the stylesheet only knows about light and dark.
+    const query = window.matchMedia?.("(prefers-color-scheme: dark)")
+    if (!query) return
+    const update = () => applyTheme("system")
+    query.addEventListener("change", update)
+    return () => query.removeEventListener("change", update)
   }, [theme])
 
   useEffect(() => {

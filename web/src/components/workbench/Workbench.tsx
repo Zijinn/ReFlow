@@ -362,7 +362,12 @@ export function Workbench() {
           ) : (
             <>
               {tab === "dashboard" && (
-                <Dashboard research={research} submitted={submitted} published={published} />
+                <Dashboard
+                  research={research}
+                  submitted={submitted}
+                  published={published}
+                  onNavigate={setTab}
+                />
               )}
               {tab === "research" && (
                 <ResearchPage

@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/service"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/service"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 type aiProfileRequest struct {
@@ -258,7 +258,7 @@ func (s *Server) requireAI(w http.ResponseWriter, r *http.Request) bool {
 	if s.ai != nil {
 		return true
 	}
-	writeProblem(w, r, http.StatusServiceUnavailable, "ai_unavailable", "AI unavailable", "Credential encryption is not configured on this Aurora server.")
+	writeProblem(w, r, http.StatusServiceUnavailable, "ai_unavailable", "AI unavailable", "Credential encryption is not configured on this ReFlow server.")
 	return false
 }
 

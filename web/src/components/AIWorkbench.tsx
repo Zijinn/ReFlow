@@ -244,7 +244,7 @@ export function AIWorkbench(props: AIWorkbenchProps) {
               <AIIcon />
             </i>
             <span>
-              <strong>Aurora Insight</strong>
+              <strong>ReFlow Insight</strong>
               <small>{props.contextLabel}</small>
             </span>
           </span>

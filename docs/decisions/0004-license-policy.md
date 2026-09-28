@@ -4,7 +4,7 @@ Status: accepted
 
 ## Decision
 
-Aurora is licensed GPL-3.0-only. MrRSS-derived work retains notices. Folo is a product and interaction reference only; its AGPL source is not copied. Fluent Reader BSD code may be ported when its copyright notice and license are retained.
+ReFlow is licensed GPL-3.0-only. MrRSS-derived work retains notices. Folo is a product and interaction reference only; its AGPL source is not copied. Fluent Reader BSD code may be ported when its copyright notice and license are retained.
 
 ## Rationale
 

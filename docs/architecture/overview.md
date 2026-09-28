@@ -1,12 +1,12 @@
-# Aurora architecture
+# ReFlow architecture
 
 ## Context
 
-Aurora must provide one coherent reading system across Windows, macOS, iPad Safari, and future mobile clients. The desktop application can run a local Go process. iPad cannot, so the backend is designed as an independently runnable service from the first commit.
+ReFlow must provide one coherent reading system across Windows, macOS, iPad Safari, and future mobile clients. The desktop application can run a local Go process. iPad cannot, so the backend is designed as an independently runnable service from the first commit.
 
 ## Containers
 
-### Aurora Server
+### ReFlow Server
 
 The server owns all durable state and business rules:
 
@@ -20,11 +20,11 @@ The server owns all durable state and business rules:
 
 The server can run inside the desktop application or as a standalone process. It serves the same embedded web assets in both modes.
 
-### Aurora Web
+### ReFlow Web
 
 The React PWA is an API client. It does not parse feeds and does not contain authoritative business state. TanStack Query owns remote cache state. Zustand owns ephemeral layout, selection, view, and shortcut state. IndexedDB contains an explicitly bounded offline cache and a mutation outbox. Desktop navigation exposes library scopes directly; iPad and mobile use the same scopes through a touch-sized Library panel.
 
-### Aurora Desktop
+### ReFlow Desktop
 
 The desktop adapter controls lifecycle, native menus, tray behavior, file dialogs, notifications, and local server startup. No domain or storage package imports desktop framework APIs.
 
@@ -85,7 +85,7 @@ RSS is pull-based by default: the scheduler polls due feeds every minute, while 
 
 ## Authentication modes
 
-Loopback mode accepts a short-lived bootstrap secret injected into the desktop webview. LAN mode requires a paired device token and should use HTTPS for installable PWA clients. The server can terminate TLS directly with `CAIRN_TLS_CERT_PATH` and `CAIRN_TLS_KEY_PATH`, or sit behind a trusted reverse proxy. Pairing codes are one-time, expire quickly, and are only displayed on an already trusted client. Device tokens are random, shown once, stored hashed on the server, and revocable.
+Loopback mode accepts a short-lived bootstrap secret injected into the desktop webview. LAN mode requires a paired device token and should use HTTPS for installable PWA clients. The server can terminate TLS directly with `REFLOW_TLS_CERT_PATH` and `REFLOW_TLS_KEY_PATH`, or sit behind a trusted reverse proxy. Pairing codes are one-time, expire quickly, and are only displayed on an already trusted client. Device tokens are random, shown once, stored hashed on the server, and revocable.
 
 ## Content safety
 
@@ -99,7 +99,7 @@ All durable entry state is server-side. Every state mutation includes a client m
 
 ## External synchronization
 
-FreshRSS, Google Reader compatible services, Miniflux, Fever, Feedbin, and Nextcloud News implement one adapter contract. Each account owns an opaque incremental cursor plus feed and entry mappings. On the first run Aurora imports remote subscriptions and remote state; later runs push locally changed read/starred state before pulling remote deltas. A local change after the previous successful cursor wins over stale remote state.
+FreshRSS, Google Reader compatible services, Miniflux, Fever, Feedbin, and Nextcloud News implement one adapter contract. Each account owns an opaque incremental cursor plus feed and entry mappings. On the first run ReFlow imports remote subscriptions and remote state; later runs push locally changed read/starred state before pulling remote deltas. A local change after the previous successful cursor wins over stale remote state.
 
 WebDAV and iCloud Drive accounts use a separate portable library-snapshot path while sharing the encrypted account store and scheduler. The snapshot excludes device tokens, provider credentials, jobs, and local sync metadata. Each target stores independent local and remote fingerprints, so WebDAV and iCloud can run together. One-sided changes synchronize automatically; two-sided changes stop with a conflict until the user explicitly uploads the local library or restores the cloud copy.
 

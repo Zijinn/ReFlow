@@ -8,8 +8,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 type SecurityConfig struct {
@@ -68,7 +68,7 @@ func deviceTokenFromRequest(r *http.Request) string {
 	if strings.HasPrefix(authorization, bearerPrefix) {
 		return strings.TrimSpace(strings.TrimPrefix(authorization, bearerPrefix))
 	}
-	if cookie, err := r.Cookie("cairn_device"); err == nil {
+	if cookie, err := r.Cookie("reflow_device"); err == nil {
 		return cookie.Value
 	}
 	return ""
@@ -82,7 +82,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			return
 		}
 		if !s.originAllowed(origin, r.Host) {
-			writeProblem(w, r, http.StatusForbidden, "origin_not_allowed", "Origin not allowed", "This origin is not trusted by Aurora Server.")
+			writeProblem(w, r, http.StatusForbidden, "origin_not_allowed", "Origin not allowed", "This origin is not trusted by ReFlow Server.")
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)

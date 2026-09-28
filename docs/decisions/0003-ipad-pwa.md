@@ -4,11 +4,11 @@ Status: accepted
 
 ## Decision
 
-The first iPad client is an installable PWA that connects to a trusted Aurora Server. A native iOS binary is deferred, while the versioned API remains suitable for one.
+The first iPad client is an installable PWA that connects to a trusted ReFlow Server. A native iOS binary is deferred, while the versioned API remains suitable for one.
 
 ## Rationale
 
-iPad cannot run the normal Aurora Go process. A PWA provides touch, external keyboard, home-screen installation, responsive layout, recent-entry caching, and fast iteration without introducing a second UI implementation.
+iPad cannot run the normal ReFlow Go process. A PWA provides touch, external keyboard, home-screen installation, responsive layout, recent-entry caching, and fast iteration without introducing a second UI implementation.
 
 ## Consequences
 

@@ -10,15 +10,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	"github.com/Zijinn/Aurora/internal/event"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	"github.com/Zijinn/ReFlow/internal/event"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func TestManagerCancelsRunningJob(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,7 +74,7 @@ func TestManagerCancelsRunningJob(t *testing.T) {
 func TestManagerCancelledClaimedJobDoesNotEnterHandler(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -111,7 +111,7 @@ func TestManagerCancelledClaimedJobDoesNotEnterHandler(t *testing.T) {
 func TestManagerMaintenanceRequeuesClaimedAndPreventsStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestManagerMaintenanceRequeuesClaimedAndPreventsStart(t *testing.T) {
 func TestManagerEnterMaintenanceCancelsAndWaits(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestManagerEnterMaintenanceCancelsAndWaits(t *testing.T) {
 
 func TestManagerRejectsEnqueueDuringMaintenance(t *testing.T) {
 	ctx := context.Background()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,7 @@ func TestManagerRejectsEnqueueDuringMaintenance(t *testing.T) {
 func TestManagerMaintenanceIsExclusive(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

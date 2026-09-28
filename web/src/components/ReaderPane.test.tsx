@@ -28,7 +28,7 @@ const aiProfile: AIProfile = {
 const detail: EntryDetail = {
   id: "entry-1",
   feed_id: "feed-1",
-  feed_title: "Cairn Notes",
+  feed_title: "ReFlow Notes",
   canonical_url: "https://example.com/entry",
   title: "A tagged article",
   author: null,

@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/Zijinn/Aurora/internal/config"
-	"github.com/Zijinn/Aurora/internal/httpapi"
-	"github.com/Zijinn/Aurora/internal/secretbox"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/config"
+	"github.com/Zijinn/ReFlow/internal/httpapi"
+	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/storage"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
@@ -48,7 +48,7 @@ func main() {
 		os.Exit(1)
 	}
 	app := application.New(application.Options{
-		Name:        "Aurora",
+		Name:        "ReFlow",
 		Description: "A private reading home for the open web",
 		LogLevel:    slog.LevelError,
 		Assets: application.AssetOptions{
@@ -61,7 +61,7 @@ func main() {
 			if runtime.GOOS == "linux" {
 				return nil
 			}
-			return &application.SingleInstanceOptions{UniqueID: "app.aurora.reader"}
+			return &application.SingleInstanceOptions{UniqueID: "app.reflow.reader"}
 		}(),
 	})
 
@@ -72,8 +72,8 @@ func main() {
 		windowWidth, windowHeight = restoredSize.Width, restoredSize.Height
 	}
 	window := app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Name:             "aurora-main-window",
-		Title:            "Aurora",
+		Name:             "reflow-main-window",
+		Title:            "ReFlow",
 		Width:            windowWidth,
 		Height:           windowHeight,
 		MinWidth:         minWindowWidth,

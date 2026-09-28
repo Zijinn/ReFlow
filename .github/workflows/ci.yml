@@ -19,7 +19,7 @@ jobs:
           cache: true
       - run: go test -race ./...
       - run: go vet ./...
-      - run: go build ./cmd/cairn-server
+      - run: go build ./cmd/reflow-server
       - run: bash scripts/check-release-config.sh
 
   web:

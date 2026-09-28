@@ -1,4 +1,4 @@
-module github.com/Zijinn/Aurora
+module github.com/Zijinn/ReFlow
 
 go 1.25.0
 

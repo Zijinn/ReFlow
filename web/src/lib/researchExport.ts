@@ -135,7 +135,7 @@ export function buildPublicationsExport(published: ResearchPaper[]): string {
   </header>
   ${sectionHtml("中文发表", zh)}
   ${sectionHtml("英文发表", en)}
-  <footer>由 Aurora 科研工作台生成 · 数据为导出时刻快照</footer>
+  <footer>由 ReFlow 科研工作台生成 · 数据为导出时刻快照</footer>
 </div>
 <script>
 document.addEventListener("click", function (e) {

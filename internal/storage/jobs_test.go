@@ -13,7 +13,7 @@ import (
 
 func TestJobLifecycleAndRecovery(t *testing.T) {
 	ctx := context.Background()
-	db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestConcurrentUniqueJobEnqueue(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()
-			db, err := Open(ctx, filepath.Join(t.TempDir(), "cairn.db"))
+			db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
 			if err != nil {
 				t.Fatal(err)
 			}

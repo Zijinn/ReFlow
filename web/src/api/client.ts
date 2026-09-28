@@ -60,7 +60,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
   if (init.body && typeof init.body === "string") headers.set("Content-Type", "application/json")
-  const token = localStorage.getItem("cairn-device-token")
+  const token = localStorage.getItem("reflow-device-token")
   if (token) headers.set("Authorization", `Bearer ${token}`)
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" })
   if (!response.ok) {
@@ -89,7 +89,7 @@ export async function pairDevice(input: {
     method: "POST",
     body: JSON.stringify(input),
   })
-  localStorage.setItem("cairn-device-token", response.token)
+  localStorage.setItem("reflow-device-token", response.token)
   return response.device
 }
 
@@ -712,7 +712,7 @@ function libraryScopeFilters(scope: LibraryScope): Record<string, string> {
 
 export async function importOPML(file: File): Promise<Job> {
   const headers = new Headers({ "Content-Type": "application/xml; charset=utf-8" })
-  const token = localStorage.getItem("cairn-device-token")
+  const token = localStorage.getItem("reflow-device-token")
   if (token) headers.set("Authorization", `Bearer ${token}`)
   const body = await file.text()
   const response = await fetch("/api/v1/imports/opml", {
@@ -730,7 +730,7 @@ export async function importOPML(file: File): Promise<Job> {
 
 export async function restoreBackup(file: File): Promise<void> {
   const headers = new Headers({ "Content-Type": "application/json" })
-  const token = localStorage.getItem("cairn-device-token")
+  const token = localStorage.getItem("reflow-device-token")
   if (token) headers.set("Authorization", `Bearer ${token}`)
   const body = await file.text()
   const response = await fetch("/api/v1/restore", {

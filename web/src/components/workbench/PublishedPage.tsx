@@ -110,7 +110,7 @@ export function PublishedPage(props: {
             <DragHandle />
             <span className="wb-code">{displayID("published", index)}</span>
           </td>
-          <td>
+          <td className="wb-col-title">
             <div className="wb-cell-title">
               <InlineText
                 value={paper.title}
@@ -134,7 +134,7 @@ export function PublishedPage(props: {
               />
             </span>
           </td>
-          <td>
+          <td className="wb-col-text">
             <InlineText
               value={paper.journal}
               placeholder={t("fillPlaceholder")}
@@ -225,7 +225,7 @@ export function PublishedPage(props: {
             />
             <button
               type="button"
-              className="wb-icon-btn"
+              className="wb-icon-btn wb-icon-btn--danger"
               title={t("delete")}
               aria-label={`${t("delete")}: ${paper.title || displayID("published", index)}`}
               disabled={props.offline}
@@ -408,13 +408,13 @@ export function PublishedPage(props: {
       </div>
       {view === "table" ? (
         <div className="wb-table-wrap">
-          <table className="wb-table">
+          <table className="wb-table wb-table--published">
             <thead>
               <tr>
                 <th className="wb-col-grip" aria-label={t("colCode")} />
-                <th>{t("colTitle")}</th>
+                <th className="wb-col-title">{t("colTitle")}</th>
                 <th className="wb-col-year">{t("yearLabel")}</th>
-                <th>{t("journalLabel")}</th>
+                <th className="wb-col-text">{t("journalLabel")}</th>
                 <th className="wb-col-vol">
                   {t("volumeIssueLabel")} / {t("pagesLabel")}
                 </th>

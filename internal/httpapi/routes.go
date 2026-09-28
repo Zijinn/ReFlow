@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Zijinn/Aurora/internal/domain"
-	feedcore "github.com/Zijinn/Aurora/internal/feed"
-	"github.com/Zijinn/Aurora/internal/job"
-	"github.com/Zijinn/Aurora/internal/opml"
-	"github.com/Zijinn/Aurora/internal/service"
-	"github.com/Zijinn/Aurora/internal/storage"
+	"github.com/Zijinn/ReFlow/internal/domain"
+	feedcore "github.com/Zijinn/ReFlow/internal/feed"
+	"github.com/Zijinn/ReFlow/internal/job"
+	"github.com/Zijinn/ReFlow/internal/opml"
+	"github.com/Zijinn/ReFlow/internal/service"
+	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
 func (s *Server) registerRoutes(mux *http.ServeMux) {
@@ -555,7 +555,7 @@ func (s *Server) exportOPML(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/xml; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="aurora-subscriptions.opml"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="reflow-subscriptions.opml"`)
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(body)
 }
@@ -623,7 +623,7 @@ func (s *Server) exportBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.Header().Set("Content-Disposition", `attachment; filename="aurora-backup.json"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="reflow-backup.json"`)
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(document)
 }

@@ -1,14 +1,14 @@
 {
   "fixed": {
-    "file_version": "1.6.0"
+    "file_version": "5.2.0"
   },
   "info": {
     "0000": {
-      "ProductVersion": "1.6.0",
-      "CompanyName": "Aurora contributors",
-      "FileDescription": "Aurora personal RSS reader",
-      "LegalCopyright": "Copyright 2026 Aurora contributors. GPL-3.0-only.",
-      "ProductName": "Aurora",
+      "ProductVersion": "5.2.0",
+      "CompanyName": "ReFlow contributors",
+      "FileDescription": "ReFlow personal RSS reader",
+      "LegalCopyright": "Copyright 2026 ReFlow contributors. GPL-3.0-only.",
+      "ProductName": "ReFlow",
       "Comments": "A private reading home for the open web."
     }
   }

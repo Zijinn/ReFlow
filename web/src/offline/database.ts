@@ -1,6 +1,6 @@
 import type { EntryPage, EntryState } from "../api/types"
 
-const databaseName = "cairn-offline-v1"
+const databaseName = "reflow-offline-v1"
 const cacheStore = "cache"
 const outboxStore = "outbox"
 const maxCacheAge = 7 * 24 * 60 * 60 * 1000
@@ -99,7 +99,7 @@ async function replayStateMutation(
       "Content-Type": "application/json",
       Accept: "application/json",
     })
-    const token = localStorage.getItem("cairn-device-token")
+    const token = localStorage.getItem("reflow-device-token")
     if (token) headers.set("Authorization", `Bearer ${token}`)
     response = await fetch(`/api/v1/entries/${encodeURIComponent(record.entryID)}/state`, {
       method: "PATCH",
