@@ -90,12 +90,25 @@
   --warning-solid: var(--warning);
   --warning-solid-ink: #fff;
   /* 分段器选中态一份配方，五处共用。深色档不能直接沿用 --surface-raised 当胶囊：
-     它 (#0f1012) 比轨道 --surface-muted (#17181b) 还暗，浮起的选中块会看起来是个洞。 */
-  --segment-track: color-mix(in srgb, var(--surface-muted) 76%, var(--surface-raised));
+     它 (#0f1012) 比轨道 --surface-muted (#17181b) 还暗，浮起的选中块会看起来是个洞。
+     玻璃轨道用半透明灰：压在白侧栏上合成 #edeff1（比原来的 #f1f3f6 更暗一点，
+     选中胶囊才浮得起来），换到深色/换到别的纸面上会自动跟着翻面。
+     --segment-track-inset 三层各司其职：上缘凹陷投影、0.5px 内圈接光、下缘反光；
+     外描边退到 --segment-track-edge，实心 1px 边框会把玻璃盒子的边画死。 */
+  --segment-track: rgb(118 124 138 / 0.13);
+  --segment-track-edge: color-mix(in srgb, var(--border) 55%, transparent);
+  --segment-track-inset:
+    inset 0 1px 2px rgb(20 22 26 / 0.07),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.62),
+    inset 0 -1px 0 rgb(255 255 255 / 0.55);
   --segment-pill: var(--surface-raised);
   --segment-pill-ink: var(--accent-strong);
+  /* 胶囊靠两层投影浮起来：1px 接触影定边、8px 环境影给高度，最后一档主色细环
+     把选中态从"白块"升级成"带主色的胶囊"。浅档不加内圈接光——白胶囊上再蒙
+     一层白等于没有，那一层只在深档的深面上有用。 */
   --segment-pill-shadow:
-    0 1px 2px rgb(20 22 26 / 0.1),
+    0 1px 2px rgb(20 22 26 / 0.12),
+    0 3px 8px rgb(20 22 26 / 0.07),
     0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
   /* 列表行选中底：侧栏三类行（文件夹/订阅/移动抽屉）此前各写各的
      color-mix(accent-soft …)，四份配方叠在层叠里互相顶。收成一份，
@@ -276,12 +289,21 @@
      深墨对淡面：#2b0d11 = 8.27:1，#241603 = 10.33:1。 */
   --danger-solid-ink: #2b0d11;
   --warning-solid-ink: #241603;
-  /* 深底上轨道和胶囊都要往白提，才保住"胶囊 > 轨道 > 页面"三级高程 */
-  --segment-track: color-mix(in srgb, #fff 9%, var(--canvas));
+  /* 深底上轨道和胶囊都要往白提，才保住"胶囊 > 轨道 > 页面"三级高程：
+     半透明白 7% 压在 #0f1012 上合成 #1b1c1e，胶囊 17% 合成 #2b2c2e。
+     凹陷投影在深档要靠黑色，接光层跟着换成弱白，配方结构不变。 */
+  --segment-track: rgb(255 255 255 / 0.07);
+  --segment-track-edge: rgb(255 255 255 / 0.08);
+  --segment-track-inset:
+    inset 0 1px 2px rgb(0 0 0 / 0.5),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.07),
+    inset 0 -1px 0 rgb(255 255 255 / 0.05);
   --segment-pill: color-mix(in srgb, #fff 17%, var(--surface-raised));
   --segment-pill-shadow:
     0 1px 2px rgb(0 0 0 / 0.45),
-    0 0 0 1px rgb(255 255 255 / 0.08);
+    0 4px 10px rgb(0 0 0 / 0.38),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.1),
+    0 0 0 1px rgb(255 255 255 / 0.06);
   --shadow-panel: 0 20px 54px rgb(0 0 0 / 0.38);
 }
 
@@ -598,9 +620,10 @@ button:disabled {
   padding: var(--space-2);
   margin-top: var(--space-6);
   /* 轨道必须比页面底暗一点：侧栏本身是 --surface-raised 白，透明轨道会让
-     选中胶囊（同一个白）实测 Δlum = 0，选中态只剩一圈描边。 */
+     选中胶囊（同一个白）实测 Δlum = 0，选中态只剩一圈描边。玻璃档按半透明灰
+     合成，具体配方见 --segment-track / --segment-track-inset。 */
   background: var(--segment-track);
-  border: 1px solid var(--border);
+  border: 1px solid var(--segment-track-edge);
   border-radius: var(--radius-xl);
 }
 .workspace-segment__item {
@@ -2560,10 +2583,13 @@ button:disabled {
   --wails-draggable: no-drag;
   user-select: auto;
 }
+/* 隐藏标题栏后红绿灯占住 y 2–13.5、x 12–62.5，而字标顶边在 13.5——零间距。
+   这里只让字标下沉（红绿灯下方 18px），不给它加左内缩：字标、视图卡、分段器
+   共用同一条左边线，往右挪 76px 会把整列的对齐关系拆掉。 */
 :root[data-desktop="macos"] .sidebar__header {
-  min-height: 50px;
+  min-height: 58px;
   align-items: flex-end;
-  padding: var(--space-4) var(--space-5) 0 76px;
+  padding: var(--space-9) var(--space-4) 0;
 }
 :root[data-desktop="windows"] .workspace-header {
   grid-template-columns: minmax(110px, 0.7fr) minmax(220px, 380px) minmax(310px, 1fr);
@@ -6283,17 +6309,44 @@ button:disabled {
 .app-shell--reader-open .reader {
   border-left-color: color-mix(in srgb, var(--border) 34%, transparent);
 }
+/* 侧栏与内容区之间留一条柔和鬓发线。旧写法把 ::after 涂成 transparent、
+   又把 .sidebar 的右边框一起抹掉，于是这条可拖动的边界完全没有提示；
+   整幅 1px 实线又太硬，会把玻璃轨道和字标切成两格。取中间档：两端淡出 +
+   0.5px 虚化，压在白纸上合成约 10% 黑，和 macOS separatorColor 同一量。
+   线从 56px 起：上面那段是红绿灯拖拽区，不该被竖线穿过。 */
 .pane-divider::after {
-  top: 64px;
-  bottom: 16px;
-  background: transparent;
+  top: 56px;
+  bottom: 24px;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--border-strong) 92%, transparent) 14%,
+    color-mix(in srgb, var(--border-strong) 92%, transparent) 86%,
+    transparent
+  );
+  filter: blur(0.5px);
 }
+/* 悬停/聚焦/拖动时才换成实心主色，作为"这里能拖"的反馈。走 strong 档：
+   --accent 46% 压在白纸上只有 1.6:1，担不起状态指示器（WCAG 1.4.11 要 3:1）。 */
 .pane-divider:hover::after,
 .pane-divider:focus-visible::after,
 .pane-divider:active::after {
   width: 2px;
-  background: color-mix(in srgb, var(--accent) 46%, transparent);
+  left: 3px;
+  background: color-mix(in srgb, var(--accent-strong) 72%, transparent);
   border-radius: var(--radius-xs);
+  filter: none;
+}
+/* 高对比度偏好下取消柔化：整幅实心线。上面这条鬓发线在层叠里排在
+   @media (prefers-contrast: more) 之后，同优先级会把那条规则直接吃掉，
+   所以这里必须重述一遍，而不是指望 6000 行处那条。 */
+@media (prefers-contrast: more) {
+  .pane-divider::after {
+    top: 0;
+    bottom: 0;
+    background: var(--border-strong);
+    filter: none;
+  }
 }
 .app-shell--reader-open .ai-workbench__quick {
   top: max(72px, calc(env(safe-area-inset-top) + 62px));
@@ -9592,6 +9645,18 @@ button:disabled {
 .segmented-control__item--active:active:not(:disabled),
 .wb-view-btn--active:active:not(:disabled) {
   background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
+}
+/* 玻璃轨道统一落在最后：凹陷接光和描边减淡要盖过分段器族里那五处各写一遍的
+   border / box-shadow（.timeline-filterbar__scopes 在 reader 展开态还另有一条
+   更高优先级的边框规则，所以那一档也得列进来）。 */
+.workspace-segment,
+.ai-mode-tabs,
+.segmented-control,
+.timeline-filterbar__scopes,
+.app-shell--reader-open .timeline-filterbar__scopes,
+.wb-view-switch {
+  border-color: var(--segment-track-edge);
+  box-shadow: var(--segment-track-inset);
 }
 
 /* 行内"可展开"走图标控件的灰填充；"可改写"仍然靠主色淡底提示（它不是控件而是一格

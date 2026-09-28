@@ -229,9 +229,14 @@ export function AppShell() {
     return () => window.removeEventListener("resize", update)
   }, [])
 
+  // Only the article pane constrains the sidebar from the right. The workbench
+  // column is fluid, so reserving a reader measure there would cap the sidebar
+  // against a pane that isn't even rendered.
+  const readerMinimum = appView === "reader" ? minimumReaderWidth(viewportWidth) : 0
+
   const constrainedPaneLayout = useMemo(
-    () => constrainPaneLayout(paneLayout, viewportWidth),
-    [paneLayout, viewportWidth],
+    () => constrainPaneLayout(paneLayout, viewportWidth, readerMinimum),
+    [paneLayout, viewportWidth, readerMinimum],
   )
   // The constrained layout is display-only: it must never be written back to
   // the persisted store, or temporarily shrinking the window would erase the
@@ -248,7 +253,6 @@ export function AppShell() {
   const resizePane = useCallback(
     (edge: "sidebar" | "timeline", delta: number) => {
       const base = dragStartLayout.current
-      const readerMinimum = minimumReaderWidth(viewportWidth)
       if (edge === "sidebar") {
         const max = Math.max(
           SIDEBAR_MIN,
@@ -270,12 +274,11 @@ export function AppShell() {
       }
       applyPaneLayout(dragLayout.current)
     },
-    [applyPaneLayout, viewportWidth],
+    [applyPaneLayout, viewportWidth, readerMinimum],
   )
   const finishPaneResize = useCallback(() => {
     setPaneLayout(dragLayout.current)
   }, [setPaneLayout])
-  const readerMinimum = minimumReaderWidth(viewportWidth)
   const sidebarMax = Math.max(
     SIDEBAR_MIN,
     Math.min(SIDEBAR_MAX, viewportWidth - constrainedPaneLayout.timelineWidth - readerMinimum),
@@ -1279,7 +1282,6 @@ export function AppShell() {
           </>
           )}
         </section>
-        {appView === "reader" && (
         <PaneDivider
           edge="sidebar"
           value={constrainedPaneLayout.sidebarWidth}
@@ -1290,7 +1292,6 @@ export function AppShell() {
           onDelta={(delta) => resizePane("sidebar", delta)}
           onEnd={finishPaneResize}
         />
-        )}
         {appView === "reader" && (
         <PaneDivider
           edge="timeline"
@@ -1655,11 +1656,15 @@ function minimumReaderWidth(viewportWidth: number) {
   return viewportWidth <= 1100 ? 360 : 390
 }
 
-function constrainPaneLayout(layout: PaneLayout, viewportWidth: number): PaneLayout {
+function constrainPaneLayout(
+  layout: PaneLayout,
+  viewportWidth: number,
+  readerMinimum: number,
+): PaneLayout {
   if (viewportWidth <= DESKTOP_BREAKPOINT) return layout
   let sidebarWidth = clamp(layout.sidebarWidth, SIDEBAR_MIN, SIDEBAR_MAX)
   let timelineWidth = clamp(layout.timelineWidth, TIMELINE_MIN, TIMELINE_MAX)
-  let overflow = sidebarWidth + timelineWidth + minimumReaderWidth(viewportWidth) - viewportWidth
+  let overflow = sidebarWidth + timelineWidth + readerMinimum - viewportWidth
   if (overflow > 0) {
     const timelineReduction = Math.min(overflow, timelineWidth - TIMELINE_MIN)
     timelineWidth -= timelineReduction

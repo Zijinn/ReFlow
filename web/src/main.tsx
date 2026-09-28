@@ -15,10 +15,10 @@ import { createRoot } from "react-dom/client"
 import { registerSW } from "virtual:pwa-register"
 
 import App from "./App"
-import { applyDesktopPlatform } from "./lib/desktop"
+import { trackDesktopPlatform } from "./lib/desktop"
 import { applyTheme } from "./lib/theme"
 
-applyDesktopPlatform()
+trackDesktopPlatform()
 applyPersistedTheme()
 
 // Apply the persisted theme before first paint so a dark/light preference does
