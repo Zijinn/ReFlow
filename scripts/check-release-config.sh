@@ -21,6 +21,7 @@ grep -q "version=\"$version\"" build/windows/wails.exe.manifest
 grep -qF -- "!define VERSION \"$version\"" build/windows/installer.nsi
 grep -qF -- ".Replace('$version', \$env:VERSION)" .github/workflows/release.yml
 grep -qF -- ".Replace('version=\"$version\"'" .github/workflows/release.yml
+grep -q "Version = \"$version\"" internal/version/version.go
 grep -q "<string>$version</string>" build/darwin/Info.plist
 test "$(grep -c "<string>$version</string>" build/darwin/Info.plist)" = "2"
 
