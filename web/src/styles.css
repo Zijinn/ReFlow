@@ -30,25 +30,83 @@
   /* 文字级主色一律用 --accent-strong，--accent 只做描边与底色：前者在纸面上
      浅色 5.76–9.79:1、深色 9.73:1 以上；后者浅纸最低 3.76–4.04:1
      （warm-paper / forest / academic-blue），12px 就落到 AA 以下。 */
+  /* 画布是一块有色渐变（冷蓝在顶、暖桃沉底），不是一张白纸。
+     --canvas 必须留在"颜色"这一档：它同时被 color-mix() 当基色用（如
+     color-mix(…, var(--surface) 24%, var(--canvas))），换成渐变那几处会整条失效。
+     真正上屏的是 --canvas-wash，画一次、钉在视口上（background-attachment: fixed），
+     中间各栏改成透明/半透明，于是整窗是同一束渐变，磨砂卡片落在上面才有东西可采样。
+     渐变末端 #f8e6d5 是最亮的一档，浅档所有墨色都按最暗的 #cfe0f6 核过 AA。
+
+     画布可以换束（data-canvas：aurora/meadow/orchid/slate，见 8108 之后那节）。
+     每束都拆成 --canvas-wash-* / --canvas-glow-* 两组原语在这里定义，
+     --canvas-wash 只是指向"当前默认那一束"；深浅两档各有一套原语，
+     所以偏好面板里的色卡（拿 var(--canvas-wash-meadow) 上色）会跟着主题走。
+     换束时必须守两条实测下限，否则整站小字同时掉出 AA：
+     浅档最暗一标的相对亮度 ≥ rgb(207,224,246) 的 0.732（三级墨在画布顶端是 4.55:1），
+     深档每一标都 ≤ 现在 #22190f 的 0.0087 一带——深档每上一级高程都是叠白，
+     画布一亮控件面就跟着亮，11px 的三级墨最先撑不住。 */
   --canvas: #fff;
+  --canvas-wash-aurora: linear-gradient(163deg, #cfe0f6 0%, #e3eaf3 30%, #f2ece6 62%, #f8e6d5 100%);
+  --canvas-wash-meadow: linear-gradient(163deg, #cce5d1 0%, #e2eee0 32%, #eff0e0 64%, #f8efd6 100%);
+  --canvas-wash-orchid: linear-gradient(163deg, #e4def2 0%, #ece6f1 32%, #f4ecea 64%, #fbeee3 100%);
+  --canvas-wash-slate: linear-gradient(163deg, #d8dfe8 0%, #e5e8ec 32%, #ecebe8 64%, #f2efe9 100%);
+  --canvas-glow-aurora:
+    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(255 208 168 / 0.45) 0%, rgb(255 208 168 / 0) 65%);
+  --canvas-glow-meadow:
+    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(206 226 168 / 0.42) 0%, rgb(206 226 168 / 0) 65%);
+  --canvas-glow-orchid:
+    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(236 196 214 / 0.42) 0%, rgb(236 196 214 / 0) 65%);
+  --canvas-glow-slate:
+    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(210 216 224 / 0.4) 0%, rgb(210 216 224 / 0) 65%);
+  --canvas-wash: var(--canvas-wash-aurora);
+  --canvas-glow: var(--canvas-glow-aurora);
+  /* 自定义背景图这一层的蒙纱。照片不是装饰层的邻居，它就是画布本身：工作台里的
+     文字（实测 11px 的 .wb-code、12px 表头、13px 行标题）没有任何材质垫背，直接压在
+     画布上，所以画布的亮度地板必须由这一层守住。地板是量出来的，不是拍的：浅档白纱
+     压到 87% 时最坏情形（照片里一处纯黑）画布落在 rgb(222)，三级墨 #5f6268 4.54:1
+     刚过 AA；同一处只压 70% 就掉到 2.90:1，整张表直接不能读。
+     --canvas-photo-veil 由偏好面板写在 <html> 内联样式上（用户选的档位），
+     max() 拿地板兜底——用户再怎么往"清楚"那一端调也踩不到安全线以下。
+     两档写法：先算浓度再喂给 color-mix，百分比位置直接写 max() 在老 WebKit 上
+     会整条声明作废，画布连图带纱一起消失。 */
+  --canvas-photo-veil: 91%;
+  --canvas-veil-tint: var(--surface-raised);
+  --canvas-photo-veil-floor: 87%;
+  --canvas-photo-veil-strength: max(var(--canvas-photo-veil), var(--canvas-photo-veil-floor));
+  --canvas-photo-veil-color: color-mix(
+    in srgb,
+    var(--canvas-veil-tint) var(--canvas-photo-veil-strength),
+    transparent
+  );
+  --sheet-glass: rgb(255 255 255 / 0.55);
+  --sheet-edge: rgb(255 255 255 / 0.62);
+  --card-glass: rgb(255 255 255 / 0.7);
+  --glass-blur-lg: blur(28px) saturate(180%);
+  --glass-blur-sm: blur(16px) saturate(160%);
   --surface: #f5f6f8;
   --surface-raised: #fff;
   --surface-muted: #eceff3;
-  --glass-sidebar: rgb(246 248 251 / 0.78);
-  --glass-toolbar: rgb(255 255 255 / 0.72);
-  --glass-panel: rgb(255 255 255 / 0.8);
-  --glass-border: rgb(255 255 255 / 0.82);
-  --glass-shadow: 0 20px 60px rgb(25 35 55 / 0.14), 0 2px 8px rgb(25 35 55 / 0.05);
+  --glass-sidebar: rgb(255 255 255 / 0.5);
+  --glass-toolbar: rgb(255 255 255 / 0.55);
+  --glass-panel: rgb(255 255 255 / 0.7);
+  --glass-border: rgb(255 255 255 / 0.62);
+  --glass-shadow: 0 18px 40px rgb(38 54 82 / 0.1), 0 2px 8px rgb(38 54 82 / 0.05);
   --text: #18191c;
-  /* 灰阶按"承载信息的文字必须在真实纸面上过 AA"来定，四档实测：
-     text 15.9 / secondary 7.24 / tertiary 5.11（含 .wb-shell 的淡蓝底 4.75）
-     / faint 3.46。前三档都能承担 11–13px 小字；faint 过不了正文级 4.5:1，
-     所以只给非文本图形用——拖拽把手、▾ ▸ › 箭头、"—"占位符、滚动条与装饰
-     圆点（WCAG 1.4.11 对图形只要求 3:1）。原来 tertiary 是 3.20，被 82 处
-     引用里有 24 处落在承载信息的日期/脚注/编号上，等于整站小字都不合规。 */
+  /* 灰阶按"承载信息的文字必须在真实纸面上过 AA"来定。画布上色之后这句话的
+     分母变了：最暗的一档不再是 #fff，而是渐变顶端那块冷蓝 rgb(207,224,246)。
+     按那块最坏情况重测（浅档）：text 13.4 / secondary 5.39 / tertiary 4.55 /
+     faint 3.15。前三档仍能承担 11–13px 小字；faint 过不了正文级 4.5:1，
+     所以和原来一样只给非文本图形用——拖拽把手、▾ ▸ › 箭头、"—"占位符、滚动条
+     与装饰圆点（WCAG 1.4.11 对图形要求 ≥3:1，#787b82 在两块画布上实测 3.15/3.34）。
+     tertiary 从 #6b6e75 压到 #5f6268：前者在画布顶端只有 3.80:1，等于全站小字
+     在有色画布上集体不合规；后者在白纸上还有 6.12:1，不会因为加深而发闷。 */
   --text-secondary: #54575e;
-  --text-tertiary: #6b6e75;
-  --text-faint: #878a90;
+  --text-tertiary: #5f6268;
+  --text-faint: #787b82;
   --border: #14161a17;
   --border-strong: #14161a2e;
   /* 悬停/按压填充：Apple 用半透明系统灰，不用不透明的 --surface-muted，也不是
@@ -95,8 +153,8 @@
      选中胶囊才浮得起来），换到深色/换到别的纸面上会自动跟着翻面。
      --segment-track-inset 三层各司其职：上缘凹陷投影、0.5px 内圈接光、下缘反光；
      外描边退到 --segment-track-edge，实心 1px 边框会把玻璃盒子的边画死。 */
-  --segment-track: rgb(118 124 138 / 0.13);
-  --segment-track-edge: color-mix(in srgb, var(--border) 55%, transparent);
+  --segment-track: rgb(255 255 255 / 0.42);
+  --segment-track-edge: rgb(255 255 255 / 0.55);
   --segment-track-inset:
     inset 0 1px 2px rgb(20 22 26 / 0.07),
     inset 0 0 0 0.5px rgb(255 255 255 / 0.62),
@@ -110,20 +168,26 @@
     0 1px 2px rgb(20 22 26 / 0.12),
     0 3px 8px rgb(20 22 26 / 0.07),
     0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
-  /* 轨道 hover 加深一档：凹陷面没有阴影可依赖，只能靠底色本身回应。 */
-  --segment-track-hover: rgb(118 124 138 / 0.19);
-  /* 输入面（.text-input / .wb-search / .wb-email-input）：白面，不是灰井。
-     分段器的轨道可以灰——它是一条槽，里面还浮着一颗更白的胶囊，灰是"凹"的表达；
-     输入框里没有对比物，9% 系统灰落在白工具栏上合成 #edeeF0，读起来就是禁用。
-     工作台子树本来就写着"去灰阶"（.wb-shell 把 --surface-muted 换成极淡蓝 #f3f7fe），
-     灰井那次改动把中性灰又带回来了。凹陷这件事改由上缘一道内投影加鬓发边表达：
-     白底白面时深度只能靠影子，不能靠把面涂灰。 */
-  --field-glass: var(--surface-raised);
-  --field-glass-edge: color-mix(in srgb, var(--border) 85%, transparent);
-  --field-glass-inset: inset 0 1px 2px rgb(20 22 26 / 0.05);
-  /* 悬停不涂灰（同凸面的理由），只把鬓发边压深一档：字段是"等你打字"的地方，
+  /* 轨道 hover 是"更深"而不是更白：画布有色之后，透过去的画布越多就越凹，
+     所以加深＝减白，和原来加灰的方向等价。 */
+  --segment-track-hover: rgb(255 255 255 / 0.34);
+  /* 输入面（.text-input / .wb-search / .wb-email-input）：画布有色之后，
+     "井"就是让画布多透一点过来的白——62% 白，比它所在的 55% 白壳层更实、又比
+     78% 的控件面更虚，于是"壳层 < 输入面 < 控件"三级在同一个色相里排好。
+     中性灰彻底退出：白画布时代灰是唯一的凹陷表达，有色画布上它只会读成脏。
+     凹陷投影换成冷调（38 54 82 是画布顶端的蓝），黑影压在蓝画布上会发紫。 */
+  --field-glass: rgb(255 255 255 / 0.62);
+  --field-glass-edge: rgb(255 255 255 / 0.66);
+  /* 凹陷投影换成冷调（38 54 82 是画布顶端的蓝），黑影压在蓝画布上会发紫。
+     再加一层极淡的外接触影：白面在有色画布上靠"透得多"就是井，但设置面板那种
+     70% 白的实心卡片上，62% 白合成出来比卡片还亮两三级，透明这一维直接失效，
+     弱白鬓发边也会在白底上彻底消失——那一档里唯一还能画出边界的是接触影。 */
+  --field-glass-inset:
+    inset 0 1px 2px rgb(38 54 82 / 0.07),
+    0 1px 2px rgb(38 54 82 / 0.06);
+  /* 悬停不涂灰（同凸面的理由），只把接光边提亮一档：字段是"等你打字"的地方，
      回应应当是边界变清楚，而不是面变暗。 */
-  --field-glass-hover-edge: var(--border-strong);
+  --field-glass-hover-edge: rgb(255 255 255 / 0.9);
   /* 凸面玻璃（按钮/下拉/视图卡）与上面的凹面轨道是同一套材质的两面：
      轨道/输入用 --segment-track*（上缘凹陷），控件用这组（发丝边 + 接触影 + 环境影）。
      浅档的面是白的，不是灰蒙：侧栏和正文都是纯白 #fff，9% 系统灰落在白面上合成
@@ -134,20 +198,20 @@
      一级墨 #18191c 在静置/悬停/按压三档 17.4 / 16.4 / 15.4:1，全部远超 AA。
      上缘那道白接光在白的静置面上等于没有，它服务的是悬停/按压：那时灰蒙把面压暗，
      接光才显出厚度；下缘 5% 暗线是凸面的底边，白底白面时全靠它和发丝边分界。 */
-  --control-glass: rgb(255 255 255 / 0.92);
-  --control-glass-edge: var(--border-strong);
+  --control-glass: rgb(255 255 255 / 0.78);
+  --control-glass-edge: rgb(255 255 255 / 0.62);
   --control-glass-inset:
-    inset 0 1px 0 rgb(255 255 255 / 0.85),
-    inset 0 -1px 0 rgb(20 22 26 / 0.05);
+    inset 0 1px 0 rgb(255 255 255 / 0.9),
+    inset 0 -1px 0 rgb(38 54 82 / 0.05);
   --control-glass-shadow:
     var(--control-glass-inset),
-    0 1px 2px rgb(20 22 26 / 0.1),
-    0 3px 8px rgb(20 22 26 / 0.06);
+    0 1px 2px rgb(38 54 82 / 0.09),
+    0 8px 20px rgb(38 54 82 / 0.1);
   /* 密集排布（表格行、状态药丸）只留接触影：一行七八颗控件各拖一层环境影，
      整表会糊成一片灰，行高也会被读成变高。 */
   --control-glass-shadow-quiet:
     var(--control-glass-inset),
-    0 1px 1.5px rgb(20 22 26 / 0.08);
+    0 1px 1.5px rgb(38 54 82 / 0.08);
   /* 列表行选中底：侧栏三类行（文件夹/订阅/移动抽屉）此前各写各的
      color-mix(accent-soft …)，四份配方叠在层叠里互相顶。收成一份，
      悬停要重述底色时也只有一处真相。 */
@@ -296,17 +360,53 @@
      往 --accent 提亮，两者方向相反，所以只有这个派生值需要按主题重写。 */
   --accent-solid-hover: color-mix(in srgb, var(--accent-strong) 86%, #fff);
   --canvas: #0d0e10;
+  /* 深档的画布是同一束渐变的夜版：冷蓝只留在顶部一小段，往下沉到暖褐。
+     饱和度与明度整体比浅档再低一档，而且必须贴着旧的 #0d0e10 排：深档所有高程都靠
+     "叠白"表达（壳层 6% < 卡片 7.5% < 控件 9%），画布每亮 10 级，控件面就跟着亮
+     10 级，11px 的三级墨会被顶到 AA 以下——实测画布中段取 #171a20 时进度格内只有
+     4.10:1，压回 #101216 这档才有 4.8:1。夜色里同样的彩度还会显得脏，所以彩度也降。
+     这里只换原语：--canvas-wash 在浅档 :root 里就是 var(--canvas-wash-aurora)，
+     变量替换发生在取值时，所以四束夜版一声明，当前束自动跟着换成夜色，
+     data-canvas 的四条覆盖块因此深浅共用一条、不需要再写深档版本。 */
+  --canvas-wash-aurora: linear-gradient(163deg, #0f1a2f 0%, #101216 34%, #16130f 64%, #22190f 100%);
+  --canvas-wash-meadow: linear-gradient(163deg, #0c1a13 0%, #0f130f 34%, #13150c 64%, #191a0e 100%);
+  --canvas-wash-orchid: linear-gradient(163deg, #150f22 0%, #121017 34%, #180f18 64%, #1e1420 100%);
+  --canvas-wash-slate: linear-gradient(163deg, #12161d 0%, #101215 34%, #151316 64%, #1b191c 100%);
+  --canvas-glow-aurora:
+    radial-gradient(120% 70% at 82% -10%, rgb(140 180 255 / 0.16) 0%, rgb(140 180 255 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(255 176 112 / 0.1) 0%, rgb(255 176 112 / 0) 65%);
+  --canvas-glow-meadow:
+    radial-gradient(120% 70% at 82% -10%, rgb(150 210 170 / 0.13) 0%, rgb(150 210 170 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(200 220 140 / 0.08) 0%, rgb(200 220 140 / 0) 65%);
+  --canvas-glow-orchid:
+    radial-gradient(120% 70% at 82% -10%, rgb(180 160 240 / 0.14) 0%, rgb(180 160 240 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(230 160 190 / 0.08) 0%, rgb(230 160 190 / 0) 65%);
+  --canvas-glow-slate:
+    radial-gradient(120% 70% at 82% -10%, rgb(160 180 210 / 0.12) 0%, rgb(160 180 210 / 0) 60%),
+    radial-gradient(90% 60% at 8% 108%, rgb(190 190 205 / 0.07) 0%, rgb(190 190 205 / 0) 65%);
+  /* 夜档的蒙纱是"压暗"而不是"提亮"：同一张照片，浅档怕的是黑斑，深档怕的是过曝的
+     白斑——白纱压在亮照片上等于把画布刷白，而这里每一级高程都是叠白，画布一亮控件
+     面跟着亮。所以深档的纱色取画布本色 #0d0e10，地板 88%（最坏情形纯白像素落在
+     rgb(43)，三级墨 4.6:1；87% 只剩 4.46:1）。 */
+  --canvas-veil-tint: var(--canvas);
+  --canvas-photo-veil-floor: 88%;
+  --sheet-glass: rgb(255 255 255 / 0.06);
+  --sheet-edge: rgb(255 255 255 / 0.1);
+  --card-glass: rgb(255 255 255 / 0.075);
   --surface: #111215;
   --surface-raised: #0f1012;
   --surface-muted: #17181b;
-  --glass-sidebar: rgb(22 24 29 / 0.76);
-  --glass-toolbar: rgb(16 17 21 / 0.72);
-  --glass-panel: rgb(18 19 23 / 0.82);
-  --glass-border: rgb(255 255 255 / 0.1);
-  --glass-shadow: 0 24px 68px rgb(0 0 0 / 0.44), 0 2px 8px rgb(0 0 0 / 0.2);
+  --glass-sidebar: rgb(20 22 27 / 0.56);
+  --glass-toolbar: rgb(16 17 21 / 0.6);
+  --glass-panel: rgb(20 22 27 / 0.66);
+  --glass-border: rgb(255 255 255 / 0.11);
+  --glass-shadow: 0 18px 40px rgb(0 0 0 / 0.34), 0 2px 8px rgb(0 0 0 / 0.2);
   --text: #f1f2f4;
+  /* 三级墨从 #8b8e96 提到 #90939b：有色画布把深档的高程整体往上推了约 10 级
+     （控件面 = 画布 + 9% 白），11px 小字压在 #22190f 那段的卡片上只剩 4.10:1。
+     提到这一档实测 4.8:1，和二级墨 #a3a6ad 仍差一档，不会糊成同一层字色。 */
   --text-secondary: #a3a6ad;
-  --text-tertiary: #8b8e96;
+  --text-tertiary: #90939b;
   --text-faint: #6f727a;
   --border: #ffffff12;
   --border-strong: #ffffff24;
@@ -327,11 +427,11 @@
      深墨对淡面：#2b0d11 = 8.27:1，#241603 = 10.33:1。 */
   --danger-solid-ink: #2b0d11;
   --warning-solid-ink: #241603;
-  /* 深底上轨道和胶囊都要往白提，才保住"胶囊 > 轨道 > 页面"三级高程：
-     半透明白 7% 压在 #0f1012 上合成 #1b1c1e，胶囊 17% 合成 #2b2c2e。
-     凹陷投影在深档要靠黑色，接光层跟着换成弱白，配方结构不变。 */
-  --segment-track: rgb(255 255 255 / 0.07);
-  --segment-track-edge: rgb(255 255 255 / 0.08);
+  /* 深档的高程阶梯按"透过去的画布有多少"重排：画布 0 < 壳层 6% < 卡片 7.5% <
+     轨道 5%（比壳层还虚，所以是井）< 输入面 8.5% < 控件 11% < 胶囊 17%。
+     凹陷投影在深档靠黑色，接光层跟着换成弱白，配方结构不变。 */
+  --segment-track: rgb(255 255 255 / 0.05);
+  --segment-track-edge: rgb(255 255 255 / 0.1);
   --segment-track-inset:
     inset 0 1px 2px rgb(0 0 0 / 0.5),
     inset 0 0 0 0.5px rgb(255 255 255 / 0.07),
@@ -8146,6 +8246,127 @@ button:disabled {
   --accent-soft: #2a2116;
 }
 
+/* ── 画布束色（data-canvas）─────────────────────────────────────────────
+   四束渐变画布在偏好面板里选，值落在 <html data-canvas="…">，写法照上面
+   data-accent 那一节：默认那束（aurora）不写覆盖块，:root 里的
+   --canvas-wash: var(--canvas-wash-aurora) 就是它；深浅两档只换原语，
+   覆盖块本身把束名翻译成原语引用，所以变量替换发生在取值时——同一块在夜色下
+   自动取夜版，不需要 :root[data-theme="dark"][data-canvas] 的成对写法。
+
+   束色不是随便调的好看：每束都过了两条实测下限才算落地（浅档最暗标 ≥ rgb(207,
+   224,246) 的亮度 0.732；深档每一标 ≤ #22190f 的 0.0087）。design/audit.js 直接
+   从渲染出来的 background-image 里解析色标再算对比，换束时重跑一次就能守住。 */
+
+:root[data-canvas="meadow"] {
+  --canvas-wash: var(--canvas-wash-meadow);
+  --canvas-glow: var(--canvas-glow-meadow);
+}
+
+:root[data-canvas="orchid"] {
+  --canvas-wash: var(--canvas-wash-orchid);
+  --canvas-glow: var(--canvas-glow-orchid);
+}
+
+:root[data-canvas="slate"] {
+  --canvas-wash: var(--canvas-wash-slate);
+  --canvas-glow: var(--canvas-glow-slate);
+}
+
+/* ── 画布选择卡（偏好面板）──────────────────────────────────────────────
+   色卡直接拿本节的原语上色，所以它跟着 data-theme 换深浅、跟着 --canvas-wash-*
+   改预览，面板里不再抄一份渐变字面量。卡片本身是凸面玻璃（--control-glass 一组），
+   选中态复用阶段格打开时的那套主色描边：界面里"当前选中的东西"只有一种说法。 */
+.canvas-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+.canvas-theme-card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--control-glass);
+  border: 1px solid var(--control-glass-edge);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--control-glass-shadow);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.canvas-theme-card:hover {
+  border-color: var(--field-glass-hover-edge);
+}
+.canvas-theme-card[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow:
+    var(--control-glass-inset),
+    0 1px 2px color-mix(in srgb, var(--accent) 18%, transparent),
+    0 8px 20px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.canvas-theme-card:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--focus-ring),
+    var(--control-glass-shadow);
+}
+.canvas-theme-card__wash {
+  display: block;
+  height: 54px;
+  border-radius: var(--radius-lg);
+  /* 色卡落在近白的面板上时，浅色渐变自己顶不出边界，需要一条比纸深的发丝线；
+     这跟画布上的用法相反（画布上鬓发线是弱白接光），所以不复用 --sheet-edge。 */
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.canvas-theme-card--aurora .canvas-theme-card__wash {
+  background: var(--canvas-glow-aurora), var(--canvas-wash-aurora);
+}
+.canvas-theme-card--meadow .canvas-theme-card__wash {
+  background: var(--canvas-glow-meadow), var(--canvas-wash-meadow);
+}
+.canvas-theme-card--orchid .canvas-theme-card__wash {
+  background: var(--canvas-glow-orchid), var(--canvas-wash-orchid);
+}
+.canvas-theme-card--slate .canvas-theme-card__wash {
+  background: var(--canvas-glow-slate), var(--canvas-wash-slate);
+}
+.canvas-theme-card__label {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+}
+.canvas-theme-card[aria-pressed="true"] .canvas-theme-card__label {
+  color: var(--text);
+}
+/* 背景图这一行：缩略图靠右让位给按钮组，两者都落在同一基线上。
+   只用现成的 .button-group 和 8px 间距，不新造控件尺寸。 */
+.canvas-photo-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+/* 背景图预览：同一个槽位，有图时显示缩略图，没图时显示"虚线待填"的提示面。
+   图不走行内样式——applyCanvas 把 url() 写在 <html> 的 --canvas-photo-src 上，
+   这里继承过来就行，偏好面板里不再出现第二处把用户字符串拼进 CSS 的地方。 */
+.canvas-photo-preview {
+  width: 96px;
+  height: 54px;
+  flex: none;
+  border-radius: var(--radius-lg);
+  background-color: var(--surface-muted);
+  background-image: var(--canvas-photo-src, none);
+  background-position: center;
+  background-size: cover;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+.canvas-photo-preview--empty {
+  background-image: none;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
 /* ── 工作台排版 ────────────────────────────────────────────────────────
    中文标题不做 uppercase / 大字距；字号、字重、圆角一律落在标尺上。
    段内只写“文字层级”，几何与材质放在后面的 “Apple 设计感刷新”，配色放在
@@ -9203,7 +9424,7 @@ button:disabled {
   --surface-muted: #f3f7fe;
   /* 浮动 chrome 只有一套材质：导航条和工具栏共用，滚动叠放时看不出接缝。 */
   --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 82%, transparent);
-  --wb-chrome-ring: inset 0 0 0 0.5px rgb(20 22 26 / 0.07);
+  --wb-chrome-ring: inset 0 0 0 0.5px rgb(255 255 255 / 0.55);
   --wb-chrome-blur: blur(20px) saturate(160%);
   --wb-nav-h: 46px;
   /* 工具栏带高度：搜索框、视图分段器、筛选泡、次级与主按钮共用这一条，
@@ -9936,6 +10157,148 @@ button:disabled {
     var(--control-glass-shadow-quiet);
 }
 
+/* ── 有色画布上屏（材质层，不动版式）────────────────────────────────────
+   前面所有段都在"白纸"这个前提下排材质。这一层把它换成参考图那一套：整个窗口
+   是同一束斜向渐变（顶端冷蓝、底端暖桃），栏目与卡片是落在画布上的磨砂白，
+   于是白不再是"默认背景"而是"凸起"的度量——壳层 55% 白 < 卡片 70% 白 < 控件 78%
+   白 < 选中胶囊纯白，透过去的画布越多就越低。之前被否掉两次中性灰井，根因就是
+   白画布上只有涂灰这一种表达凹陷的办法；画布有色之后不需要它了。
+
+   必须连层一起改：body(395) / .app-shell(464,2537) / .bootstrap-state(477) 都画
+   不透明的 --canvas，而 .sidebar(6833) / .reader(3492) / .reader-scroll(3536) /
+   .timeline(2846) / .workspace-header(5234) 又各自用实心 #fff 盖满自己那一栏，
+   只把渐变放到 body 上等于什么都没发生（实测过：这些元素就是全窗口仅有的实心面）。
+   滚动子容器保持透明，磨砂只挂在容器上——每行/每滚动面都挂 backdrop-filter，
+   长列表滚动会直接掉帧。 */
+body,
+.app-shell,
+.bootstrap-state {
+  background-color: var(--canvas);
+  background-image: var(--canvas-glow), var(--canvas-wash);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+}
+/* 用户自己上传的背景图：同一组面，把"光斑 + 渐变"两束换成"蒙纱 + 照片"两层。
+   照片 cover 铺满整窗，蒙纱盖在它上面（浓度含地板，见 :root 那段实测）。
+   三条都是 (0,2,x) 特异度，稳压上面那条 (0,1,x)；--canvas-photo-src 挂在 <html>
+   内联样式上并向下继承，所以这里不需要重复写 url()。
+   background-size / position 按层成对写：纱那层用 auto 平铺整个视口即可，
+   照片那层才需要 cover + center。attachment 沿用上面的 fixed，窗口里各栏取到的
+   是同一张图的同一块，滚动时画布不动——这正是"壁纸"而不是"纹理"的意思。 */
+:root[data-canvas-photo="on"] body,
+:root[data-canvas-photo="on"] .app-shell,
+:root[data-canvas-photo="on"] .bootstrap-state {
+  background-image:
+    linear-gradient(var(--canvas-photo-veil-color), var(--canvas-photo-veil-color)),
+    var(--canvas-photo-src, none);
+  background-size:
+    auto,
+    cover;
+  background-position:
+    center,
+    center;
+}
+/* 夜档挂照片时，壳层/卡片/输入面/控件这四层必须从"画布 + 加性白"换成"近不透明的深色面"。
+   原因是量出来的，不是审美选择：深档每一级高程都是往画布上叠白（壳 6% / 输入 7% /
+   卡片 7.5% / 控件 9%），所以画布一亮，每一面跟着一起亮，而且叠的白还把它往中间灰推——
+   实测一张过曝照片压 88% 黑纱时画布落在 rgb(43)，那已经是夜色渐变最亮一段 #101216
+   亮度（0.0045）的五倍多，于是壳层三级墨 4.25、卡片 4.05、控件 3.85，全部掉出 AA。
+   换成按自身颜色定的深色面之后，同一处 5.06 / 5.55 / 5.8，透出来的那 6%~14% 画布
+   只当氛围，不再决定文字底。浅档不需要这一组：白纱和白马桶是同方向的，地板 87% 时
+   裸画布 4.54、壳层 5.37、控件 5.74，本来就都在 AA 上。
+   控件面用两个现成令牌混出来（--segment-pill 与 --surface-muted 之间四六开），
+   不再新增色值；轨道和选中胶囊不动，它们是加性白 + 内阴影表达的凹陷，垫底换成深色面
+   之后增量一样成立。 */
+:root[data-canvas-photo="on"][data-theme="dark"] {
+  --sheet-glass: color-mix(in srgb, var(--surface) 90%, transparent);
+  --card-glass: color-mix(in srgb, var(--surface-muted) 94%, transparent);
+  --field-glass: color-mix(in srgb, var(--surface-muted) 86%, transparent);
+  --control-glass: color-mix(in srgb, var(--segment-pill) 40%, var(--surface-muted));
+}
+/* 三栏换成磨砂白壳层。backdrop-filter 重新挂上：5205 那组规则为了"侧栏不需要透光"
+   把它们整组关掉过，现在画布本身有了内容，透光才有意义。 */
+.sidebar,
+.workspace-header,
+.reader,
+.timeline,
+.app-shell--reader-open .timeline {
+  background-color: var(--sheet-glass);
+  backdrop-filter: var(--glass-blur-lg);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
+}
+.reader,
+.timeline,
+.app-shell--reader-open .timeline {
+  background-image: none;
+}
+/* 滚动面本身必须是透明的，否则它把容器那层磨砂重新糊成实心。 */
+.reader-scroll,
+.timeline-scroll {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* 卡片层：比壳层更实一档的白 + 白色接光边 + 冷调双层环境影。
+   边框从"比纸深的灰线"换成"玻璃自己的上缘高光"，深色档那两枚令牌本来就是弱白。 */
+.wb-card,
+.wb-panel,
+.wb-stat-card,
+.wb-detail-grid,
+.wb-table thead th,
+.daily-signal,
+.source-overview,
+.sync-provider-card {
+  background-color: var(--card-glass);
+  border-color: var(--sheet-edge);
+  backdrop-filter: var(--glass-blur-sm);
+  -webkit-backdrop-filter: var(--glass-blur-sm);
+}
+/* 表头与详情抽屉坐在滚动内容之上，半透明会让字压在穿过的行上读不清：
+   这两处用接近实心的白，只保留高光边与阴影。 */
+.wb-table thead th,
+.wb-detail-grid {
+  background-color: color-mix(in srgb, var(--surface-raised) 92%, transparent);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* 侧栏那层白色蒙纱（6535 的 ::before，8% 白）是"白画布时代"用来做微差的，
+   现在它正好把透进来的画布擦掉，撤掉。 */
+.sidebar::before {
+  background: transparent;
+}
+
+/* 没有 backdrop-filter 的引擎（老 WebKitGTK、部分内嵌 webview）：上面那组把面板降到
+   55%/70% 白，没有磨砂可采样时行和字会直接穿过来。6060 那条同名兜底在这层之前，
+   特异度相同会被顶掉，所以补一份在材料层之后——写 background-color 而不是 background
+   简写，否则会顺手擦掉画布那束渐变。
+   回退色沿用 6060 那一条的选择：壳层回 --surface，卡片回实心 --surface-raised。 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .sidebar,
+  .timeline,
+  .app-shell--reader-open .timeline,
+  .reader {
+    background-color: var(--surface);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .workspace-header {
+    background-color: var(--surface-raised);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .wb-card,
+  .wb-panel,
+  .wb-stat-card,
+  .daily-signal,
+  .source-overview,
+  .sync-provider-card {
+    background-color: var(--surface-raised);
+    border-color: var(--border);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
 /* 降低透明偏好：半透明材质换成实心面，层级关系靠颜色本身而不是透光维持。
    浅档的凸面回退到 --surface-raised（纯白实心），不是 --surface-muted——
    白画布上的灰块正是这一轮要消掉的"禁用感"。深档仍回实心 --surface-muted，
@@ -9947,9 +10310,66 @@ button:disabled {
     --control-glass: var(--surface-raised);
     --segment-track: var(--surface-muted);
   }
+  /* 有色画布本身就是一种透明材质：这一档下整窗回实心纸色，栏/卡片回实心面，
+     否则"降低透明"的用户拿到的仍是一层会晃的渐变。
+     描边也要一起换：这一轮把边从"比纸深的灰线"改成了白色接光（--sheet-edge /
+     --glass-border / --*-edge 都是弱白），接光只在半透明面上才看得见——面一旦回实心，
+     白边压在白面上等于无边，卡片会整片糊在一起。所以这些边退回 --border*。 */
+  :root,
+  :root[data-theme="dark"] {
+    --canvas-wash: none;
+    --canvas-glow: none;
+    --sheet-glass: var(--surface-raised);
+    --card-glass: var(--surface-raised);
+    --glass-blur-lg: none;
+    --glass-blur-sm: none;
+    --sheet-edge: var(--border);
+    --glass-border: var(--border);
+    --field-glass: var(--surface-raised);
+    --field-glass-edge: var(--border);
+    --field-glass-hover-edge: var(--border-strong);
+    --control-glass-edge: var(--border-strong);
+    --segment-track-edge: var(--border);
+  }
   :root[data-theme="dark"] {
     --control-glass: var(--surface-muted);
     --segment-track: var(--surface-muted);
+    --sheet-glass: var(--surface);
+    --card-glass: var(--surface);
+    --field-glass: var(--surface-muted);
+    --sheet-edge: var(--border-strong);
+    --glass-border: var(--border-strong);
+  }
+  /* 上面那两条只能压住 :root (0,1,0) 的默认束；选过画布主题之后，8236 那节的
+     :root[data-canvas="…"] 是 (0,2,0)，同层但写在后面，会反过来顶掉这条回退。
+     所以这里补一条同样 (0,2,0) 的：属性选择器写 [data-canvas] 而不是四个具体值，
+     applyCanvas 永远会写这个属性，一条就够。 */
+  :root[data-canvas],
+  :root[data-canvas][data-theme="dark"] {
+    --canvas-wash: none;
+    --canvas-glow: none;
+    /* 照片这一层不能整条撤——那是用户明确选的东西，这里只把地板抬到 96%：
+       要"降低透明"的人拿到的是几乎全白、只剩一点色味的画布，文字底下不再有内容。 */
+    --canvas-photo-veil-floor: 96%;
+  }
+  /* 照片模式那组深色面是 (0,3,0)，会反过来顶掉上面 (0,2,0) 的实心回退——同一写法再补一条：
+     这一档下面板本来就透光不了（blur 已关），继续留 6%~14% 的画布只会让字底跟着壁纸晃。 */
+  :root[data-canvas-photo="on"][data-theme="dark"] {
+    --sheet-glass: var(--surface);
+    --card-glass: var(--surface);
+    --field-glass: var(--surface-muted);
+    --control-glass: var(--surface-muted);
+  }
+  .sidebar,
+  .workspace-header,
+  .reader,
+  .timeline,
+  .app-shell--reader-open .timeline,
+  .wb-card,
+  .wb-panel,
+  .wb-stat-card {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 }
 /* 高对比：接光换成实描边，控件边界不再依赖透光与阴影。 */

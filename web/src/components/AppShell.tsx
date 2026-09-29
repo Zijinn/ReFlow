@@ -77,6 +77,7 @@ import type {
   SyncProvider,
   SyncProviderID,
 } from "../api/types"
+import { applyCanvas } from "../lib/canvas"
 import { useTranslation } from "../lib/i18n"
 import { useOnlineState } from "../lib/online"
 import { keyboardChord } from "../lib/shortcuts"
@@ -150,6 +151,9 @@ export function AppShell() {
   const shortcuts = useReaderStore((state) => state.shortcuts)
   const theme = useReaderStore((state) => state.theme)
   const accentTheme = useReaderStore((state) => state.accentTheme)
+  const canvasTheme = useReaderStore((state) => state.canvasTheme)
+  const canvasPhoto = useReaderStore((state) => state.canvasPhoto)
+  const canvasPhotoVeil = useReaderStore((state) => state.canvasPhotoVeil)
   const setTheme = useReaderStore((state) => state.setTheme)
   const paneLayout = useReaderStore((state) => state.paneLayout)
   const setPaneLayout = useReaderStore((state) => state.setPaneLayout)
@@ -222,6 +226,10 @@ export function AppShell() {
   useEffect(() => {
     document.documentElement.dataset.accent = accentTheme
   }, [accentTheme])
+
+  useEffect(() => {
+    applyCanvas({ theme: canvasTheme, photo: canvasPhoto, veil: canvasPhotoVeil })
+  }, [canvasTheme, canvasPhoto, canvasPhotoVeil])
 
   useEffect(() => {
     const update = () => setViewportWidth(window.innerWidth)

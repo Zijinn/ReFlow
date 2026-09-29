@@ -4,12 +4,14 @@ import { persist } from "zustand/middleware"
 import type { Locale } from "../lib/i18n"
 import type { LibraryScope, ViewMode } from "../api/types"
 import type { ReaderAnnotation } from "../lib/annotations"
+import { defaultCanvasPhotoVeil } from "../lib/canvas"
 
 export type ShortcutAction =
   "palette" | "search" | "next" | "previous" | "toggleStar" | "toggleRead"
 export type ThemeMode = "system" | "light" | "dark"
 export type AccentTheme =
   "academic-blue" | "graphite" | "forest" | "wine" | "indigo" | "warm-paper"
+export type CanvasTheme = "aurora" | "meadow" | "orchid" | "slate"
 export type SSEState = "live" | "reconnecting"
 export type AppView = "reader" | "workbench"
 
@@ -55,6 +57,9 @@ interface ReaderStore {
   locale: Locale
   theme: ThemeMode
   accentTheme: AccentTheme
+  canvasTheme: CanvasTheme
+  canvasPhoto: string
+  canvasPhotoVeil: number
   paneLayout: PaneLayout
   aiPanelWidth: number
   openFolders: Record<string, boolean>
@@ -77,6 +82,9 @@ interface ReaderStore {
   setLocale: (locale: Locale) => void
   setTheme: (theme: ThemeMode) => void
   setAccentTheme: (accentTheme: AccentTheme) => void
+  setCanvasTheme: (canvasTheme: CanvasTheme) => void
+  setCanvasPhoto: (canvasPhoto: string) => void
+  setCanvasPhotoVeil: (canvasPhotoVeil: number) => void
   setPaneLayout: (paneLayout: PaneLayout) => void
   setAIPanelWidth: (width: number) => void
   toggleFolder: (folderID: string) => void
@@ -106,6 +114,10 @@ export const useReaderStore = create<ReaderStore>()(
       locale: "zh-CN",
       theme: "system",
       accentTheme: "academic-blue",
+      canvasTheme: "aurora",
+      canvasPhoto: "",
+      // 三档之一，见 lib/canvas 的 canvasPhotoVeilLevels；真正的对比度地板在 CSS 里。
+      canvasPhotoVeil: defaultCanvasPhotoVeil,
       paneLayout: defaultPaneLayout,
       aiPanelWidth: 380,
       openFolders: {},
@@ -140,6 +152,9 @@ export const useReaderStore = create<ReaderStore>()(
       setLocale: (locale) => set({ locale }),
       setTheme: (theme) => set({ theme }),
       setAccentTheme: (accentTheme) => set({ accentTheme }),
+      setCanvasTheme: (canvasTheme) => set({ canvasTheme }),
+      setCanvasPhoto: (canvasPhoto) => set({ canvasPhoto }),
+      setCanvasPhotoVeil: (canvasPhotoVeil) => set({ canvasPhotoVeil }),
       setPaneLayout: (paneLayout) => set({ paneLayout }),
       setAIPanelWidth: (aiPanelWidth) => set({ aiPanelWidth }),
       toggleFolder: (folderID) =>
@@ -175,6 +190,9 @@ export const useReaderStore = create<ReaderStore>()(
         locale: state.locale,
         theme: state.theme,
         accentTheme: state.accentTheme,
+        canvasTheme: state.canvasTheme,
+        canvasPhoto: state.canvasPhoto,
+        canvasPhotoVeil: state.canvasPhotoVeil,
         paneLayout: state.paneLayout,
         aiPanelWidth: state.aiPanelWidth,
         openFolders: state.openFolders,

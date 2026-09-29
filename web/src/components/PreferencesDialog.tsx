@@ -37,11 +37,14 @@ import type {
 } from "../api/types"
 import { useTranslation, type Locale, type Translator } from "../lib/i18n"
 import { listPreferences, putPreference } from "../api/client"
+import { canvasPhotoVeilLevels } from "../lib/canvas"
+import { CanvasPhotoError, readCanvasPhoto } from "../lib/canvas-photo"
 import { displayShortcut, keyboardChord } from "../lib/shortcuts"
 import { ConfirmDialog } from "./ConfirmDialog"
 import {
   defaultShortcuts,
   type AccentTheme,
+  type CanvasTheme,
   type ShortcutAction,
   type ThemeMode,
   useReaderStore,
@@ -111,6 +114,15 @@ const viewModes: Array<{ value: ViewMode; labelKey: string }> = [
   { value: "image", labelKey: "images" },
 ]
 
+// 顺序就是偏好面板里的顺序；色卡上的那束渐变由 styles.css 的 data-canvas 一节负责，
+// 这里只登记"有哪几档、各叫什么"。
+const canvasTiers: Array<{ value: CanvasTheme; labelKey: string }> = [
+  { value: "aurora", labelKey: "canvasAurora" },
+  { value: "meadow", labelKey: "canvasMeadow" },
+  { value: "orchid", labelKey: "canvasOrchid" },
+  { value: "slate", labelKey: "canvasSlate" },
+]
+
 const shortcutLabelKeys: Record<ShortcutAction, string> = {
   palette: "commandPaletteShortcut",
   search: "search",
@@ -142,6 +154,12 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
   const setTheme = useReaderStore((state) => state.setTheme)
   const accentTheme = useReaderStore((state) => state.accentTheme)
   const setAccentTheme = useReaderStore((state) => state.setAccentTheme)
+  const canvasTheme = useReaderStore((state) => state.canvasTheme)
+  const setCanvasTheme = useReaderStore((state) => state.setCanvasTheme)
+  const canvasPhoto = useReaderStore((state) => state.canvasPhoto)
+  const setCanvasPhoto = useReaderStore((state) => state.setCanvasPhoto)
+  const canvasPhotoVeil = useReaderStore((state) => state.canvasPhotoVeil)
+  const setCanvasPhotoVeil = useReaderStore((state) => state.setCanvasPhotoVeil)
   const shortcuts = useReaderStore((state) => state.shortcuts)
   const setShortcut = useReaderStore((state) => state.setShortcut)
   const resetShortcuts = useReaderStore((state) => state.resetShortcuts)
@@ -162,7 +180,10 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
     message: string
     action: () => void
   } | null>(null)
+  const [canvasPhotoPending, setCanvasPhotoPending] = useState(false)
+  const [canvasPhotoError, setCanvasPhotoError] = useState("")
   const restoreInput = useRef<HTMLInputElement>(null)
+  const canvasPhotoInput = useRef<HTMLInputElement>(null)
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]!
   const serviceAccounts = props.syncAccounts.filter(
     (account) => account.provider !== "webdav" && account.provider !== "icloud",
@@ -212,6 +233,27 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
         action: () => props.onRestore(file),
       })
     if (restoreInput.current) restoreInput.current.value = ""
+  }
+  // 背景图不进后端：httpapi 没有二进制路由，导入时压成 data URL 存本地（见
+  // lib/canvas-photo）。解码是异步的，所以这里要有 pending 态；失败就在面板里就地
+  // 说一句，沿用快捷键冲突那条 .form-error，不另开 toast。
+  // 同一张图重选也要清空 input.value，否则浏览器认为文件没变，onChange 不再触发。
+  const selectCanvasPhoto = async (file?: File) => {
+    if (!file) return
+    setCanvasPhotoPending(true)
+    setCanvasPhotoError("")
+    try {
+      setCanvasPhoto(await readCanvasPhoto(file))
+    } catch (error) {
+      setCanvasPhotoError(
+        error instanceof CanvasPhotoError && error.code === "too-large"
+          ? t("canvasPhotoTooLarge")
+          : t("canvasPhotoFailed"),
+      )
+    } finally {
+      setCanvasPhotoPending(false)
+      if (canvasPhotoInput.current) canvasPhotoInput.current.value = ""
+    }
   }
   const runCloudSync = (account: SyncAccount, mode: "auto" | "push" | "pull") => {
     if (mode === "push") {
@@ -343,6 +385,110 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                           <option value="warm-paper">{t("themeWarmPaper")}</option>
                         </select>
                       </section>
+                      <section className="preference-section">
+                        <h2>{t("canvasTheme")}</h2>
+                        <p>{t("canvasThemeDescription")}</p>
+                        {/* 单选一组色卡。这里用 role="group" + aria-pressed 而不是
+                            role="radiogroup"：面板里同类的"多选一"（视图模式、蒙板强度）
+                            都是这个写法，radiogroup 还要接管方向键才合规。 */}
+                        <div className="canvas-theme-grid" role="group" aria-label={t("canvasTheme")}>
+                          {canvasTiers.map((tier) => (
+                            <button
+                              className={`canvas-theme-card canvas-theme-card--${tier.value}`}
+                              type="button"
+                              key={tier.value}
+                              aria-pressed={canvasTheme === tier.value}
+                              onClick={() => setCanvasTheme(tier.value)}
+                            >
+                              <span className="canvas-theme-card__wash" aria-hidden="true" />
+                              <span className="canvas-theme-card__label">{t(tier.labelKey)}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </section>
+                      <section className="preference-section">
+                        <h2>{t("canvasPhoto")}</h2>
+                        <p>{t("canvasPhotoDescription")}</p>
+                        <div className="canvas-photo-row">
+                          {/* 缩略图不写行内样式：applyCanvas 把 url() 挂在 <html> 的
+                              --canvas-photo-src 上，这一格继承过来就是当前图。 */}
+                          <span
+                            className={
+                              canvasPhoto
+                                ? "canvas-photo-preview"
+                                : "canvas-photo-preview canvas-photo-preview--empty"
+                            }
+                            aria-hidden="true"
+                          />
+                          <div className="button-group">
+                            <input
+                              ref={canvasPhotoInput}
+                              className="sr-only"
+                              type="file"
+                              accept="image/*"
+                              onChange={(event) => {
+                                void selectCanvasPhoto(event.target.files?.[0])
+                              }}
+                            />
+                            <button
+                              className="button button--secondary"
+                              type="button"
+                              disabled={canvasPhotoPending}
+                              onClick={() => canvasPhotoInput.current?.click()}
+                            >
+                              {canvasPhotoPending ? (
+                                <CircleNotch className="spin" />
+                              ) : (
+                                <UploadSimple />
+                              )}
+                              {t("canvasPhotoChoose")}
+                            </button>
+                            {canvasPhoto && (
+                              <button
+                                className="button button--secondary"
+                                type="button"
+                                onClick={() => setCanvasPhoto("")}
+                              >
+                                <Trash />
+                                {t("canvasPhotoRemove")}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        {canvasPhotoError && (
+                          <p className="form-error" role="alert">
+                            {canvasPhotoError}
+                          </p>
+                        )}
+                      </section>
+                      {canvasPhoto && (
+                        <section className="preference-section preference-section--row">
+                          <div>
+                            <h2>{t("canvasPhotoVeil")}</h2>
+                            <p>{t("canvasPhotoVeilDescription")}</p>
+                          </div>
+                          <div
+                            className="segmented-control"
+                            role="group"
+                            aria-label={t("canvasPhotoVeil")}
+                          >
+                            {canvasPhotoVeilLevels.map((level) => (
+                              <button
+                                className={
+                                  canvasPhotoVeil === level.value
+                                    ? "segmented-control__item segmented-control__item--active"
+                                    : "segmented-control__item"
+                                }
+                                type="button"
+                                key={level.value}
+                                onClick={() => setCanvasPhotoVeil(level.value)}
+                              >
+                                {t(level.labelKey)}
+                              </button>
+                            ))}
+                          </div>
+                        </section>
+                      )}
                       <section className="preference-section">
                         <h2>{t("timelineView")}</h2>
                         <div

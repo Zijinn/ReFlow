@@ -15,21 +15,31 @@ import { createRoot } from "react-dom/client"
 import { registerSW } from "virtual:pwa-register"
 
 import App from "./App"
+import { applyCanvas, defaultCanvasPhotoVeil, isCanvasTheme } from "./lib/canvas"
 import { trackDesktopPlatform } from "./lib/desktop"
 import { applyTheme } from "./lib/theme"
 
 trackDesktopPlatform()
 applyPersistedTheme()
 
+// persist 存的是偏好片段，旧版本没有画布那三个键，所以这里全部按 unknown 读再回退默认。
+interface PersistedPreferences {
+  theme?: unknown
+  accentTheme?: unknown
+  canvasTheme?: unknown
+  canvasPhoto?: unknown
+  canvasPhotoVeil?: unknown
+}
+
 // Apply the persisted theme before first paint so a dark/light preference does
 // not flash the wrong palette while React boots. AppShell takes the attribute over
 // on mount and keeps it in sync, so both use applyTheme.
 function applyPersistedTheme() {
-  let persisted: { theme?: unknown; accentTheme?: unknown } | null
+  let persisted: PersistedPreferences | null
   try {
     persisted = (
       JSON.parse(localStorage.getItem("reflow-reader-preferences") ?? "null") as {
-        state?: { theme?: unknown; accentTheme?: unknown }
+        state?: PersistedPreferences
       } | null
     )?.state ?? null
   } catch {
@@ -51,6 +61,18 @@ function applyPersistedTheme() {
   )
     ? (accentTheme as string)
     : "academic-blue"
+
+  // 画布偏好共用这一次解析：canvasPhoto 是几十万字节的 data URL，读两遍等于首帧前多解
+  // 一次 JSON。store rehydrate 之后 AppShell 会再 applyCanvas 一遍，值相同、写入幂等，
+  // 所以中间不会有闪烁。
+  const canvasTheme = persisted?.canvasTheme
+  const canvasPhoto = persisted?.canvasPhoto
+  const canvasPhotoVeil = persisted?.canvasPhotoVeil
+  applyCanvas({
+    theme: isCanvasTheme(canvasTheme) ? canvasTheme : "aurora",
+    photo: typeof canvasPhoto === "string" ? canvasPhoto : "",
+    veil: typeof canvasPhotoVeil === "number" ? canvasPhotoVeil : defaultCanvasPhotoVeil,
+  })
 }
 
 const queryClient = new QueryClient({

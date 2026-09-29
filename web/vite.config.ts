@@ -40,8 +40,10 @@ export default defineConfig(({ mode }) => {
           short_name: "ReFlow",
           description: "A private reading home for the open web.",
           lang: "zh-CN",
-          theme_color: "#f5f5f6",
-          background_color: "#ffffff",
+          // 对齐有色画布的上段（--canvas-wash 顶端 #cfe0f6 与第二段 #e3eaf3 之间）：
+          // 装机启动时系统状态栏与闪屏不再是"白纸接蓝纸"的那道接缝。
+          theme_color: "#e9eff7",
+          background_color: "#e3eaf3",
           display: "standalone",
           orientation: "any",
           start_url: "/",
