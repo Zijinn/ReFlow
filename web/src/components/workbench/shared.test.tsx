@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useReaderStore } from "../../store/reader"
-import { ChipEditor, InlineText, MenuSelect } from "./shared"
+import { ChipEditor, DragHandle, InlineText, MenuSelect, Row } from "./shared"
 
 beforeEach(() => {
   useReaderStore.setState({ locale: "en-US" })
@@ -177,5 +177,38 @@ describe("MenuSelect", () => {
     const focus = vi.spyOn(first, "focus")
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "ArrowDown" })
     expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+  })
+})
+
+describe("Row", () => {
+  const renderRow = () =>
+    render(
+      <table>
+        <tbody>
+          <Row id="p1" onReorder={() => {}}>
+            <td className="wb-col-grip">
+              <DragHandle />
+            </td>
+            <td>
+              <button type="button">Toggle stages</button>
+            </td>
+          </Row>
+        </tbody>
+      </table>,
+    )
+
+  // A row that is always draggable makes WKWebView claim every mousedown in it
+  // for the drag, so the stage cell never receives the click that expands it.
+  it("arms dragging from the handle only", () => {
+    renderRow()
+    const row = screen.getByRole("button", { name: "Toggle stages" }).closest("tr")
+    expect(row).not.toBeNull()
+    expect(row).toHaveAttribute("draggable", "false")
+
+    fireEvent.pointerDown(screen.getByText("⠿"))
+    expect(row).toHaveAttribute("draggable", "true")
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Toggle stages" }))
+    expect(row).toHaveAttribute("draggable", "false")
   })
 })

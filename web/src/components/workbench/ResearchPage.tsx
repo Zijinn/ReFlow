@@ -1,10 +1,17 @@
 import { Fragment, useMemo, useState } from "react"
 
+import { CaretRight } from "@phosphor-icons/react"
+
 import type { ResearchPaper, ResearchPaperPatch } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { toast } from "../../store/toast"
-import { countStageLeaves, computeProgress } from "../../lib/research"
-import { ChipEditor, DragHandle, EmptyState, ExpandToggle, InlineText, MenuSelect, Row } from "./shared"
+import {
+  buildStageTemplate,
+  countStageLeaves,
+  computeProgress,
+  stageTicks,
+} from "../../lib/research"
+import { ChipEditor, DragHandle, EmptyState, InlineText, MenuSelect, Row } from "./shared"
 import { displayID, matchesPaperQuery, priorityBadgeClass, priorityDotClass, reorderList } from "./utils"
 import { StageTree } from "./StageTree"
 
@@ -123,8 +130,15 @@ export function ResearchPage(props: {
               filtered.map((paper) => {
                 const index = props.papers.findIndex((p) => p.id === paper.id)
                 const expanded = expandedID === paper.id
-                const progress = computeProgress(paper.stages)
-                const leaves = countStageLeaves(paper.stages)
+                // 没有阶段的论文按标准流程"虚拟"展示：不写库，点任一阶段才落。
+                const virtualStages = paper.stages.length === 0
+                const stages = virtualStages ? buildStageTemplate(t) : paper.stages
+                const progress = computeProgress(stages)
+                const leaves = countStageLeaves(stages)
+                const ticks = stageTicks(stages)
+                const currentTickIndex = ticks.findIndex((tick) => tick.fraction < 1)
+                const currentStage =
+                  currentTickIndex >= 0 ? ticks[currentTickIndex]!.name : t("stageAllDone")
                 return (
                   <Fragment key={paper.id}>
                     <Row id={paper.id} onReorder={reorder} dataPaperID={paper.id}>
@@ -148,18 +162,50 @@ export function ResearchPage(props: {
                         />
                       </td>
                       <td className="wb-col-stage">
-                        <div className="wb-stage-cell">
+                        <button
+                          type="button"
+                          className={`wb-stage-cell${expanded ? " wb-stage-cell--open" : ""}`}
+                          aria-expanded={expanded}
+                          aria-label={t("expandStageHint")}
+                          title={t("expandStageHint")}
+                          onClick={() => setExpandedID(expanded ? null : paper.id)}
+                        >
                           <span
-                            className="wb-progress-track"
+                            className="wb-stage-rail"
                             role="progressbar"
+                            aria-label={t("stageRailLabel")}
                             aria-valuenow={progress}
                             aria-valuemin={0}
                             aria-valuemax={100}
                           >
-                            <span className="wb-progress-fill" style={{ width: `${progress}%` }} />
+                            {ticks.map((tick, tickIndex) => (
+                              <span
+                                key={`${tick.name}-${tickIndex}`}
+                                className={`wb-stage-tick${
+                                  tickIndex === currentTickIndex ? " wb-stage-tick--current" : ""
+                                }`}
+                              >
+                                <span
+                                  className="wb-stage-tick-fill"
+                                  style={{ width: `${Math.round(tick.fraction * 100)}%` }}
+                                />
+                              </span>
+                            ))}
                           </span>
                           <span className="wb-progress-text">{progress}%</span>
-                        </div>
+                          <span
+                            className="wb-stage-cell-current"
+                            title={`${t("stageCurrent")}: ${currentStage}`}
+                          >
+                            {currentStage}
+                          </span>
+                          <CaretRight
+                            className="wb-stage-cell-caret"
+                            size={12}
+                            weight="bold"
+                            aria-hidden="true"
+                          />
+                        </button>
                       </td>
                       <td className="wb-col-priority">
                         <MenuSelect
@@ -188,11 +234,6 @@ export function ResearchPage(props: {
                         {(paper.last_updated || "").slice(0, 10) || "—"}
                       </td>
                       <td className="wb-col-actions">
-                        <ExpandToggle
-                          expanded={expanded}
-                          label={expanded ? t("collapseRow") : t("expandRow")}
-                          onToggle={() => setExpandedID(expanded ? null : paper.id)}
-                        />
                         <button
                           type="button"
                           className="wb-btn wb-flow-btn"
@@ -219,8 +260,9 @@ export function ResearchPage(props: {
                         <td colSpan={8}>
                           <div className="wb-detail-grid">
                             <StageTree
-                              stages={paper.stages}
-                              onChange={(stages) => props.onUpdate(paper.id, { stages })}
+                              stages={stages}
+                              virtual={virtualStages}
+                              onChange={(next) => props.onUpdate(paper.id, { stages: next })}
                             />
                             <div className="wb-detail-side">
                               <ChipEditor

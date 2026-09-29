@@ -64,13 +64,41 @@ export function computeProgress(stages: ResearchStage[]): number {
   return total ? Math.round((done / total) * 100) : 0
 }
 
-export const DEFAULT_STAGES: ResearchStage[] = [
-  "引言",
-  "文献综述/理论假设",
-  "研究设计",
-  "实证分析",
-  "结论与启示",
-].map((name) => ({ name, done: false, children: [] }))
+// 标准研究流程模板。新建的论文 stages 是 []，此时表格与阶段面板都按这份模板
+// 展示（虚拟状态，不落库）：用户点任一阶段才把"模板 + 这一次勾选"整体 PATCH 上去。
+// 这样表格里不会出现一排 0% 的空行，也不会因为打开面板就静默改数据。
+// 名称走 i18n key，落库时按当前语言解析成普通字符串（阶段名本来就是用户数据）。
+export const STAGE_TEMPLATE_KEYS = [
+  "stageFrame",
+  "stageLiterature",
+  "stageDataCollect",
+  "stageDataClean",
+  "stageDescriptive",
+  "stageEmpirical",
+  "stageRobustness",
+  "stageConclusion",
+  "stageDraft",
+  "stagePolish",
+  "stageSubmit",
+] as const
+
+export function buildStageTemplate(label: (key: string) => string): ResearchStage[] {
+  return STAGE_TEMPLATE_KEYS.map((key) => ({ name: label(key), done: false, children: [] }))
+}
+
+export type StageTick = { name: string; fraction: number }
+
+// 表格里那一格分段进度轨的每一段：一个一级阶段对应一段，段内填充比例取
+// 该阶段下所有叶子阶段的完成度。父阶段自己不参与计数（和 computeProgress
+// 同一套口径），所以有子阶段的父阶段永远不会因为"父勾了子没勾"而显示满格。
+export function stageTicks(stages: ResearchStage[]): StageTick[] {
+  return stages.map((stage) => {
+    const children = stage.children ?? []
+    if (!children.length) return { name: stage.name, fraction: stage.done ? 1 : 0 }
+    const { total, done } = countStageLeaves(children)
+    return { name: stage.name, fraction: total ? done / total : stage.done ? 1 : 0 }
+  })
+}
 
 export const MAX_STAGE_LEVEL = 3
 

@@ -3,12 +3,15 @@ import { describe, expect, it } from "vitest"
 import type { ResearchPaper } from "../api/types"
 import {
   buildGb7714Reference,
+  buildStageTemplate,
   citationSourceKey,
   computeProgress,
   isEnglishPaper,
   MANUAL_CITATION_SOURCE,
   normalizeDoi,
   sortReferences,
+  STAGE_TEMPLATE_KEYS,
+  stageTicks,
   toggleStageAt,
 } from "./research"
 
@@ -155,6 +158,56 @@ describe("computeProgress", () => {
     ]
     // leaves: a(done), b1(done), b2(not) => 2/3
     expect(computeProgress(stages)).toBe(67)
+  })
+})
+
+describe("stageTicks", () => {
+  it("folds a parent's children into one segment", () => {
+    const stages = [
+      { name: "a", done: true, children: [] },
+      {
+        name: "b",
+        done: false,
+        children: [
+          { name: "b1", done: true, children: [] },
+          { name: "b2", done: false, children: [] },
+        ],
+      },
+    ]
+    expect(stageTicks(stages)).toEqual([
+      { name: "a", fraction: 1 },
+      { name: "b", fraction: 0.5 },
+    ])
+  })
+
+  it("keeps a done parent that has no children full", () => {
+    expect(stageTicks([{ name: "a", done: true, children: [] }])).toEqual([
+      { name: "a", fraction: 1 },
+    ])
+  })
+})
+
+describe("buildStageTemplate", () => {
+  it("follows the paper pipeline from framing to submission", () => {
+    expect(buildStageTemplate((key) => key).map((stage) => stage.name)).toEqual([
+      "stageFrame",
+      "stageLiterature",
+      "stageDataCollect",
+      "stageDataClean",
+      "stageDescriptive",
+      "stageEmpirical",
+      "stageRobustness",
+      "stageConclusion",
+      "stageDraft",
+      "stagePolish",
+      "stageSubmit",
+    ])
+  })
+
+  it("labels every stage and leaves it unticked", () => {
+    const stages = buildStageTemplate((key) => key)
+    expect(stages).toHaveLength(STAGE_TEMPLATE_KEYS.length)
+    expect(stages[0]).toEqual({ name: "stageFrame", done: false, children: [] })
   })
 })
 

@@ -16,6 +16,24 @@ function stage(name: string, done = false, children: ResearchStage[] = []): Rese
 }
 
 describe("StageTree", () => {
+  it("shows the done/total count and, for a template, why nothing is saved yet", () => {
+    render(
+      <StageTree stages={[stage("Drafting", true), stage("Submitting")]} onChange={() => {}} />,
+    )
+    expect(screen.getByText("1/2")).toBeInTheDocument()
+    expect(screen.queryByText(/standard research pipeline/i)).not.toBeInTheDocument()
+
+    cleanup()
+    render(
+      <StageTree
+        stages={[stage("Drafting"), stage("Submitting")]}
+        virtual
+        onChange={() => {}}
+      />,
+    )
+    expect(screen.getByText(/standard research pipeline/i)).toBeInTheDocument()
+  })
+
   it("renders stage names and computed progress", () => {
     render(
       <StageTree stages={[stage("Drafting", true), stage("Submitting")]} onChange={() => {}} />,

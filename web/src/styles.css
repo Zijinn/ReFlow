@@ -112,27 +112,42 @@
     0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
   /* 轨道 hover 加深一档：凹陷面没有阴影可依赖，只能靠底色本身回应。 */
   --segment-track-hover: rgb(118 124 138 / 0.19);
+  /* 输入面（.text-input / .wb-search / .wb-email-input）：白面，不是灰井。
+     分段器的轨道可以灰——它是一条槽，里面还浮着一颗更白的胶囊，灰是"凹"的表达；
+     输入框里没有对比物，9% 系统灰落在白工具栏上合成 #edeeF0，读起来就是禁用。
+     工作台子树本来就写着"去灰阶"（.wb-shell 把 --surface-muted 换成极淡蓝 #f3f7fe），
+     灰井那次改动把中性灰又带回来了。凹陷这件事改由上缘一道内投影加鬓发边表达：
+     白底白面时深度只能靠影子，不能靠把面涂灰。 */
+  --field-glass: var(--surface-raised);
+  --field-glass-edge: color-mix(in srgb, var(--border) 85%, transparent);
+  --field-glass-inset: inset 0 1px 2px rgb(20 22 26 / 0.05);
+  /* 悬停不涂灰（同凸面的理由），只把鬓发边压深一档：字段是"等你打字"的地方，
+     回应应当是边界变清楚，而不是面变暗。 */
+  --field-glass-hover-edge: var(--border-strong);
   /* 凸面玻璃（按钮/下拉/视图卡）与上面的凹面轨道是同一套材质的两面：
-     轨道/输入用 --segment-track*（上缘凹陷），控件用这组（内圈接光 + 接触影 + 环境影）。
-     底色必须半透明而不是实心 --surface——工作台工具条本身就是 82% 毛玻璃，
-     不吸光的实灰块压在毛玻璃上是一块死斑（与 6997 同一判断）。
-     压在白侧栏上实测合成 #f3f3f4，比轨道 #edeef0 亮三档，于是
-     "页面 < 轨道 < 控件 < 选中胶囊"四级高程成立。
-     二级墨实测（静置/悬停/按压）6.53 / 5.91 / 5.40:1，全部过正文级 AA。 */
-  --control-glass: rgb(118 124 138 / 0.09);
-  --control-glass-edge: color-mix(in srgb, var(--border-strong) 66%, transparent);
+     轨道/输入用 --segment-track*（上缘凹陷），控件用这组（发丝边 + 接触影 + 环境影）。
+     浅档的面是白的，不是灰蒙：侧栏和正文都是纯白 #fff，9% 系统灰落在白面上合成
+     #f3f3f4，读起来是"禁用"而不是"浮起"。macOS/iOS 在白画布上的按钮本来就是白面，
+     层级靠一条比画布深的发丝边加接触影撑起来，而不是靠把面涂灰。
+     实测：压在纯白侧栏上就是 #fff，发丝边合成 #d5d5d6；设置面板是 67% 白 + 30px
+     模糊，合成 #f3f4f5，白控件落上去 #fefefe，差 11 级，不靠灰也能分界。
+     一级墨 #18191c 在静置/悬停/按压三档 17.4 / 16.4 / 15.4:1，全部远超 AA。
+     上缘那道白接光在白的静置面上等于没有，它服务的是悬停/按压：那时灰蒙把面压暗，
+     接光才显出厚度；下缘 5% 暗线是凸面的底边，白底白面时全靠它和发丝边分界。 */
+  --control-glass: rgb(255 255 255 / 0.92);
+  --control-glass-edge: var(--border-strong);
   --control-glass-inset:
-    inset 0 1px 0 rgb(255 255 255 / 0.78),
-    inset 0 0 0 0.5px rgb(255 255 255 / 0.42);
+    inset 0 1px 0 rgb(255 255 255 / 0.85),
+    inset 0 -1px 0 rgb(20 22 26 / 0.05);
   --control-glass-shadow:
     var(--control-glass-inset),
-    0 1px 2px rgb(20 22 26 / 0.08),
-    0 3px 8px rgb(20 22 26 / 0.05);
+    0 1px 2px rgb(20 22 26 / 0.1),
+    0 3px 8px rgb(20 22 26 / 0.06);
   /* 密集排布（表格行、状态药丸）只留接触影：一行七八颗控件各拖一层环境影，
      整表会糊成一片灰，行高也会被读成变高。 */
   --control-glass-shadow-quiet:
     var(--control-glass-inset),
-    0 1px 1.5px rgb(20 22 26 / 0.06);
+    0 1px 1.5px rgb(20 22 26 / 0.08);
   /* 列表行选中底：侧栏三类行（文件夹/订阅/移动抽屉）此前各写各的
      color-mix(accent-soft …)，四份配方叠在层叠里互相顶。收成一份，
      悬停要重述底色时也只有一处真相。 */
@@ -328,6 +343,15 @@
     inset 0 0 0 0.5px rgb(255 255 255 / 0.1),
     0 0 0 1px rgb(255 255 255 / 0.06);
   --segment-track-hover: rgb(255 255 255 / 0.11);
+  /* 输入面在深档的"白"是往 chrome 上提一层弱白霜：--surface-raised (#0f1012) 比
+     页面还暗，直接拿来做面就是个洞。凹陷投影换成黑色，接光只留内圈 0.5px 一档
+     （白面上再叠下缘反光是两条亮边，读起来像描边）。 */
+  --field-glass: rgb(255 255 255 / 0.07);
+  --field-glass-edge: rgb(255 255 255 / 0.1);
+  --field-glass-inset:
+    inset 0 1px 2px rgb(0 0 0 / 0.45),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.06);
+  --field-glass-hover-edge: rgb(255 255 255 / 0.18);
   /* 凸面同样往白提：9% 白压在 chrome #0f1012 上合成 #252627，正好落在
      轨道 #202123 与选中胶囊 #2b2c2e 之间，四级高程在深色下同样成立。
      接光层在深档必须换弱白——浅档那层 78% 白压在深面上会把上缘画成一条亮边，
@@ -7641,10 +7665,15 @@ button:disabled {
   color: var(--text-faint);
   cursor: grab;
   opacity: 0.4;
+  -webkit-user-select: none;
+  user-select: none;
   transition: opacity var(--dur-fast) var(--ease);
 }
 .wb-row:hover .wb-drag-handle {
   opacity: 1;
+}
+.wb-drag-handle:active {
+  cursor: grabbing;
 }
 .wb-cell-title {
   margin-bottom: var(--space-3);
@@ -7696,15 +7725,55 @@ button:disabled {
     display: inline-flex;
   }
 }
+/* 研究阶段格：整格是一枚白面玻璃按键（材质见文件末尾的玻璃段——白面、鬓发边减淡到
+   分段器那一档、只留接触影），2×2 网格：上行分段进度轨 + 百分比，下行当前阶段名 +
+   展开尖角。点它展开/收起详情行，操作列不再另放展开箭头。 */
 .wb-stage-cell {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-4);
-  min-width: 0;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--wb-field-h);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
+  text-align: left;
+  cursor: pointer;
+  /* 与 .wb-btn 同一档淡入淡出，但不含 transform：这一格在表格里，
+     按下去缩放会带着相邻列一起晃。 */
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
-.wb-stage-cell .wb-progress-track {
-  flex: 1;
-  min-width: 36px;
+.wb-stage-cell-current {
+  grid-column: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+  /* 白面（浅档就是 #fff）上三级墨还有 5.0:1 / 深档霜面 4.6:1，都在 AA 之上，
+     所以这一档保持三级，和百分比的二级墨差一档；灰井那版被迫提到二级是为了凑对比。 */
+  color: var(--text-tertiary);
+}
+.wb-stage-cell-caret {
+  grid-column: 2;
+  color: var(--text-tertiary);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+/* 展开入口的读法按苹果那套：合着时尖角朝右，开着才朝下。
+   悬停时尖角跟着提一档墨色，因为整格里只有它是"这里能点"的提示。 */
+.wb-stage-cell:hover .wb-stage-cell-caret {
+  color: var(--text-secondary);
+}
+.wb-stage-cell--open .wb-stage-cell-caret {
+  transform: rotate(90deg);
 }
 .wb-progress-text {
   min-width: 32px;
@@ -8451,13 +8520,16 @@ button:disabled {
   box-shadow: var(--wb-chrome-ring);
   transition:
     box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
     background-color var(--dur-fast) var(--ease);
 }
+/* 聚焦不换面（浅档 #fff→#fff 是空操作，深档 --surface-raised 比页面还暗，白面会
+   突然变成洞），凹陷留着，外面再套一圈焦点环。 */
 .wb-search:focus {
   outline: none;
-  background-color: var(--surface-raised);
+  background-color: var(--field-glass);
   box-shadow:
-    inset 0 0 0 0.5px var(--border-strong),
+    var(--field-glass-inset),
     var(--focus-ring);
 }
 
@@ -9325,8 +9397,12 @@ button:disabled {
   width: auto;
   min-width: 96px;
 }
+/* 研究阶段是一枚按键（点它展开详情行），不再是"一根条 + 一个数字"：
+   列宽按 11 段进度轨实测——168 减左右衬 20、按键内衬 12 与描边 2 ＝ 134，
+   右列百分比占 32、栅格间距 4，留给轨道 98；11 段之间 10 条 2px 缝，每段 7px。
+   窄档另有一套（见下面 ≤640 档：收掉阶段名与尖角、缝降到 1px）。 */
 .wb-col-stage {
-  width: 100px;
+  width: 168px;
 }
 .wb-col-priority {
   width: 118px;
@@ -9351,13 +9427,14 @@ button:disabled {
 }
 /* 操作列：三张表各写各的宽度，因为控件串不一样。宽度＝左右 10px 衬 ＋ 控件 ＋
    每处 6px 间隔（.wb-col-actions > * + *），按实测内容右边缘取整再留 1px：
-   在研 展开 28 ＋ 流转 67 ＋ 删除 28 ＝ 135 → 156；
+   在研 流转 67 ＋ 删除 28 ＝ 101 → 122；
    在投 展开 28 ＋ 流转 79 ＋ 删除 28 ＝ 147 → 168；
    已发表 展开 28 ＋ 删除 28 ＝ 62 → 84。
-   展开箭头三张表都在操作列的第一颗（此前在研把它放在"研究阶段"里，同一个
-   "展开详情"控件在一屏里出现在两个位置）。窄档衬宽降到 6px，见下面的 ≤640 档。 */
+   在研原来是三颗（展开 28 ＋ 流转 67 ＋ 删除 28 ＝ 135 → 156）：它的展开箭头已经
+   搬进"研究阶段"那一格，同一行里既点进度展开、又点箭头展开是两个入口做一件事。
+   在投/已发表没有阶段进度格，展开箭头仍留在操作列第一颗。窄档衬宽降到 6px，见下面的 ≤640 档。 */
 .wb-table--research .wb-col-actions {
-  width: 156px;
+  width: 122px;
 }
 .wb-table--submitted .wb-col-actions {
   width: 168px;
@@ -9365,12 +9442,12 @@ button:disabled {
 .wb-table--published .wb-col-actions {
   width: 84px;
 }
-/* 触屏档：--wb-icon-h 从 28 升到 32，操作列里两颗图标控件各宽 4px，实测删除键
-   越出列边 7px（在研/在投）与 6px（已发表）。三条都写在 ≤640 档的同名覆盖之前，
+/* 触屏档：--wb-icon-h 从 28 升到 32，操作列里每颗图标控件各宽 4px，实测删除键
+   越出列边 7px（在投）与 6px（已发表）。三条都写在 ≤640 档的同名覆盖之前，
    所以窄档另给一组（见下面容器档位段）。 */
 @media (pointer: coarse) {
   .wb-table--research .wb-col-actions {
-    width: 164px;
+    width: 126px;
   }
   .wb-table--submitted .wb-col-actions {
     width: 176px;
@@ -9519,15 +9596,24 @@ button:disabled {
     width: 58px;
   }
   .wb-col-stage {
-    width: 92px;
+    width: 116px;
+  }
+  /* 窄档只留"轨道 + 百分比"：当前阶段名在这一档只剩三四个字、尖角也只占一格，
+     两样都收掉，把宽度还给轨道和标题（116＋114 比原来的 92＋148 还省 10px）。
+     轨道本身的缝要跟着从 2px 降到 1px（实测这一档轨道只有 54px，2px 缝会吃掉两成
+     宽度，十一段读起来是虚线而不是进度）——那条写在 phase3-research.css 的同档
+     容器查询里：轨道归那份文件管，同名规则放这里会被它按文件顺序盖掉。 */
+  .wb-stage-cell-current,
+  .wb-stage-cell-caret {
+    display: none;
   }
   .wb-col-status {
     width: 112px;
   }
   /* 窄档衬宽从 10px 降到 6px（上面第一条），三张表的操作列各减 8px：
-     在研 135＋12＝147→148，在投 147＋12＝159→160，已发表 62＋12＝74→76。 */
+     在研 101＋12＝113→114，在投 147＋12＝159→160，已发表 62＋12＝74→76。 */
   .wb-table--research .wb-col-actions {
-    width: 148px;
+    width: 114px;
   }
   .wb-table--submitted .wb-col-actions {
     width: 160px;
@@ -9535,11 +9621,11 @@ button:disabled {
   .wb-table--published .wb-col-actions {
     width: 76px;
   }
-  /* 触屏档在这一档再各减 8px 衬：实测内容 143/155/70，配 156/168/82 留 1～13px。
-     写在同一档位里，是为了让上面那组宽屏数（164/176/90）在这条之前生效。 */
+  /* 触屏档在这一档再各减 8px 衬：实测内容 109/155/70，配 118/168/82 留 1～13px。
+     写在同一档位里，是为了让上面那组宽屏数（126/176/90）在这条之前生效。 */
   @media (pointer: coarse) {
     .wb-table--research .wb-col-actions {
-      width: 156px;
+      width: 118px;
     }
     .wb-table--submitted .wb-col-actions {
       width: 168px;
@@ -9549,12 +9635,14 @@ button:disabled {
     }
   }
 }
-/* 再窄一档（容器 ≤560px）连状态药丸列一起收：grip 58 ＋ 阶段 92 ＋ 操作 148 ＝ 298px，
-   留给标题只有 163px（实测容器 575 时 11 个汉字、行高三行）——手机和窄窗口上最该看的
-   字段反而最小。收起的阶段/状态在展开详情行里照样可改；标题由 .wb-col-title 的
-   width:auto 接管剩下的全部宽度。已发表这一档再收年份：4 位数字在展开详情里就在标题旁边。 */
+/* 再窄一档（容器 ≤560px）连状态药丸列一起收：留给标题的宽度在这一档只有 173px
+   （实测容器 575 时 12 个汉字、行高三行）——手机和窄窗口上最该看的字段反而最小。
+   收起的状态在展开详情行里照样可改；标题由 .wb-col-title 的 width:auto 接管剩下的
+   全部宽度。已发表这一档再收年份：4 位数字在展开详情里就在标题旁边。
+   阶段列原来是这一档一起收的，现在不再收：它是 .wb-table--research 独有的列，
+   也是那一行唯一的展开入口，收掉详情行就再也打不开了（进度本身没有别的替代位置，
+   日期/优先级/正文列在更宽的两档已经先让位了）。 */
 @container wbtable (max-width: 560px) {
-  .wb-table .wb-col-stage,
   .wb-table .wb-col-status,
   .wb-table--published .wb-col-year {
     width: 0;
@@ -9711,7 +9799,7 @@ button:disabled {
   background-color: color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
-/* ── 玻璃控件落最后：凸面（按钮/下拉/图标泡）+ 凹面（输入/搜索）────────
+/* ── 玻璃控件落最后：凸面（按钮/下拉/图标泡）+ 凹面（输入/搜索/阶段格）──
    必须写在文件末尾：这些控件的历史样式散落在 7000 / 8100 / 8400 / 9200
    四处，同特异度靠文件顺序取胜，早写的每一份都会被后面顶掉。
    每一档状态都要重述 background-color：早先的 :hover 规则把 --fill-hover
@@ -9719,27 +9807,39 @@ button:disabled {
    悬停反而比静置更亮——反馈方向就反了。灰蒙改走 background-image，
    底色留在 background-color 上，与侧栏行、分段器选中档同一做法。 */
 
-/* 凹面：输入和搜索是"井"不是"块"——只有上缘凹陷，不给接触/环境影。 */
+/* 凹面（输入面）：只有"打字进去"的地方是井——文本框、搜索框、邮箱框。
+   面是白的（--field-glass），深度走上缘内投影 + 鬓发边，不涂灰：白工具栏上的
+   #edeeF0 灰面被用户两次否掉（"使用白色的，而不是灰色"）。
+   悬停只压深边框，绝不用 background-image 叠灰蒙——.wb-search 的放大镜正是画在
+   background-image 上的，一层渐变会把它擦掉。
+   .select-input 不在这一档：它不接收输入，点开的是菜单，属于按键，走下面的凸面。
+   .wb-stage-cell 也不在这一档：它是按键而不是字段（见文件末尾"阶段格"那一档）。 */
 .text-input,
-.select-input,
 .wb-search,
 .wb-email-input {
-  background-color: var(--segment-track);
-  border-color: var(--segment-track-edge);
-  box-shadow: var(--segment-track-inset);
+  background-color: var(--field-glass);
+  border-color: var(--field-glass-edge);
+  box-shadow: var(--field-glass-inset);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
 }
 .text-input:hover,
-.select-input:hover,
 .wb-search:hover,
 .wb-email-input:hover {
-  background-color: var(--segment-track-hover);
+  background-color: var(--field-glass);
+  border-color: var(--field-glass-hover-edge);
 }
 
-/* 凸面：静置。选中档用 :not() 排除，让它自己的底色与描边留在前面那几条里。 */
+/* 凸面：静置。选中档用 :not() 排除，让它自己的底色与描边留在前面那几条里。
+   .wb-stage-cell 在这一组里拿白面，但边与影由下面那一档单独减淡（见"阶段格"注释）。 */
 .app-view-switch__item:not(.app-view-switch__item--active),
 .button--secondary,
+.select-input,
 .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn),
 .wb-menu-btn,
+.wb-stage-cell,
 .library-toolbar .icon-button {
   background-color: var(--control-glass);
   border-color: var(--control-glass-edge);
@@ -9757,19 +9857,52 @@ button:disabled {
 }
 .app-view-switch__item:not(.app-view-switch__item--active):hover,
 .button--secondary:hover,
+.select-input:hover,
 .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn):hover,
 .wb-menu-btn:hover,
+.wb-stage-cell:hover,
 .library-toolbar .icon-button:hover {
   background-color: var(--control-glass);
   background-image: linear-gradient(var(--fill-hover), var(--fill-hover));
 }
 .app-view-switch__item:not(.app-view-switch__item--active):active:not(:disabled),
 .button--secondary:active:not(:disabled),
+.select-input:active:not(:disabled),
 .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn):active:not(:disabled),
 .wb-menu-btn:active:not(:disabled),
 .library-toolbar .icon-button:active:not(:disabled) {
   background-color: var(--control-glass);
   background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
+}
+/* 阶段格：白面和纯白行同色，"贴上去"的观感全部来自描边那 18% 近黑（--control-glass-edge
+   在浅档就是它）。把描边退到分段器轨道同一档的 ~7% 鬓发线、环境影收回接触影
+   （密排表格里本来就该用 --quiet），这枚 148×38 的白玻璃就软进行里而不是压在行上。
+   凹陷那一档（--segment-track 灰井）试过：白行上的灰面被读成"禁用"，用户明确要白面。 */
+.wb-stage-cell {
+  border-color: var(--segment-track-edge);
+  box-shadow: var(--control-glass-shadow-quiet);
+}
+/* 按下去不能缩放——一整格抖动会带着相邻列一起晃，这是用户明确否掉的"按压抖动"；
+   反馈走上面那一组凸面共用的灰蒙，这里只把 transform 收回。 */
+.wb-stage-cell:active:not(:disabled) {
+  transform: none;
+}
+/* 展开态是"开着"而不是"被按着"：静置面仍然纯白，只把鬓发线和接触影一起转成主色——
+   这一格现在是表格里唯一有主色描边的控件，读得出它接着下面的面板。悬停灰蒙仍与
+   其他凸面共用（那是指针期反馈，不是状态底色）。 */
+.wb-stage-cell--open,
+.wb-stage-cell--open:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow:
+    var(--control-glass-inset),
+    0 1px 2px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 2px 8px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.wb-stage-cell:focus-visible {
+  outline: none;
+  box-shadow:
+    var(--focus-ring),
+    var(--control-glass-shadow-quiet);
 }
 /* 视图卡选中档保留主色淡底，只补一层凸面阴影，让它比静置的兄弟高一级。 */
 .app-view-switch__item--active {
@@ -9803,11 +9936,17 @@ button:disabled {
     var(--control-glass-shadow-quiet);
 }
 
-/* 降低透明偏好：半透明材质换成实心灰面，层级关系靠颜色本身而不是透光维持。
-   选择器要同时列 :root 与 :root[data-theme="dark"]——后者特异度 (0,2,0)，
-   只写前者会被深色那组顶掉（与 8690 的高对比覆盖同一写法）。 */
+/* 降低透明偏好：半透明材质换成实心面，层级关系靠颜色本身而不是透光维持。
+   浅档的凸面回退到 --surface-raised（纯白实心），不是 --surface-muted——
+   白画布上的灰块正是这一轮要消掉的"禁用感"。深档仍回实心 --surface-muted，
+   因为深色里 #17181b 比 chrome #0f1012 亮，读得出"浮起"。
+   选择器要分开写并让深档在后：:root[data-theme="dark"] 特异度 (0,2,0)，
+   合并成一条会被自己的浅色档顶掉（与 8690 的高对比覆盖同一写法）。 */
 @media (prefers-reduced-transparency: reduce) {
-  :root,
+  :root {
+    --control-glass: var(--surface-raised);
+    --segment-track: var(--surface-muted);
+  }
   :root[data-theme="dark"] {
     --control-glass: var(--surface-muted);
     --segment-track: var(--surface-muted);

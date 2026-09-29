@@ -240,20 +240,28 @@ export function Row(props: {
   children: ReactNode
 }) {
   const [dropHint, setDropHint] = useState<"top" | "bottom" | null>(null)
+  // dragstart 的 target 永远是 draggable 的那一行本身，所以"从按键上不发起拖拽"
+  // 这一层判断在 dragstart 里做不到；改成只有按住把手才给行上 draggable。
+  // 否则 WKWebView 会把整行的 mousedown 当成拖拽，吞掉进度按键的点击。
+  const [armed, setArmed] = useState(false)
   return (
     <tr
       className={`wb-row ${dropHint ? `wb-row--drop-${dropHint}` : ""} ${props.className ?? ""}`}
       data-paper-id={props.dataPaperID}
-      draggable
-      onDragStart={(e) => {
+      draggable={armed}
+      onPointerDown={(e) => {
         const target = e.target as HTMLElement
-        if (target.closest("button, select, input, textarea, .wb-editable, .wb-chip, a")) {
+        setArmed(Boolean(target.closest(".wb-drag-handle")))
+      }}
+      onDragStart={(e) => {
+        if (!armed) {
           e.preventDefault()
           return
         }
         e.dataTransfer.effectAllowed = "move"
         e.dataTransfer.setData("text/wb-row", props.id)
       }}
+      onDragEnd={() => setArmed(false)}
       onDragOver={(e) => {
         if (!e.dataTransfer.types.includes("text/wb-row")) return
         e.preventDefault()

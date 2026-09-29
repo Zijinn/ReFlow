@@ -153,9 +153,54 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-/* 在研表阶段格：进度条与全局同一根轨道 */
-.wb-stage-cell .wb-progress-track {
+/* ── 研究阶段格：分段进度轨 ────────────────────────────────────────────
+   一格一个一级阶段，整格是一枚白面玻璃按键（材质在 styles.css 末尾统一挂：白面 +
+   减淡到 ~7% 的鬓发边 + 只留接触影，所以段的底色不能用灰——白面上放灰点正是用户
+   否掉的那份"禁用感"）。十一段沿用全局那根 .wb-progress-track 的配方，只是切成十
+   一段：主色 14% 淡底（比整条的 11% 重一档，因为 2px 缝要靠白行透出来分段，太淡
+   就并成一整条）+ --radius-full 药丸。段数只数一级阶段：子阶段的完成度折算进它
+   所属那一段的填充（stageTicks 的口径），所以父阶段勾了一半就是半格，不会凭空多出一段。 */
+.wb-stage-rail {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+/* 窄档（容器 ≤640px）轨道实测只有 54px：2px 缝要吃掉两成宽度，十一段读起来是虚线
+   而不是进度，所以这一档把缝降到 1px（每段 4px）。必须写在这份文件里——
+   styles.css 的同名规则排在前面，按文件顺序永远输给它。 */
+@container wbtable (max-width: 640px) {
+  .wb-stage-rail {
+    gap: 1px;
+  }
+}
+.wb-stage-tick {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
   height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.wb-stage-tick-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-fill), var(--accent));
+  transition: width var(--dur-slow) var(--ease);
+}
+/* "你在这一格"：这一段淡底加重、再描一圈主色，填充仍是它自己那部分。当前段一定是
+   没做完的那一段（stageTicks 里第一个 fraction<1），所以这一档和填充到顶不会同时出现。 */
+.wb-stage-tick--current {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 62%, transparent);
+}
+.wb-stage-cell {
+  border-radius: var(--radius-lg);
+}
+.wb-stage-cell--open .wb-stage-cell-current {
+  color: var(--accent-strong);
 }
 /* 11px 这一档（.wb-code / .wb-badge / .wb-stage-state）全部是 fw-semibold，
    进度百分比原来是唯一的 fw-bold，等于在同一行里多插了一档字重。
@@ -164,11 +209,33 @@
   font-weight: var(--fw-semibold);
   color: var(--text-secondary);
 }
+/* 展开面板：静置只有 1px 鬓发线的那张卡，现在和玻璃控件同材质同层次。 */
+.wb-detail-grid {
+  border-color: var(--control-glass-edge);
+  box-shadow: var(--control-glass-shadow);
+}
+/* 模板说明：面板里第一句可读的话，压在进度条下面、第一条阶段上面。
+   走 --text-sm 而不是 --text-xs：这一句要用户读完，不是装饰性注脚。 */
+.wb-stage-hint {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  color: var(--text-tertiary);
+}
+/* 进度行的"3/11"：数字对数字，百分比才是主角，所以计数字小一档、退到三级墨。 */
+.wb-progress-count {
+  margin-right: var(--space-3);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-tertiary);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .wb-stage-row--done .wb-stage-toggle {
     animation: none;
   }
+  .wb-stage-cell-caret,
+  .wb-stage-tick-fill,
   .wb-stage-toggle,
   .wb-stage-add-btn,
   .wb-stage-row,

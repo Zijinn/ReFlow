@@ -5,6 +5,7 @@ import { useTranslation } from "../../lib/i18n"
 import {
   addStageAt,
   computeProgress,
+  countStageLeaves,
   deleteStageAt,
   MAX_STAGE_LEVEL,
   moveStageWithinParent,
@@ -57,10 +58,13 @@ function StageAddInput(props: {
 
 export function StageTree(props: {
   stages: ResearchStage[]
+  // 没有阶段的论文传进来的是标准流程模板：面板要说明"点一下才写入"。
+  virtual?: boolean
   onChange: (stages: ResearchStage[]) => void
 }) {
   const { t } = useTranslation()
   const progress = computeProgress(props.stages)
+  const leaves = countStageLeaves(props.stages)
   const dragPath = useRef<number[] | null>(null)
   const [addingPath, setAddingPath] = useState<string | null>(null)
   const [confirmPath, setConfirmPath] = useState<number[] | null>(null)
@@ -205,11 +209,17 @@ export function StageTree(props: {
     <div>
       <div className="wb-progress-row">
         <span className="wb-muted">{t("stageProgress")}</span>
-        <b>{progress}%</b>
+        <b>
+          <span className="wb-progress-count">
+            {leaves.done}/{leaves.total}
+          </span>
+          {progress}%
+        </b>
       </div>
       <div className="wb-progress-track">
         <div className="wb-progress-fill" style={{ width: `${progress}%` }} />
       </div>
+      {props.virtual && <p className="wb-stage-hint">{t("stageTemplateHint")}</p>}
       <div className="wb-stage-tree">
         {props.stages.map((stage, index) => renderNode(stage, [index], 1))}
         {addingPath === pathKey([]) && (
