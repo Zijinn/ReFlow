@@ -230,6 +230,88 @@
   color: var(--text-tertiary);
 }
 
+/* ── 优先级列头：三态排序按钮 ────────────────────────────────────────────
+   off → 高到低 → 低到高 → off，状态由 th 的 aria-sort 播报，箭头只是视觉副本。
+   按钮是表头文字本身，不允许有独立底色/边框（那会在列头里画出一颗"小按键"），
+   只保留焦点环与箭头颜色两档反馈。全局 button:active 的 scale 必须掐掉：
+   表头在密集表格顶端，按压缩放会带着整列晃。 */
+.wb-th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-xs);
+}
+.wb-th-sort:active:not(:disabled) {
+  transform: none;
+}
+.wb-th-sort:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.wb-th-sort-arrow {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  transition: color var(--dur-fast) var(--ease);
+}
+.wb-th-sort:hover .wb-th-sort-arrow,
+.wb-th-sort--active .wb-th-sort-arrow {
+  color: var(--accent-strong);
+}
+
+/* ── 备注列：栏内直接编辑的自动长高 textarea ─────────────────────────────
+   白卡上的"井"不涂灰：凹陷只靠一条极淡发丝边（--border 深档 9% 黑，与
+   --field-glass-edge 在白画布上失效的道理相反，表格卡面是白的，深色发丝边
+   才读得出边界）。hover/focus 只加深 border-color，focus 再叠全局焦点环。
+   transition 只写颜色三件套：密集表格里任何 transform/scale 都会抖。
+   长高由组件里的 scrollHeight 套路驱动，pre-wrap 让长句自动换行、行高随行数
+   自适应。但行高不能无上限：表格行高取各格最大值，一条 140 字的备注在 176px
+   列里绕 20 行会把整行顶到 500px+，把整张表推出去。所以封顶六行（8.7em 是
+   6 × 1.45 行距），超出部分在格内滚动——全文在展开详情里始终可读可改。
+   overflow-y 只在封顶后才出滚动条，六行以内仍是 overflow:hidden 的干净态。 */
+.wb-table .wb-notes-input {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  font: inherit;
+  line-height: var(--leading-ui);
+  color: var(--text-primary);
+  background-color: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  resize: none;
+  overflow: hidden;
+  overflow-y: auto;
+  max-height: calc(8.7em + var(--space-4) + 2px);
+  cursor: text;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.wb-table .wb-notes-input::placeholder {
+  color: var(--text-tertiary);
+}
+.wb-table .wb-notes-input:hover {
+  border-color: var(--border-strong);
+}
+/* :focus 与 :focus-visible 一起接：全局 textarea:focus-visible 的 2px outline
+   在 96px 窄列里会被相邻格切断，焦点反馈统一走这一圈 focus-ring。 */
+.wb-table .wb-notes-input:focus,
+.wb-table .wb-notes-input:focus-visible {
+  outline: none;
+  border-color: var(--border-strong);
+  box-shadow: var(--focus-ring);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wb-stage-row--done .wb-stage-toggle {
     animation: none;
@@ -240,6 +322,8 @@
   .wb-stage-add-btn,
   .wb-stage-row,
   .wb-stage-handle,
+  .wb-th-sort-arrow,
+  .wb-table .wb-notes-input,
   .wb-stage-tools {
     transition: none;
   }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/Zijinn/ReFlow/internal/domain"
 	"github.com/Zijinn/ReFlow/internal/secretbox"
+	"github.com/Zijinn/ReFlow/internal/service"
 	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
@@ -301,6 +302,88 @@ func TestAIPaperChatAndDigestValidation(t *testing.T) {
 	digest := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/daily-digest", map[string]any{"profile_id": profile.ID})
 	if digest.StatusCode != http.StatusBadRequest {
 		t.Fatalf("digest with no papers: %d %s", digest.StatusCode, readBody(t, digest))
+	}
+}
+
+func TestAIMetadataFillAPI(t *testing.T) {
+	var calls atomic.Int32
+	answer := `{"choices":[{"message":{"role":"assistant","content":"{\"title\":\"Digital trade\",\"authors\":[\"Smith J\"],\"journal\":\"Journal of Trade\",\"year\":\"2026\",\"volume\":\"42\",\"issue\":\"3\",\"pages\":\"12-25\",\"doi\":\"https://doi.org/10.1234/xyz\"}"}}],"usage":{"prompt_tokens":20,"completion_tokens":8,"total_tokens":28}}`
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		var request struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		joined := ""
+		for _, message := range request.Messages {
+			joined += message.Content
+		}
+		if !strings.Contains(joined, "Digital trade rules[J]") {
+			t.Errorf("metadata fill prompt missing the pasted reference: %s", joined)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, answer)
+	}))
+	defer provider.Close()
+
+	_, apiServer := newAIAPITestServer(t)
+	profileResponse := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/profiles", map[string]any{
+		"provider": "openai_compatible", "name": "Metadata AI", "endpoint": provider.URL + "/v1",
+		"model": "fixture-model", "api_key": "metadata-route-secret", "allow_private_network": true,
+		"remote_content_approved": true, "is_default": true,
+	})
+	var profile struct {
+		ID string `json:"id"`
+	}
+	decodeResponse(t, profileResponse, &profile)
+
+	fillURL := apiServer.URL + "/api/v1/ai/metadata-fill"
+	raw := "Smith J. Digital trade rules[J]. Journal of Trade, 2026, 42(3): 12-25."
+
+	// Happy path: synchronous 200 with whitelisted, normalized fields.
+	okResponse := requestJSON(t, http.MethodPost, fillURL, map[string]any{"profile_id": profile.ID, "raw": raw})
+	if okResponse.StatusCode != http.StatusOK {
+		t.Fatalf("metadata fill: %d %s", okResponse.StatusCode, readBody(t, okResponse))
+	}
+	var filled service.AIMetadataFill
+	decodeResponse(t, okResponse, &filled)
+	if filled.Title != "Digital trade" || filled.Journal != "Journal of Trade" || filled.Year != "2026" ||
+		filled.Volume != "42" || filled.Issue != "3" || filled.Pages != "12-25" || filled.DOI != "10.1234/xyz" ||
+		len(filled.Authors) != 1 || filled.Authors[0] != "Smith J" {
+		t.Fatalf("unexpected fill payload: %+v", filled)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("expected one provider call, got %d", calls.Load())
+	}
+
+	// Missing raw is a 400 before any provider call.
+	missing := requestJSON(t, http.MethodPost, fillURL, map[string]any{"profile_id": profile.ID})
+	if missing.StatusCode != http.StatusBadRequest {
+		t.Fatalf("missing raw: %d %s", missing.StatusCode, readBody(t, missing))
+	}
+	// Unknown profile is a 404.
+	unknown := requestJSON(t, http.MethodPost, fillURL, map[string]any{"profile_id": "does-not-exist", "raw": raw})
+	if unknown.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown profile: %d %s", unknown.StatusCode, readBody(t, unknown))
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("validation reached the provider: calls=%d", calls.Load())
+	}
+
+	// A provider answer without usable fields is a stable 422.
+	answer = `{"choices":[{"message":{"role":"assistant","content":"I cannot help with that."}}],"usage":{"prompt_tokens":5,"completion_tokens":5,"total_tokens":10}}`
+	unparseable := requestJSON(t, http.MethodPost, fillURL, map[string]any{"profile_id": profile.ID, "raw": raw})
+	if unparseable.StatusCode != http.StatusUnprocessableEntity {
+		t.Fatalf("unparseable answer: %d %s", unparseable.StatusCode, readBody(t, unparseable))
+	}
+	unparseableBody := readBody(t, unparseable)
+	if !strings.Contains(unparseableBody, "ai_metadata_unparseable") {
+		t.Fatalf("422 body missing the stable code: %s", unparseableBody)
 	}
 }
 

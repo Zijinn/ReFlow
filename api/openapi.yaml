@@ -1315,6 +1315,73 @@ paths:
           $ref: "#/components/responses/Problem"
         "428":
           $ref: "#/components/responses/Problem"
+  /api/v1/ai/metadata-fill:
+    post:
+      operationId: fillMetadataWithAI
+      tags: [ai, research]
+      description: >-
+        Synchronous bibliographic metadata extraction for one pasted reference
+        (e.g. a GB/T 7714 citation). Not a job: the answer returns inline under
+        a server-side provider timeout. The raw text is treated as untrusted
+        quoted material and the model answer passes a strict field whitelist
+        before it is returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [raw]
+              properties:
+                profile_id:
+                  type: string
+                  format: uuid
+                  description: AI profile to use; omitted selects the default profile.
+                raw:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                  description: The pasted reference text to read metadata from.
+      responses:
+        "200":
+          description: >-
+            Extracted metadata. Fields the model could not ground in the
+            reference are omitted; year is exactly four digits and doi is
+            normalized to the bare 10.xxxx/suffix form.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  title: { type: string, maxLength: 500 }
+                  authors:
+                    type: array
+                    maxItems: 30
+                    items: { type: string, maxLength: 500 }
+                  journal: { type: string, maxLength: 500 }
+                  year: { type: string, pattern: "^[0-9]{4}$" }
+                  volume: { type: string, maxLength: 500 }
+                  issue: { type: string, maxLength: 500 }
+                  pages: { type: string, maxLength: 500 }
+                  doi: { type: string, maxLength: 500 }
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "422":
+          description: The AI answer did not contain usable reference metadata (code ai_metadata_unparseable).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+        "504":
+          description: The AI provider did not answer before the server-side timeout (code ai_timeout).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Problem"
   /api/v1/integrations/zotero/status:
     get:
       operationId: getZoteroStatus

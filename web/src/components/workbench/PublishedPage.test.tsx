@@ -1,14 +1,24 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { ResearchPaper } from "../../api/types"
+import { fillMetadataWithAI } from "../../api/client"
+import type { AIProfile, ResearchPaper } from "../../api/types"
 import { useReaderStore } from "../../store/reader"
 import { useToastStore } from "../../store/toast"
 import { PublishedPage } from "./PublishedPage"
 
+// PublishedPage only pulls fillMetadataWithAI from the API client; the mock
+// keeps the paste-dialog tests free of network access.
+vi.mock("../../api/client", () => ({
+  fillMetadataWithAI: vi.fn(),
+}))
+
+const mockFill = vi.mocked(fillMetadataWithAI)
+
 beforeEach(() => {
   useReaderStore.setState({ locale: "en-US" })
   useToastStore.setState({ toasts: [] })
+  mockFill.mockReset()
 })
 
 function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
@@ -200,6 +210,142 @@ describe("PublishedPage offline", () => {
     const props = { ...noopProps(), crossrefEmail: "", offline: true }
     render(<PublishedPage papers={[paper()]} {...props} />)
     expect(screen.getByRole("button", { name: /＋ Add paper|Add paper/ })).toBeDisabled()
+  })
+})
+
+function aiProfile(overrides: Partial<AIProfile> = {}): AIProfile {
+  return {
+    id: "ai-1",
+    provider: "openai_compatible",
+    name: "Fixture AI",
+    endpoint: "http://127.0.0.1:11434/v1",
+    model: "fixture",
+    enabled: true,
+    allow_private_network: true,
+    remote_content_approved: true,
+    is_default: true,
+    last_used_at: null,
+    last_error_code: null,
+    last_error_message: null,
+    created_at: "",
+    updated_at: "",
+    ...overrides,
+  }
+}
+
+const ZH_REFERENCE =
+  "[1] 赵金阳. 非洲数字贸易规则的构建动因[J]. 国际经贸探索, 2026, 42(3): 12-25."
+
+function openPasteDialog() {
+  fireEvent.click(screen.getByRole("button", { name: /Paste a GB\/T 7714 reference/ }))
+  return screen.getByPlaceholderText(/Smith J\. The dynamics of digital trade rules/)
+}
+
+describe("PublishedPage GB/T 7714 paste", () => {
+  it("creates an entry from a parsed reference through the existing mutation props", () => {
+    const props = { ...noopProps(), crossrefEmail: "" }
+    const view = render(<PublishedPage papers={[paper()]} {...props} />)
+    const textarea = openPasteDialog()
+    fireEvent.change(textarea, { target: { value: ZH_REFERENCE } })
+    fireEvent.click(screen.getByRole("button", { name: "Parse and create entry" }))
+
+    // Step 1: the create mutation fires and the dialog reports success.
+    expect(props.onCreate).toHaveBeenCalledTimes(1)
+    expect(
+      useToastStore.getState().toasts.some((item) => /parsed into a new entry/i.test(item.message)),
+    ).toBe(true)
+
+    // Step 2: once the created paper arrives in the list, the remaining
+    // fields are PATCHed through onUpdate — no direct fetch anywhere.
+    view.rerender(
+      <PublishedPage papers={[paper(), paper({ id: "p-2", title: "" })]} {...props} />,
+    )
+    expect(props.onUpdate).toHaveBeenCalledWith("p-2", {
+      title: "非洲数字贸易规则的构建动因",
+      authors: ["赵金阳"],
+      journal: "国际经贸探索",
+      year: "2026",
+      volume: "42",
+      issue: "3",
+      pages: "12-25",
+    })
+  })
+
+  it("toasts pasteGbInvalid and creates nothing for unparseable text", () => {
+    const props = { ...noopProps(), crossrefEmail: "" }
+    render(<PublishedPage papers={[paper()]} {...props} />)
+    const textarea = openPasteDialog()
+    fireEvent.change(textarea, { target: { value: "lorem ipsum dolor" } })
+    fireEvent.click(screen.getByRole("button", { name: "Parse and create entry" }))
+    expect(props.onCreate).not.toHaveBeenCalled()
+    expect(
+      useToastStore
+        .getState()
+        .toasts.some((item) => /Could not read reference fields/i.test(item.message)),
+    ).toBe(true)
+    // The dialog stays open so the text can be fixed.
+    expect(screen.getByPlaceholderText(/Smith J\. The dynamics/)).toBeInTheDocument()
+  })
+})
+
+describe("PublishedPage AI metadata fill", () => {
+  it("disables the AI button with the no-profile hint when no profile exists", () => {
+    const props = { ...noopProps(), crossrefEmail: "" }
+    render(<PublishedPage papers={[paper()]} {...props} />)
+    openPasteDialog()
+    const button = screen.getByRole("button", { name: "Fill with AI" })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute("title", "Add an AI profile in preferences first.")
+  })
+
+  it("merges the AI answer into the local parse, filling empty fields only", async () => {
+    mockFill.mockResolvedValue({
+      title: "AI Title That Must Lose",
+      authors: ["AI Author"],
+      year: "2021",
+      doi: "10.9/xyz",
+    })
+    const props = { ...noopProps(), crossrefEmail: "", aiProfiles: [aiProfile()] }
+    const view = render(<PublishedPage papers={[paper()]} {...props} />)
+    const textarea = openPasteDialog()
+    const raw = "Smith J. Digital trade[J]. Journal of Trade."
+    fireEvent.change(textarea, { target: { value: raw } })
+    fireEvent.click(screen.getByRole("button", { name: "Fill with AI" }))
+
+    await waitFor(() => expect(props.onCreate).toHaveBeenCalledTimes(1))
+    expect(mockFill).toHaveBeenCalledWith("ai-1", raw)
+    expect(
+      useToastStore.getState().toasts.some((item) => /AI filled the entry/i.test(item.message)),
+    ).toBe(true)
+
+    view.rerender(
+      <PublishedPage papers={[paper(), paper({ id: "p-2", title: "" })]} {...props} />,
+    )
+    // Local parse wins for title/authors/journal; AI fills the empty year and
+    // contributes the DOI the local text did not carry.
+    expect(props.onUpdate).toHaveBeenCalledWith("p-2", {
+      title: "Digital trade",
+      authors: ["Smith J"],
+      journal: "Journal of Trade",
+      year: "2021",
+      doi: "10.9/xyz",
+    })
+  })
+
+  it("toasts aiFillFailed and creates nothing when the AI call fails", async () => {
+    mockFill.mockRejectedValue(new Error("boom"))
+    const props = { ...noopProps(), crossrefEmail: "", aiProfiles: [aiProfile()] }
+    render(<PublishedPage papers={[paper()]} {...props} />)
+    const textarea = openPasteDialog()
+    fireEvent.change(textarea, { target: { value: "Smith J. Digital trade[J]. Journal." } })
+    fireEvent.click(screen.getByRole("button", { name: "Fill with AI" }))
+
+    await waitFor(() =>
+      expect(
+        useToastStore.getState().toasts.some((item) => /AI fill failed/i.test(item.message)),
+      ).toBe(true),
+    )
+    expect(props.onCreate).not.toHaveBeenCalled()
   })
 })
 

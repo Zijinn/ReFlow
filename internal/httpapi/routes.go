@@ -83,6 +83,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/ai/library-chat", s.startAILibraryChat)
 	mux.HandleFunc("POST /api/v1/ai/paper-chat", s.startAIPaperChat)
 	mux.HandleFunc("POST /api/v1/ai/daily-digest", s.startAIDailyDigest)
+	mux.HandleFunc("POST /api/v1/ai/metadata-fill", s.fillAIMetadata)
 	mux.HandleFunc("GET /api/v1/ai/chats/{sessionID}", s.getAIChat)
 	mux.HandleFunc("GET /api/v1/research/papers", s.listResearchPapers)
 	mux.HandleFunc("POST /api/v1/research/papers", s.createResearchPaper)

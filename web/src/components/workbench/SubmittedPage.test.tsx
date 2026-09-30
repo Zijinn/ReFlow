@@ -58,6 +58,7 @@ function props() {
     onDelete: vi.fn(),
     onReorder: vi.fn(),
     onMove: vi.fn(),
+    onMoveBack: vi.fn(),
   }
 }
 
@@ -161,31 +162,40 @@ describe("SubmittedPage", () => {
     expect(handlers.onMove).toHaveBeenCalledWith("s-1")
   })
 
-  it("adds a notes column that previews the note or offers a pen when empty", () => {
-    render(<SubmittedPage papers={[paper()]} {...props()} />)
-    expect(screen.getByRole("columnheader", { name: "Notes" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Edit notes: Submitted Paper" })).toHaveTextContent(
-      "✎",
-    )
+  it("moves back to research through the parent callback", () => {
+    const handlers = props()
+    render(<SubmittedPage papers={[paper()]} {...handlers} />)
+    // The move-back button sits before "Move to publications" in the actions cell.
+    fireEvent.click(screen.getByRole("button", { name: /Move back to working/ }))
+    expect(handlers.onMoveBack).toHaveBeenCalledWith("s-1")
+    expect(handlers.onMove).not.toHaveBeenCalled()
   })
 
-  it("opens the detail row from the notes cell and focuses the notes field", () => {
+  it("adds a notes column whose cell is an in-place editor", () => {
     const notes = "AEJR desk-rejected; next try JBF with the revised intro"
     render(<SubmittedPage papers={[paper({ notes })]} {...props()} />)
-    const cell = screen.getByRole("button", { name: "Edit notes: Submitted Paper" })
-    expect(cell).toHaveTextContent(notes)
-    expect(document.querySelector("tr.wb-row-detail")).toBeNull()
-    fireEvent.click(cell)
-    const field = document.querySelector<HTMLElement>("[data-notes-field] .wb-editable")
-    expect(field).not.toBeNull()
-    expect(field).toHaveTextContent(notes)
-    expect(field).toHaveFocus()
+    expect(screen.getByRole("columnheader", { name: "Notes" })).toBeInTheDocument()
+    const cell = screen.getByRole("textbox", { name: "Edit notes: Submitted Paper" })
+    expect(cell).toHaveValue(notes)
+  })
+
+  it("commits an in-cell note edit through onUpdate", () => {
+    const handlers = props()
+    render(<SubmittedPage papers={[paper({ notes: "Referee 2 due 12 Oct" })]} {...handlers} />)
+    const cell = screen.getByRole<HTMLTextAreaElement>("textbox", {
+      name: "Edit notes: Submitted Paper",
+    })
+    fireEvent.change(cell, { target: { value: "R&R resubmission window closes 2026-10-12" } })
+    fireEvent.blur(cell)
+    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", {
+      notes: "R&R resubmission window closes 2026-10-12",
+    })
   })
 
   it("commits a multiline note edit through onUpdate", () => {
     const handlers = props()
     render(<SubmittedPage papers={[paper({ notes: "Referee 2 due 12 Oct" })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Edit notes: Submitted Paper" }))
+    fireEvent.click(screen.getByRole("button", { name: "Expand details" }))
     fireEvent.doubleClick(document.querySelector("[data-notes-field] .wb-editable")!)
     // 工具栏的搜索框也是 textbox，所以备注那一格从详情行里取。
     const area = document.querySelector<HTMLTextAreaElement>("[data-notes-field] textarea")!

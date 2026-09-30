@@ -1,57 +1,52 @@
 /* 备注栏（在研 / 在投）专用样式。本任务的所有 CSS 只写在这一份文件里。
    main.tsx 里它排在 styles.css 之后，同特异度靠文件顺序取胜，所以这里能覆盖通用档；
    但"能覆盖"是把双刃剑：特异度要对着对手那一档算——抬太高会把该继承的悬停/按压反馈
-   一起钉死（下面 .wb-notes-cell 那条写过一次错的），压太低又顶不动要改的既有档。 */
+   一起钉死，压太低又顶不动要改的既有档。 */
 
-/* ── 备注列：一格预览，不是输入框 ─────────────────────────────────────────
+/* ── 备注列：栏内直接编辑的一格，宽度按"能读"倒推 ─────────────────────────
    表格是 table-layout: fixed，标题列是唯一的弹性列，所以这一列给确定像素。
-   96px 是按"容器 968（视口 1280，用户的常用窗口）时标题仍 ≥300px"倒推的：
-   在研那一排固定列合计 68＋168＋118＋84＋122＝560，＋备注 96＝656，标题剩 312；
-   再加宽就要把标题压到 300 以下，那一档是收列线（见 styles.css 容器档位段的注释）。
-   列位放在"操作"之前，不动任何现有列的宽度与顺序。 */
+   这一格原来是 96px 的单行省略预览（点它展开详情去改），用户要的是"就在这一栏
+   直接编辑、字数多了自动换行调行高"——96px 里 13px 正文一行只排得下五个汉字，
+   换行等于竖排。176 与期刊/研究领域那两列（.wb-col-text）同档：左右 20 衬＋
+   textarea 12 衬之后还剩 144，一行十二个汉字，三五行备注读起来是一段话而不是一根线。
+   标题列让出来的宽度由收列档位兜底（见下面 ≤700 档）。 */
 .wb-col-notes {
-  width: 96px;
+  width: 176px;
 }
-/* 这一格复用 .wb-editable 的悬停/按压/焦点三档（主色 10% → 18%、焦点环），
-   不新造灰色填充；差别只在它不是"打字进去"的字段而是入口，所以指针是 pointer。
-   真实 <button> 要先抹掉 UA 的底色/边框/居中才接得住那一条配方，而这几个 reset 必须
-   写成单类 (0,1,0)：作者样式永远压得过 UA，而 .wb-editable:hover / :active 是 (0,2,0)/(0,3,0)，
-   把 reset 抬到 .wb-table .wb-notes-cell (0,2,0) 就会和悬停档同特异度、靠本文件排在后面
-   取胜——实测那样 hover 时 background-color 仍钉在 transparent，这一格成了表格里唯一
-   没有指针反馈的按键。布局类属性没有竞争者，留在 (0,2,0) 那一档。 */
-.wb-notes-cell {
-  border: 0;
-  background-color: transparent;
-  font: inherit;
-  text-align: left;
+/* ── 表头对齐的是格子里的字，不是输入框的边框 ─────────────────────────────
+   其它列的正文都从"格衬 10px"起排，表头也在那儿，天然对齐。这一格是个带
+   发丝边的 textarea：格衬 10 之后还有 1px 边框＋6px 内衬，正文比表头『备注』
+   右偏 7px。给表头补同样的缩进，两边才在同一条竖线上。 */
+.wb-table th.wb-col-notes {
+  padding-left: calc(10px + 1px + var(--space-3));
 }
-.wb-table .wb-notes-cell {
-  display: block;
-  width: 100%;
-  line-height: var(--leading-ui);
-  /* 唯一的单行截断列：不换行才不会把行高顶起来（行高取各格最大值），
-     省略号是"这里还有内容"的提示，全文在悬停标题和展开详情里都读得到。 */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  overflow-wrap: normal;
-  word-break: normal;
-  cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease);
-}
-/* 全局 button:active 是 scale(--press-scale)（styles.css 那一族）：这一格在表格里，
-   按下去缩放会带着相邻列一起晃，正是用户否掉的"按压抖动"。特异度 (0,4,0) 压过
-   button:active:not(:disabled) (0,2,1)，按压只换色不换形。
-   焦点环不在这儿写：.wb-editable:focus-visible (0,2,0) 已经给了 outline:none + 焦点环。 */
-.wb-table .wb-notes-cell:active:not(:disabled) {
-  transform: none;
-}
-/* ✎ 是"这一格还没写过"的记号，但它仍然要被读到，所以和空占位"—"一样走 tertiary。
-   faint 那档在玻璃表体上实测 3.07:1（深档），够不到正文标准，只留给装饰。 */
-.wb-notes-pen {
-  margin-right: var(--space-2);
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
+
+/* ── 窄档让位：备注列在 ≤700 档收起 ──────────────────────────────────────
+   备注属于"关于这一行的附注"，让位顺序排在日期（≤880）与优先级（≤740）之后、
+   状态药丸（≤560）之前：这一档表格只剩标题＋阶段＋操作，备注全文在展开详情里
+   始终可编辑。收法照抄 styles.css 容器档的配方：0 宽而不是 display:none，宽度
+   还给唯一的弹性列；nowrap 保证 0 宽格子里不是一行一个字。
+   组件给 textarea 写了内联 height（scrollHeight 自动长高套路），0 宽的格子里它
+   仍会按全文高度撑行——行高取各格最大值，visibility:hidden 不代表不占高（实测
+   一条 140 字备注把隐藏列的行顶到 523px）。max-height 压得住内联 height，配
+   border/padding 归零，这一格才真的不占行高。
+   th 要一起写进来：fixed 布局的列宽取自第一行，表头那 17px 缩进若不在这一档
+   归零，border-box 下 width:0 会被 padding 顶回 17px，留下一条死带宽。 */
+@container wbtable (max-width: 700px) {
+  .wb-table .wb-col-notes,
+  .wb-table th.wb-col-notes {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .wb-table .wb-col-notes .wb-notes-input {
+    max-height: 0;
+    min-height: 0;
+    padding-block: 0;
+    border-width: 0;
+  }
 }
 
 /* ── 展开详情里的备注编辑器 ──────────────────────────────────────────────
@@ -66,18 +61,4 @@
 .wb-detail-notes .wb-inline-input {
   resize: vertical;
   max-width: 100%;
-}
-
-/* ── 窄档让位：备注列跟着"最近更新"那一档一起收 ──────────────────────────
-   备注在展开详情里始终可编辑，属于"关于这一行的附注"，所以让位顺序排在日期同一档
-   （styles.css 的 ≤880 档已经收掉日期）。收法照抄那一段的配方：0 宽而不是
-   display:none，宽度还给唯一的弹性列；nowrap 保证 0 宽格子里不是一行一个字。 */
-@container wbtable (max-width: 880px) {
-  .wb-table .wb-col-notes {
-    width: 0;
-    padding-inline: 0;
-    visibility: hidden;
-    overflow: hidden;
-    white-space: nowrap;
-  }
 }

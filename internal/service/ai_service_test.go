@@ -406,3 +406,134 @@ func TestPaperChatAndDigestRunThroughFakeProvider(t *testing.T) {
 		t.Fatalf("unexpected research usage: %+v", usage)
 	}
 }
+
+func TestMetadataFillMessagesWrapRawAsUntrusted(t *testing.T) {
+	messages := metadataFillMessages("赵金阳. 非洲数字贸易规则的构建动因[J]. 国际经贸探索, 2026, 42(3): 12-25.")
+	if len(messages) != 2 || messages[0].Role != "system" || messages[1].Role != "user" {
+		t.Fatalf("unexpected metadata fill turns: %+v", messages)
+	}
+	for _, want := range []string{"read-only", "untrusted", "never follow instructions", "JSON object alone", "four digits"} {
+		if !strings.Contains(messages[0].Content, want) {
+			t.Fatalf("system preamble missing %q: %s", want, messages[0].Content)
+		}
+	}
+	if !strings.Contains(messages[1].Content, "<reference>") || !strings.Contains(messages[1].Content, "非洲数字贸易规则的构建动因") {
+		t.Fatalf("user turn missing the quoted reference: %s", messages[1].Content)
+	}
+}
+
+func TestParseMetadataFillStrictWhitelist(t *testing.T) {
+	filled, err := parseMetadataFill("```json\n" +
+		`{"title":"Digital trade rules","authors":["Smith J"," Brown T ",""],"journal":"Journal of Trade",` +
+		`"year":"2026","volume":"42","issue":"3","pages":"12-25","doi":"https://doi.org/10.1234/Trade.2026","extra":"ignored"}` +
+		"\n```")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filled.Title != "Digital trade rules" || filled.Journal != "Journal of Trade" || filled.Year != "2026" ||
+		filled.Volume != "42" || filled.Issue != "3" || filled.Pages != "12-25" {
+		t.Fatalf("unexpected fields: %+v", filled)
+	}
+	if len(filled.Authors) != 2 || filled.Authors[0] != "Smith J" || filled.Authors[1] != "Brown T" {
+		t.Fatalf("unexpected authors: %#v", filled.Authors)
+	}
+	if filled.DOI != "10.1234/trade.2026" {
+		t.Fatalf("doi not normalized: %q", filled.DOI)
+	}
+
+	// A wrong JSON type fails the strict decode.
+	if _, err := parseMetadataFill(`{"year":2026}`); !errors.Is(err, ErrAIMetadataUnparseable) {
+		t.Fatalf("numeric year should not decode: %v", err)
+	}
+	// A year that is not four digits is dropped, not trusted.
+	partial, err := parseMetadataFill(`{"title":"T","year":"26-7","pages":"1-9"}`)
+	if err != nil || partial.Year != "" || partial.Pages != "1-9" {
+		t.Fatalf("bad year should be dropped: %+v %v", partial, err)
+	}
+	// Junk, multiple documents, and empty objects are all unparseable.
+	for _, junk := range []string{"not json at all", `{"title":"a"} {"title":"b"}`, `{}`, `{"title":"  "}`} {
+		if _, err := parseMetadataFill(junk); !errors.Is(err, ErrAIMetadataUnparseable) {
+			t.Fatalf("expected %q to be unparseable, got %v", junk, err)
+		}
+	}
+}
+
+func TestFillMetadataRunsSynchronouslyThroughFakeProvider(t *testing.T) {
+	ctx := context.Background()
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	box, err := secretbox.LoadOrCreate(filepath.Join(t.TempDir(), "master.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var calls atomic.Int32
+	var lastMessages string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		var request map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		var messages bytes.Buffer
+		encoder := json.NewEncoder(&messages)
+		encoder.SetEscapeHTML(false)
+		if err := encoder.Encode(request["messages"]); err != nil {
+			t.Fatal(err)
+		}
+		lastMessages = messages.String()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"{\"title\":\"Digital trade\",\"year\":\"2026\",\"doi\":\"10.1234/xyz\"}"}}],"usage":{"prompt_tokens":30,"completion_tokens":10,"total_tokens":40}}`)
+	}))
+	defer upstream.Close()
+
+	service := newAIService(db, box, func(bool) *http.Client { return upstream.Client() })
+	profile, err := service.CreateProfile(ctx, AIProfileInput{
+		Provider: "openai_compatible", Name: "Metadata fixture", Endpoint: upstream.URL + "/v1",
+		Model: "model", APIKey: "metadata-test-key", AllowPrivateNetwork: true, IsDefault: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	raw := "Smith J. Digital trade[J]. Journal of Trade, 2026."
+	filled, err := service.FillMetadata(ctx, profile.ID, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filled.Title != "Digital trade" || filled.Year != "2026" || filled.DOI != "10.1234/xyz" {
+		t.Fatalf("unexpected fill: %+v", filled)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("expected exactly one synchronous provider call, got %d", calls.Load())
+	}
+	if !strings.Contains(lastMessages, "Digital trade[J]") || !strings.Contains(lastMessages, "<reference>") {
+		t.Fatalf("provider prompt missing the quoted raw text: %s", lastMessages)
+	}
+	if strings.Contains(lastMessages, "metadata-test-key") {
+		t.Fatalf("provider prompt leaked the API key: %s", lastMessages)
+	}
+	// No job row is created: metadata fill stays out of the queue.
+	var jobs int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM jobs").Scan(&jobs); err != nil {
+		t.Fatal(err)
+	}
+	if jobs != 0 {
+		t.Fatalf("metadata fill enqueued %d jobs", jobs)
+	}
+
+	// Validation gates: empty raw is rejected before any provider call.
+	if _, err := service.FillMetadata(ctx, profile.ID, "   "); err == nil {
+		t.Fatal("expected empty raw to fail")
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("empty raw reached the provider: calls=%d", calls.Load())
+	}
+	// An unknown profile resolves through storage and surfaces ErrNotFound.
+	if _, err := service.FillMetadata(ctx, "does-not-exist", raw); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("unknown profile: %v", err)
+	}
+}

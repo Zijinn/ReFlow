@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"sort"
@@ -309,6 +310,30 @@ func (s *Server) getAIChat(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, session)
 }
 
+// fillAIMetadata answers a small synchronous metadata-fill request (no job
+// queue): one pasted reference in, whitelisted bibliographic fields out. The
+// service bounds the provider call with its own context timeout; an unusable
+// model answer is a stable 422.
+func (s *Server) fillAIMetadata(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAI(w, r) {
+		return
+	}
+	var request struct {
+		ProfileID string `json:"profile_id"`
+		Raw       string `json:"raw"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	filled, err := s.ai.FillMetadata(r.Context(), request.ProfileID, request.Raw)
+	if err != nil {
+		s.aiRequestError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, filled)
+}
+
 func (s *Server) requireAI(w http.ResponseWriter, r *http.Request) bool {
 	if s.ai != nil {
 		return true
@@ -325,6 +350,10 @@ func (s *Server) aiRequestError(w http.ResponseWriter, r *http.Request, err erro
 		writeProblem(w, r, http.StatusPreconditionRequired, "privacy_approval_required", "Privacy approval required", "Approve remote article transmission in the AI profile before using it.")
 	case errors.Is(err, service.ErrAIProfileDisabled):
 		writeProblem(w, r, http.StatusConflict, "ai_profile_disabled", "AI profile disabled", err.Error())
+	case errors.Is(err, service.ErrAIMetadataUnparseable):
+		writeProblem(w, r, http.StatusUnprocessableEntity, "ai_metadata_unparseable", "AI metadata unparseable", "The AI answer did not contain usable reference metadata.")
+	case errors.Is(err, context.DeadlineExceeded):
+		writeProblem(w, r, http.StatusGatewayTimeout, "ai_timeout", "AI request timed out", "The AI provider did not answer in time.")
 	default:
 		writeProblem(w, r, http.StatusBadRequest, "invalid_ai_request", "Invalid AI request", err.Error())
 	}

@@ -5134,6 +5134,25 @@ button:disabled {
   height: 38px;
   padding-right: var(--space-12);
 }
+/* 偏好设置字号整体上调一档（用户：设置里的字太小）。只作用在这个对话框里，
+   阅读器与工作台的标尺不动；每级都仍落在 type ramp 上，不引入新字号。 */
+.preferences-dialog .preference-section h2,
+.preferences-dialog .preferences-nav__item,
+.preferences-dialog .preferences-nav__brand strong {
+  font-size: var(--text-md);
+}
+.preferences-dialog .preference-section p,
+.preferences-dialog .checkbox-row,
+.preferences-dialog .shortcut-row,
+.preferences-dialog .field-label {
+  font-size: var(--text-base);
+}
+.preferences-dialog .field-hint,
+.preferences-dialog .dialog-meta,
+.preferences-dialog .range-output,
+.preferences-dialog .preferences-nav__brand small {
+  font-size: var(--text-sm);
+}
 .segmented-control {
   gap: var(--space-2);
   padding: var(--space-2);
@@ -9686,8 +9705,11 @@ button:disabled {
 .wb-col-status {
   width: 124px;
 }
+/* 日期按 13px 等宽数字实测：`2026-09-30` 排 77 ＋ 左右 10 衬 ＝ 97 → 98。
+   以前是 84，格子装不下，尾字溢出 3px 压进备注列的衬里——两个表头明明隔着
+   35px，正文却几乎贴在一起，看着就是"没对齐"。 */
 .wb-col-date {
-  width: 84px;
+  width: 98px;
 }
 .wb-col-count {
   width: 58px;
@@ -9704,16 +9726,19 @@ button:disabled {
 /* 操作列：三张表各写各的宽度，因为控件串不一样。宽度＝左右 10px 衬 ＋ 控件 ＋
    每处 6px 间隔（.wb-col-actions > * + *），按实测内容右边缘取整再留 1px：
    在研 流转 67 ＋ 删除 28 ＝ 101 → 122；
-   在投 展开 28 ＋ 流转 79 ＋ 删除 28 ＝ 147 → 168；
+   在投 展开 28 ＋ 转回在研 67 ＋ 转至已发表 79 ＋ 删除 28 ＝ 210 → 240；
    已发表 展开 28 ＋ 删除 28 ＝ 62 → 84。
    在研原来是三颗（展开 28 ＋ 流转 67 ＋ 删除 28 ＝ 135 → 156）：它的展开箭头已经
    搬进"研究阶段"那一格，同一行里既点进度展开、又点箭头展开是两个入口做一件事。
-   在投/已发表没有阶段进度格，展开箭头仍留在操作列第一颗。窄档衬宽降到 6px，见下面的 ≤640 档。 */
+   在投/已发表没有阶段进度格，展开箭头仍留在操作列第一颗。在投比另两张表多一颗
+   "转回在研"（投稿被拒/撤稿后要退回在研继续改），四颗控件 168px 装不下，实测
+   内容 230px 溢出列边——流转是这张表的主动作，不能靠换行挤进去。
+   窄档衬宽降到 6px，见下面的 ≤640 档。 */
 .wb-table--research .wb-col-actions {
   width: 122px;
 }
 .wb-table--submitted .wb-col-actions {
-  width: 168px;
+  width: 240px;
 }
 .wb-table--published .wb-col-actions {
   width: 84px;
@@ -9726,7 +9751,7 @@ button:disabled {
     width: 126px;
   }
   .wb-table--submitted .wb-col-actions {
-    width: 176px;
+    width: 248px;
   }
   .wb-table--published .wb-col-actions {
     width: 90px;
@@ -9887,24 +9912,24 @@ button:disabled {
     width: 112px;
   }
   /* 窄档衬宽从 10px 降到 6px（上面第一条），三张表的操作列各减 8px：
-     在研 101＋12＝113→114，在投 147＋12＝159→160，已发表 62＋12＝74→76。 */
+     在研 101＋12＝113→114，在投 210＋12＝221→232，已发表 62＋12＝74→76。 */
   .wb-table--research .wb-col-actions {
     width: 114px;
   }
   .wb-table--submitted .wb-col-actions {
-    width: 160px;
+    width: 232px;
   }
   .wb-table--published .wb-col-actions {
     width: 76px;
   }
   /* 触屏档在这一档再各减 8px 衬：实测内容 109/155/70，配 118/168/82 留 1～13px。
-     写在同一档位里，是为了让上面那组宽屏数（126/176/90）在这条之前生效。 */
+     写在同一档位里，是为了让上面那组宽屏数（126/248/90）在这条之前生效。 */
   @media (pointer: coarse) {
     .wb-table--research .wb-col-actions {
       width: 118px;
     }
     .wb-table--submitted .wb-col-actions {
-      width: 168px;
+      width: 240px;
     }
     .wb-table--published .wb-col-actions {
       width: 82px;
@@ -10286,6 +10311,18 @@ body,
 .app-shell--reader-open .timeline {
   background-image: none;
 }
+/* 挂照片时阅读区不能再罩磨砂：工作台主区（.wb-shell）本来就是透明的，壁纸连着蒙纱
+   直接透上来；而 .reader / .timeline 还挂着 55% 白壳层 + blur(28px)，同一张壁纸在
+   RSS 视图里就被糊成几乎看不见的一块灰——两个视图的壁纸表现因此不一致。照片模式下
+   把这两栏擦成和工作台同一种"裸画布 + 蒙纱"，正文和工作台表格坐在同一种底上。
+   渐变画布不走这条：平滑渐变糊不糊看不出区别，磨砂壳层在 RSS 里仍是阅读面。 */
+:root[data-canvas-photo="on"] .reader,
+:root[data-canvas-photo="on"] .timeline,
+:root[data-canvas-photo="on"] .app-shell--reader-open .timeline {
+  background-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
 /* 滚动面本身必须是透明的，否则它把容器那层磨砂重新糊成实心。 */
 .reader-scroll,
 .timeline-scroll {
@@ -10461,5 +10498,37 @@ body,
   :root[data-theme="dark"] {
     --control-glass-edge: var(--border-strong);
     --control-glass-inset: inset 0 0 0 1px var(--border-strong);
+  }
+}
+/* 玻璃面落座影（材质层，不动几何）。白接光边只在半透明面上看得见，而浅色画布顶端
+   接近纯白、深色画布整片近黑，单靠接光边时大面会像"贴"在画布上而不是"放"在上面。
+   补一层极淡的外接触影 + 环境影：浅档是白面落在有色画布上的唯一落座线索，
+   深档加性白面同样靠它和画布分离。值与 --field-glass-inset 带外影是同一个道理，
+   浓度刻意低于控件的 --control-glass-shadow-quiet——面越大影越轻，否则整窗发脏。 */
+.wb-nav,
+.wb-toolbar {
+  box-shadow:
+    var(--wb-chrome-ring),
+    0 1px 2px rgb(20 22 26 / 0.04),
+    0 10px 28px rgb(20 22 26 / 0.05);
+}
+.wb-table-wrap,
+.wb-stat-card,
+.wb-card,
+.wb-panel {
+  box-shadow:
+    inset 0 0 0 0.5px var(--sheet-edge),
+    0 1px 2px rgb(20 22 26 / 0.04),
+    0 10px 28px rgb(20 22 26 / 0.05);
+}
+@media (prefers-reduced-transparency: reduce) {
+  /* 面回实心之后落座影换成普通卡片影：实心面上再压接触影会读成双层边。 */
+  .wb-nav,
+  .wb-toolbar,
+  .wb-table-wrap,
+  .wb-stat-card,
+  .wb-card,
+  .wb-panel {
+    box-shadow: 0 1px 2px rgb(20 22 26 / 0.06);
   }
 }

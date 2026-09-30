@@ -347,6 +347,31 @@ export function startAIDailyDigest(input: {
   })
 }
 
+/**
+ * Synchronous bibliographic metadata extraction for one pasted reference
+ * (e.g. a GB/T 7714 citation). Not a job: the server answers inline and only
+ * returns whitelisted fields — anything the model could not ground in the raw
+ * text is omitted. An unusable model answer surfaces as a 422 APIError with
+ * code `ai_metadata_unparseable`.
+ */
+export interface AIMetadataFill {
+  title?: string
+  authors?: string[]
+  journal?: string
+  year?: string
+  volume?: string
+  issue?: string
+  pages?: string
+  doi?: string
+}
+
+export function fillMetadataWithAI(profileID: string, raw: string): Promise<AIMetadataFill> {
+  return request<AIMetadataFill>("/api/v1/ai/metadata-fill", {
+    method: "POST",
+    body: JSON.stringify({ profile_id: profileID, raw }),
+  })
+}
+
 export function getZoteroStatus(signal?: AbortSignal): Promise<ZoteroStatus> {
   return request<ZoteroStatus>("/api/v1/integrations/zotero/status", { signal })
 }

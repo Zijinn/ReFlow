@@ -364,10 +364,14 @@ export function Workbench(props: WorkbenchProps) {
     if (!requireOnline()) return
     reorderMutation.mutate({ kind, ids })
   }
-  const move = (id: string) => {
+  const move = (id: string, target: ResearchKind) => {
     if (!requireOnline()) return
-    const message = tab === "research" ? t("flowToSubmittedConfirm") : t("flowToPublishedConfirm")
-    const target: ResearchKind = tab === "research" ? "submitted" : "published"
+    const message =
+      target === "submitted"
+        ? t("flowToSubmittedConfirm")
+        : target === "published"
+          ? t("flowToPublishedConfirm")
+          : t("flowToResearchConfirm")
     requestConfirm(message, () => moveMutation.mutate({ id, target }))
   }
   const fetchCitation = (id: string) => {
@@ -506,7 +510,7 @@ export function Workbench(props: WorkbenchProps) {
                   onUpdate={update}
                   onDelete={remove}
                   onReorder={(ids) => reorder("research", ids)}
-                  onMove={move}
+                  onMove={(id) => move(id, "submitted")}
                 />
               )}
               {tab === "submitted" && (
@@ -520,7 +524,8 @@ export function Workbench(props: WorkbenchProps) {
                   onUpdate={update}
                   onDelete={remove}
                   onReorder={(ids) => reorder("submitted", ids)}
-                  onMove={move}
+                  onMove={(id) => move(id, "published")}
+                  onMoveBack={(id) => move(id, "research")}
                 />
               )}
               {tab === "published" && (
@@ -529,6 +534,7 @@ export function Workbench(props: WorkbenchProps) {
                   offline={!online}
                   creating={creating}
                   crossrefEmail={crossrefEmail}
+                  aiProfiles={props.aiProfiles ?? []}
                   citationPendingID={
                     citationMutation.isPending ? (citationMutation.variables ?? null) : null
                   }

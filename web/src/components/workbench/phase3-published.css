@@ -104,6 +104,62 @@
   box-shadow: var(--focus-ring);
 }
 
+/* GB/T 7714 粘贴对话框：dialog-content 是 padding:0 的玻璃面板，内衬自给。
+   输入面走 --field-glass 家族（白画布上不用灰色填充做凹陷），按钮用 .wb-btn 家族，
+   transition 只动 background-color/border-color/box-shadow，不做按压缩放。 */
+.wb-paste-dialog {
+  width: min(560px, calc(100vw - 28px));
+}
+.wb-paste-body {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-9);
+}
+.wb-paste-input {
+  width: 100%;
+  min-height: 96px;
+  padding: var(--space-6);
+  resize: vertical;
+  font: inherit;
+  line-height: var(--leading-prose);
+  color: inherit;
+  border: 1px solid var(--field-glass-edge);
+  border-radius: var(--radius-lg);
+  background: var(--field-glass);
+  box-shadow: var(--field-glass-inset);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.wb-paste-input:hover {
+  border-color: var(--field-glass-hover-edge);
+}
+.wb-paste-input:focus {
+  outline: none;
+  background: var(--field-glass);
+  box-shadow:
+    var(--field-glass-inset),
+    var(--focus-ring);
+}
+.wb-paste-input::placeholder {
+  color: var(--text-tertiary);
+}
+.wb-paste-hint {
+  margin: var(--space-5) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+  color: var(--text-secondary);
+}
+.wb-paste-actions {
+  margin-top: var(--space-9);
+}
+.wb-paste-submit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wb-reference-column {
     transition: none;

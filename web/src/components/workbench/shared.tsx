@@ -78,6 +78,63 @@ export function InlineText(props: {
   )
 }
 
+// NotesCell 是备注列的栏内编辑器：一颗自动长高的 textarea，Enter 提交（走 blur
+// 这一条路，避免 keydown 与 blur 各提交一次），Shift+Enter 换行，Escape 放弃草稿。
+// 长高走 scrollHeight 套路，CSS 那边用 max-height 封顶（超长备注在格内滚动，
+// 不把整行顶成半屏）；jsdom 不算布局，scrollHeight 恒为 0，测试只断言提交语义。
+export function NotesCell(props: {
+  value: string
+  ariaLabel: string
+  onCommit: (notes: string) => void
+}) {
+  const { t } = useTranslation()
+  const [draft, setDraft] = useState(props.value)
+  const [synced, setSynced] = useState(props.value)
+  const areaRef = useRef<HTMLTextAreaElement | null>(null)
+
+  // 父级写回（同步/撤销/别处编辑）时草稿跟随存储值：渲染期校正（React 官方
+  // "adjusting state when props change" 套路），其余时间不打扰输入。
+  if (props.value !== synced) {
+    setSynced(props.value)
+    setDraft(props.value)
+  }
+
+  useEffect(() => {
+    const node = areaRef.current
+    if (!node) return
+    node.style.height = "auto"
+    node.style.height = `${node.scrollHeight}px`
+  }, [draft, props.value])
+
+  const commit = () => {
+    const next = draft.trim()
+    if (next !== props.value) props.onCommit(next)
+  }
+
+  return (
+    <textarea
+      ref={areaRef}
+      className="wb-notes-input"
+      rows={1}
+      value={draft}
+      placeholder={t("notesEditHint")}
+      aria-label={props.ariaLabel}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault()
+          e.currentTarget.blur()
+        }
+        if (e.key === "Escape") {
+          setDraft(props.value)
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
+
 // ChipEditor edits a list of strings (authors / keywords) as removable,
 // reorderable pills. New chips are typed inline (window.prompt never works in
 // the desktop WKWebView shell).

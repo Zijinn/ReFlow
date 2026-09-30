@@ -1,6 +1,9 @@
-import { Fragment, useMemo, useState } from "react"
+import * as Dialog from "@radix-ui/react-dialog"
+import { Fragment, useEffect, useMemo, useRef, useState } from "react"
 
-import type { ResearchPaper, ResearchPaperPatch } from "../../api/types"
+import { fillMetadataWithAI, type AIMetadataFill } from "../../api/client"
+import type { AIProfile, ResearchPaper, ResearchPaperPatch } from "../../api/types"
+import { parseGb7714, type ParsedReference } from "../../lib/gb7714"
 import { useTranslation } from "../../lib/i18n"
 import {
   buildGb7714Reference,
@@ -24,6 +27,46 @@ const SORT_OPTIONS: Array<{ value: ReferenceSort; key: string }> = [
   { value: "author", key: "sortByAuthor" },
 ]
 
+// Only the bibliographic fields travel in the patch; empties are omitted so a
+// partially parsed reference never overwrites anything with blank strings.
+function patchFromParsed(parsed: ParsedReference): ResearchPaperPatch {
+  const patch: ResearchPaperPatch = {}
+  if (parsed.title) patch.title = parsed.title
+  if (parsed.authors.length) patch.authors = parsed.authors
+  if (parsed.journal) patch.journal = parsed.journal
+  if (parsed.year) patch.year = parsed.year
+  if (parsed.volume) patch.volume = parsed.volume
+  if (parsed.issue) patch.issue = parsed.issue
+  if (parsed.pages) patch.pages = parsed.pages
+  if (parsed.doi) patch.doi = parsed.doi
+  return patch
+}
+
+// The AI answer only fills gaps: whatever the local GB/T 7714 parse already
+// read wins, so deterministic parsing is never overwritten by a model guess.
+function mergeAIFill(base: ResearchPaperPatch, filled: AIMetadataFill): ResearchPaperPatch {
+  const patch: ResearchPaperPatch = { ...base }
+  const assign = (
+    key: "title" | "journal" | "year" | "volume" | "issue" | "pages" | "doi",
+    value: string | undefined,
+  ) => {
+    const next = (value ?? "").trim()
+    if (next && !(patch[key] ?? "").trim()) patch[key] = next
+  }
+  assign("title", filled.title)
+  assign("journal", filled.journal)
+  assign("year", filled.year)
+  assign("volume", filled.volume)
+  assign("issue", filled.issue)
+  assign("pages", filled.pages)
+  assign("doi", filled.doi)
+  if (!patch.authors?.length && filled.authors?.length) {
+    const authors = filled.authors.map((name) => name.trim()).filter(Boolean)
+    if (authors.length) patch.authors = authors
+  }
+  return patch
+}
+
 export function PublishedPage(props: {
   papers: ResearchPaper[]
   crossrefEmail: string
@@ -31,6 +74,7 @@ export function PublishedPage(props: {
   offline?: boolean
   creating?: boolean
   batchCitationPending?: boolean
+  aiProfiles?: AIProfile[]
   onCreate: () => void
   onUpdate: (id: string, patch: ResearchPaperPatch) => void
   onDelete: (id: string) => void
@@ -49,6 +93,31 @@ export function PublishedPage(props: {
   // null means "no local edits yet": the input mirrors the async prop until
   // the user types, so a late-arriving crossrefEmail backfills correctly.
   const [emailDraft, setEmailDraft] = useState<string | null>(null)
+  // GB/T 7714 paste dialog state.
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteText, setPasteText] = useState("")
+  const [aiFillRunning, setAiFillRunning] = useState(false)
+  // Creating an entry from a pasted reference is two mutations: onCreate only
+  // accepts kind/title/authors (and the Workbench handler sends just kind), so
+  // the remaining fields ride along here and are PATCHed through onUpdate once
+  // the created paper shows up in the refreshed list. Both steps stay on the
+  // existing mutation props — the page never fetches on its own.
+  const pendingFillRef = useRef<{ knownIDs: Set<string>; patch: ResearchPaperPatch } | null>(null)
+
+  const { papers, onUpdate } = props
+  useEffect(() => {
+    const pending = pendingFillRef.current
+    if (!pending) return
+    const created = papers.find((paper) => !pending.knownIDs.has(paper.id))
+    if (!created) return
+    pendingFillRef.current = null
+    onUpdate(created.id, pending.patch)
+  }, [papers, onUpdate])
+
+  const aiProfile = useMemo(() => {
+    const enabled = (props.aiProfiles ?? []).filter((profile) => profile.enabled)
+    return enabled.find((profile) => profile.is_default) ?? enabled[0] ?? null
+  }, [props.aiProfiles])
 
   const commitEmail = (raw: string) => {
     const next = raw.trim()
@@ -97,6 +166,50 @@ export function PublishedPage(props: {
     toast(t("exportDone"))
   }
 
+  const createFromPatch = (patch: ResearchPaperPatch) => {
+    pendingFillRef.current = {
+      knownIDs: new Set(props.papers.map((paper) => paper.id)),
+      patch,
+    }
+    props.onCreate()
+  }
+
+  const applyPaste = () => {
+    const parsed = parseGb7714(pasteText)
+    if (!parsed) {
+      toast(t("pasteGbInvalid"))
+      return
+    }
+    createFromPatch(patchFromParsed(parsed))
+    setPasteOpen(false)
+    setPasteText("")
+    toast(t("pasteGbApplied"))
+  }
+
+  const runAIFill = async () => {
+    if (!aiProfile) return
+    const raw = pasteText.trim()
+    if (!raw) return
+    setAiFillRunning(true)
+    try {
+      const filled = await fillMetadataWithAI(aiProfile.id, raw)
+      const local = parseGb7714(raw)
+      const patch = mergeAIFill(local ? patchFromParsed(local) : {}, filled)
+      if (!patch.title && !patch.authors?.length) {
+        toast(t("aiFillFailed"))
+        return
+      }
+      createFromPatch(patch)
+      setPasteOpen(false)
+      setPasteText("")
+      toast(t("aiFillApplied"))
+    } catch {
+      toast(t("aiFillFailed"))
+    } finally {
+      setAiFillRunning(false)
+    }
+  }
+
   const renderRow = (paper: ResearchPaper) => {
     const index = props.papers.findIndex((p) => p.id === paper.id)
     const english = isEnglishPaper(paper)
@@ -126,13 +239,23 @@ export function PublishedPage(props: {
             />
           </td>
           <td className="wb-col-year">
-            <span className="wb-badge wb-badge--green">
+            {/* 语义绿只给"已发表"这个事实：年份还没填时套绿药丸，等于用一枚
+                成功徽章包着一个空占位。空值走中性正文，填上才成药丸。 */}
+            {paper.year ? (
+              <span className="wb-badge wb-badge--green">
+                <InlineText
+                  value={paper.year}
+                  placeholder={t("yearLabel")}
+                  onCommit={(value) => props.onUpdate(paper.id, { year: value })}
+                />
+              </span>
+            ) : (
               <InlineText
                 value={paper.year}
                 placeholder={t("yearLabel")}
                 onCommit={(value) => props.onUpdate(paper.id, { year: value })}
               />
-            </span>
+            )}
           </td>
           <td className="wb-col-text">
             <InlineText
@@ -375,6 +498,15 @@ export function PublishedPage(props: {
         </button>
         <button
           type="button"
+          className="wb-btn"
+          disabled={props.offline}
+          title={props.offline ? t("workbenchOfflineHint") : undefined}
+          onClick={() => setPasteOpen(true)}
+        >
+          {t("pasteGbTitle")}
+        </button>
+        <button
+          type="button"
           className="wb-btn wb-btn--primary"
           disabled={props.offline || props.creating}
           title={props.offline ? t("workbenchOfflineHint") : undefined}
@@ -452,6 +584,56 @@ export function PublishedPage(props: {
           {renderReferenceColumn(t("englishPublications"), "en", sortEn, setSortEn)}
         </div>
       )}
+      <Dialog.Root open={pasteOpen} onOpenChange={setPasteOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="dialog-overlay" />
+          <Dialog.Content className="dialog-content wb-paste-dialog" aria-describedby={undefined}>
+            <div className="dialog-header">
+              <Dialog.Title>{t("pasteGbTitle")}</Dialog.Title>
+            </div>
+            <div className="wb-paste-body">
+              <textarea
+                className="wb-paste-input"
+                rows={4}
+                placeholder={t("pasteGbPlaceholder")}
+                aria-label={t("pasteGbTitle")}
+                value={pasteText}
+                onChange={(e) => setPasteText(e.target.value)}
+              />
+              <p className="wb-paste-hint">{t("pasteGbHint")}</p>
+              <div className="dialog-actions wb-paste-actions">
+                <Dialog.Close asChild>
+                  <button type="button" className="wb-btn">
+                    {t("cancel")}
+                  </button>
+                </Dialog.Close>
+                <div className="wb-paste-submit">
+                  <button
+                    type="button"
+                    className="wb-btn"
+                    disabled={
+                      !aiProfile || aiFillRunning || props.offline === true || !pasteText.trim()
+                    }
+                    title={!aiProfile ? t("aiFillNoProfile") : undefined}
+                    onClick={() => void runAIFill()}
+                  >
+                    {aiFillRunning ? t("aiFillRunning") : t("aiFillMetadata")}
+                  </button>
+                  <button
+                    type="button"
+                    className="wb-btn wb-btn--primary"
+                    disabled={props.offline || props.creating || !pasteText.trim()}
+                    title={props.offline ? t("workbenchOfflineHint") : undefined}
+                    onClick={applyPaste}
+                  >
+                    {t("pasteGbApply")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   )
 }

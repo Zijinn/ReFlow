@@ -155,44 +155,117 @@ describe("ResearchPage", () => {
     expect(screen.getByRole("button", { name: /Add paper/ })).toBeDisabled()
   })
 
-  it("adds a notes column that previews the note or offers a pen when empty", () => {
+  it("adds a notes column whose cell is an inline editor, not an expand entry", () => {
     render(<ResearchPage papers={[paper()]} {...props()} />)
     expect(screen.getByRole("columnheader", { name: "Notes" })).toBeInTheDocument()
-    const cell = screen.getByRole("button", { name: "Edit notes: Working Paper One" })
-    expect(cell).toHaveClass("wb-notes-cell")
-    expect(cell).toHaveTextContent("✎")
+    // 旧的"预览按钮 + ✎"入口已删：格子里是 textarea，点它不展开详情行。
+    expect(document.querySelector(".wb-notes-cell")).toBeNull()
+    expect(screen.getByRole("textbox", { name: "Edit notes: Working Paper One" }).tagName).toBe(
+      "TEXTAREA",
+    )
   })
 
-  it("opens the detail row from the notes cell and focuses the notes field", () => {
-    const notes = "CSMAR sample runs to 2024; robustness needs an IV"
-    render(<ResearchPage papers={[paper({ notes })]} {...props()} />)
-    const cell = screen.getByRole("button", { name: "Edit notes: Working Paper One" })
-    // The cell is a preview, not an editor: the full note lives in the detail row.
-    expect(cell).toHaveTextContent(notes)
-    expect(document.querySelector("tr.wb-row-detail")).toBeNull()
-    fireEvent.click(cell)
-    const field = document.querySelector<HTMLElement>("[data-notes-field] .wb-editable")
-    expect(field).not.toBeNull()
-    expect(field).toHaveTextContent(notes)
-    expect(field).toHaveFocus()
-  })
-
-  it("commits a multiline note edit through onUpdate", () => {
+  it("edits notes inline and commits on blur without opening the detail row", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ notes: "Draft note" })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Edit notes: Working Paper One" }))
-    fireEvent.doubleClick(document.querySelector("[data-notes-field] .wb-editable")!)
-    // 工具栏的搜索框也是 textbox，所以这一格要从详情行里取，不能用 getByRole。
-    const area = document.querySelector<HTMLTextAreaElement>("[data-notes-field] textarea")!
-    expect(area).toHaveClass("wb-inline-input")
+    const area = screen.getByRole("textbox", { name: "Edit notes: Working Paper One" })
+    expect(area).toHaveClass("wb-notes-input")
+    expect(area).toHaveValue("Draft note")
     fireEvent.change(area, { target: { value: "Reviewer 2 asked for a placebo test" } })
-    // Multiline fields commit on blur, never on Enter (Enter writes a new line).
-    fireEvent.keyDown(area, { key: "Enter" })
-    expect(handlers.onUpdate).not.toHaveBeenCalled()
     fireEvent.blur(area)
     expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", {
       notes: "Reviewer 2 asked for a placebo test",
     })
+    expect(document.querySelector("tr.wb-row-detail")).toBeNull()
+  })
+
+  it("commits the inline note on Enter and treats Shift+Enter as a newline", () => {
+    const handlers = props()
+    render(<ResearchPage papers={[paper()]} {...handlers} />)
+    const area = screen.getByRole("textbox", { name: "Edit notes: Working Paper One" })
+    // 空格子显示占位提示。
+    expect(area).toHaveAttribute("placeholder", "Edit notes")
+    area.focus()
+    fireEvent.change(area, { target: { value: "line one\nline two" } })
+    fireEvent.keyDown(area, { key: "Enter", shiftKey: true })
+    expect(handlers.onUpdate).not.toHaveBeenCalled()
+    fireEvent.keyDown(area, { key: "Enter" })
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { notes: "line one\nline two" })
+  })
+
+  it("keeps the detail-row notes editor working", () => {
+    const handlers = props()
+    render(<ResearchPage papers={[paper({ notes: "Draft note" })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Show or hide research stages" }))
+    const editable = document.querySelector(".wb-detail-notes .wb-editable")!
+    expect(editable).toHaveTextContent("Draft note")
+    fireEvent.doubleClick(editable)
+    const area = document.querySelector<HTMLTextAreaElement>(".wb-detail-notes textarea")!
+    expect(area).toHaveClass("wb-inline-input")
+    fireEvent.change(area, { target: { value: "Updated from the detail row" } })
+    fireEvent.blur(area)
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { notes: "Updated from the detail row" })
+  })
+
+  it("cycles the priority sort off → high-first → low-first → off and reorders rows", () => {
+    render(
+      <ResearchPage
+        papers={[
+          paper({ id: "r-1", title: "Medium One", priority: "Medium" }),
+          paper({ id: "r-2", title: "High Two", priority: "High" }),
+          paper({ id: "r-3", title: "Blank Three", priority: "" }),
+          paper({ id: "r-4", title: "Average Four", priority: "Average" }),
+        ]}
+        {...props()}
+      />,
+    )
+    const header = screen.getByRole("columnheader", { name: "Priority" })
+    const sortButton = screen.getByRole("button", { name: "Sort by priority" })
+    const order = () =>
+      Array.from(document.querySelectorAll("tbody tr .wb-cell-title .wb-editable")).map(
+        (node) => node.textContent,
+      )
+    // 未排序：保持手工顺序（papers prop 顺序）。
+    expect(header).toHaveAttribute("aria-sort", "none")
+    expect(order()).toEqual(["Medium One", "High Two", "Blank Three", "Average Four"])
+    // 第一击：高到低，空优先级恒在最后。
+    fireEvent.click(sortButton)
+    expect(header).toHaveAttribute("aria-sort", "descending")
+    expect(order()).toEqual(["High Two", "Medium One", "Average Four", "Blank Three"])
+    // 第二击：低到高，空优先级仍在最后（不是"最低"）。
+    fireEvent.click(sortButton)
+    expect(header).toHaveAttribute("aria-sort", "ascending")
+    expect(order()).toEqual(["Average Four", "Medium One", "High Two", "Blank Three"])
+    // 第三击：回到未排序的手工顺序。
+    fireEvent.click(sortButton)
+    expect(header).toHaveAttribute("aria-sort", "none")
+    expect(order()).toEqual(["Medium One", "High Two", "Blank Three", "Average Four"])
+  })
+
+  it("disables row dragging while a priority sort is active", () => {
+    const handlers = props()
+    render(
+      <ResearchPage
+        papers={[paper({ priority: "High" }), paper({ id: "r-2", title: "Second", priority: "Average" })]}
+        {...handlers}
+      />,
+    )
+    expect(document.querySelectorAll(".wb-drag-handle")).toHaveLength(2)
+    fireEvent.click(screen.getByRole("button", { name: "Sort by priority" }))
+    expect(document.querySelector(".wb-table--sorted")).not.toBeNull()
+    // 把手缺席：Row 只在按住把手时才武装拖拽，所以排序视图里拖不动。
+    expect(document.querySelectorAll(".wb-drag-handle")).toHaveLength(0)
+    // 即便有游离的 drop 事件落到行上，也绝不能把排序视图写回成手工顺序。
+    const rows = document.querySelectorAll("tr.wb-row")
+    fireEvent.drop(rows[1]!, {
+      dataTransfer: { getData: () => "r-1", types: ["text/wb-row"] },
+    })
+    expect(handlers.onReorder).not.toHaveBeenCalled()
+    // 循环回未排序后把手恢复。
+    fireEvent.click(screen.getByRole("button", { name: "Sort by priority" }))
+    fireEvent.click(screen.getByRole("button", { name: "Sort by priority" }))
+    expect(document.querySelectorAll(".wb-drag-handle")).toHaveLength(2)
+    expect(document.querySelector(".wb-table--sorted")).toBeNull()
   })
 })
 

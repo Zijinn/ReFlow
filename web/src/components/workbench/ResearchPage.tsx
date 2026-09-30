@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react"
+import { Fragment, useMemo, useState } from "react"
 
 import { CaretRight } from "@phosphor-icons/react"
 
@@ -11,7 +11,7 @@ import {
   computeProgress,
   stageTicks,
 } from "../../lib/research"
-import { ChipEditor, DragHandle, EmptyState, InlineText, MenuSelect, Row } from "./shared"
+import { ChipEditor, DragHandle, EmptyState, InlineText, MenuSelect, NotesCell, Row } from "./shared"
 import { displayID, matchesPaperQuery, priorityBadgeClass, priorityDotClass, reorderList } from "./utils"
 import { StageTree } from "./StageTree"
 
@@ -20,6 +20,16 @@ const PRIORITIES = [
   { value: "Medium", key: "priorityMedium" },
   { value: "Average", key: "priorityAverage" },
 ]
+
+// 优先级排序的语义档位：High > Medium > Average。空串/未知取值一律视为
+// "没有优先级"（档 0），两个方向都排在最后——空值不是"最低优先级"，
+// 而是"没填"，把它混进 Average 之下会假装它是一个真实档位。
+const PRIORITY_RANK: Record<string, number> = { High: 3, Medium: 2, Average: 1 }
+
+// 三态循环：off（手工顺序）→ desc（高到低）→ asc（低到高）→ off。
+type PrioritySort = "off" | "desc" | "asc"
+
+const NEXT_SORT: Record<PrioritySort, PrioritySort> = { off: "desc", desc: "asc", asc: "off" }
 
 export function ResearchPage(props: {
   papers: ResearchPaper[]
@@ -35,24 +45,9 @@ export function ResearchPage(props: {
   const [search, setSearch] = useState("")
   const [priority, setPriority] = useState("")
   const [expandedID, setExpandedID] = useState<string | null>(null)
-  // 备注格是"预览 + 入口"：点它展开详情行并把光标送进那格的备注字段。
-  // seq 让同一行连着点两次也能再聚焦一次（expandedID 没变，effect 就不会重跑）。
-  const [notesRequest, setNotesRequest] = useState<{ id: string; seq: number } | null>(null)
-
-  useEffect(() => {
-    if (!notesRequest || expandedID !== notesRequest.id) return
-    const field = document.querySelector<HTMLElement>(
-      `[data-notes-field="${notesRequest.id}"] .wb-editable, [data-notes-field="${notesRequest.id}"] textarea`,
-    )
-    if (!field) return
-    field.scrollIntoView({ block: "nearest" })
-    field.focus({ preventScroll: true })
-  }, [notesRequest, expandedID])
-
-  const openNotes = (id: string) => {
-    setExpandedID(id)
-    setNotesRequest((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))
-  }
+  // 优先级列头排序是纯前端视图排序：只改渲染顺序，不写回后端、不碰手工顺序。
+  const [prioritySort, setPrioritySort] = useState<PrioritySort>("off")
+  const sorting = prioritySort !== "off"
 
   const priorityOptions = useMemo(
     () =>
@@ -73,7 +68,45 @@ export function ResearchPage(props: {
     })
   }, [props.papers, search, priority])
 
+  // 视图排序：papers prop 的副本，同档按原（手工）顺序稳定排列，空优先级恒在最后。
+  const visible = useMemo(() => {
+    if (prioritySort === "off") return filtered
+    const direction = prioritySort === "desc" ? -1 : 1
+    return filtered
+      .map((paper, index) => ({ paper, index }))
+      .sort((a, b) => {
+        const rankA = PRIORITY_RANK[a.paper.priority ?? ""] ?? 0
+        const rankB = PRIORITY_RANK[b.paper.priority ?? ""] ?? 0
+        if (rankA === 0 || rankB === 0) {
+          if (rankA === rankB) return a.index - b.index
+          return rankA === 0 ? 1 : -1
+        }
+        if (rankA !== rankB) return (rankA - rankB) * direction
+        return a.index - b.index
+      })
+      .map((entry) => entry.paper)
+  }, [filtered, prioritySort])
+
+  // title 说清三态循环："当前 · 下一次点击"。aria-sort 挂在 th 上供读屏播报，
+  // 按钮的可及名保持稳定（sortByPriority），状态由列头的 aria-sort 表达。
+  const sortStateLabel =
+    prioritySort === "desc"
+      ? t("prioritySortHighFirst")
+      : prioritySort === "asc"
+        ? t("prioritySortLowFirst")
+        : t("sortByPriority")
+  const sortNextLabel =
+    prioritySort === "off"
+      ? t("prioritySortHighFirst")
+      : prioritySort === "desc"
+        ? t("prioritySortLowFirst")
+        : t("prioritySortOff")
+  const sortTitle = `${sortStateLabel} · ${sortNextLabel}`
+
   const reorder = (fromID: string, toID: string, before: boolean) => {
+    // 排序视图里的行序不是手工顺序，绝不能被拖拽写回（把手此时也不渲染，
+    // 这里是第二道保险）。
+    if (sorting) return
     props.onReorder(reorderList(props.papers, fromID, toID, before).map((p) => p.id))
   }
 
@@ -114,13 +147,38 @@ export function ResearchPage(props: {
         </button>
       </div>
       <div className="wb-table-wrap">
-        <table className="wb-table wb-table--research">
+        <table
+          className={`wb-table wb-table--research${sorting ? " wb-table--sorted" : ""}`}
+        >
           <thead>
             <tr>
               <th className="wb-col-grip" aria-label={t("colCode")} />
               <th className="wb-col-title">{t("colTitle")}</th>
               <th className="wb-col-stage">{t("colStage")}</th>
-              <th className="wb-col-priority">{t("colPriority")}</th>
+              <th
+                className="wb-col-priority"
+                aria-label={t("colPriority")}
+                aria-sort={
+                  prioritySort === "off"
+                    ? "none"
+                    : prioritySort === "desc"
+                      ? "descending"
+                      : "ascending"
+                }
+              >
+                <button
+                  type="button"
+                  className={`wb-th-sort${sorting ? " wb-th-sort--active" : ""}`}
+                  aria-label={t("sortByPriority")}
+                  title={sortTitle}
+                  onClick={() => setPrioritySort((prev) => NEXT_SORT[prev])}
+                >
+                  {t("colPriority")}
+                  <span className="wb-th-sort-arrow" aria-hidden="true">
+                    {prioritySort === "desc" ? "↓" : prioritySort === "asc" ? "↑" : "↕"}
+                  </span>
+                </button>
+              </th>
               <th className="wb-col-text">{t("targetJournal")}</th>
               <th className="wb-col-text wb-col-note">{t("nextAction")}</th>
               <th className="wb-col-date">{t("lastUpdatedLabel")}</th>
@@ -129,7 +187,7 @@ export function ResearchPage(props: {
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 ? (
+            {visible.length === 0 ? (
               <tr>
                 <td colSpan={9} className="wb-empty">
                   {search.trim() || priority ? (
@@ -146,7 +204,7 @@ export function ResearchPage(props: {
                 </td>
               </tr>
             ) : (
-              filtered.map((paper) => {
+              visible.map((paper) => {
                 const index = props.papers.findIndex((p) => p.id === paper.id)
                 const expanded = expandedID === paper.id
                 // 没有阶段的论文按标准流程"虚拟"展示：不写库，点任一阶段才落。
@@ -162,7 +220,9 @@ export function ResearchPage(props: {
                   <Fragment key={paper.id}>
                     <Row id={paper.id} onReorder={reorder} dataPaperID={paper.id}>
                       <td className="wb-col-grip">
-                        <DragHandle />
+                        {/* 排序激活时不渲染把手：Row 只在按住把手时才武装拖拽，
+                            把手缺席即拖拽禁用，排序视图不会被误存成手工顺序。 */}
+                        {!sorting && <DragHandle />}
                         <span className="wb-code">{displayID("research", index)}</span>
                       </td>
                       <td className="wb-col-title">
@@ -253,24 +313,11 @@ export function ResearchPage(props: {
                         {(paper.last_updated || "").slice(0, 10) || "—"}
                       </td>
                       <td className="wb-col-notes">
-                        <button
-                          type="button"
-                          className="wb-editable wb-notes-cell"
-                          aria-label={`${t("notesEditHint")}: ${paper.title || displayID("research", index)}`}
-                          title={paper.notes || t("notesEditHint")}
-                          onClick={() => openNotes(paper.id)}
-                        >
-                          {paper.notes ? (
-                            paper.notes
-                          ) : (
-                            <>
-                              <span className="wb-notes-pen" aria-hidden="true">
-                                ✎
-                              </span>
-                              <span className="wb-ph">{t("fillPlaceholder")}</span>
-                            </>
-                          )}
-                        </button>
+                        <NotesCell
+                          value={paper.notes}
+                          ariaLabel={`${t("notesEditHint")}: ${paper.title || displayID("research", index)}`}
+                          onCommit={(notes) => props.onUpdate(paper.id, { notes })}
+                        />
                       </td>
                       <td className="wb-col-actions">
                         <button
@@ -328,7 +375,7 @@ export function ResearchPage(props: {
                                   {t("copyPath")}
                                 </button>
                               </div>
-                              <div className="wb-detail-notes" data-notes-field={paper.id}>
+                              <div className="wb-detail-notes">
                                 <div className="wb-muted wb-abstract-label">{t("colNotes")}</div>
                                 <div className="wb-abstract">
                                   <InlineText

@@ -22,6 +22,7 @@ import { localizedScopeTitle, useTranslation } from "../lib/i18n"
 import { useReaderStore, type AppView } from "../store/reader"
 import { Brand } from "./Brand"
 import { FolderContextMenu } from "./FolderContextMenu"
+import { PromptDialog } from "./PromptDialog"
 import { SubscriptionContextMenu } from "./SubscriptionContextMenu"
 
 interface SidebarProps {
@@ -101,9 +102,26 @@ export function Sidebar(props: SidebarProps) {
       position: { x: event.clientX, y: event.clientY },
     })
   }
-  const requestRename = (currentName: string) => {
-    const nextName = window.prompt(t("rename"), currentName)?.trim()
-    return nextName && nextName !== currentName ? nextName : null
+  // window.prompt never shows in the desktop WKWebView/WebView2 shell, so the
+  // rename and new-subfolder flows run through the in-app PromptDialog instead.
+  const [promptState, setPromptState] = useState<
+    | { mode: "rename"; kind: "feed"; id: string; currentName: string }
+    | { mode: "rename"; kind: "folder"; id: string; currentName: string }
+    | { mode: "create"; parentID: string }
+    | null
+  >(null)
+  const submitPrompt = (name: string) => {
+    const state = promptState
+    setPromptState(null)
+    if (!state) return
+    if (state.mode === "create") {
+      props.onCreateSubfolder(state.parentID, name)
+      return
+    }
+    // Same guard the old requestRename had: an unchanged name is a no-op.
+    if (name === state.currentName) return
+    if (state.kind === "feed") props.onRenameFeed(state.id, name)
+    else props.onRenameFolder(state.id, name)
   }
   const openURL = (value: string | null | undefined) => {
     if (!value) return
@@ -282,10 +300,14 @@ export function Sidebar(props: SidebarProps) {
           folders={props.folders}
           position={contextMenu.position}
           onClose={() => setContextMenu(null)}
-          onRename={() => {
-            const name = requestRename(contextMenu.subscription.title)
-            if (name) props.onRenameFeed(contextMenu.subscription.feed_id, name)
-          }}
+          onRename={() =>
+            setPromptState({
+              mode: "rename",
+              kind: "feed",
+              id: contextMenu.subscription.feed_id,
+              currentName: contextMenu.subscription.title,
+            })
+          }
           onMarkRead={() => props.onMarkFeedRead(contextMenu.subscription.feed_id)}
           onRefresh={() => props.onRefreshFeed(contextMenu.subscription.feed_id)}
           onMove={(folderID) => props.onMoveFeed(contextMenu.subscription.feed_id, folderID)}
@@ -306,18 +328,35 @@ export function Sidebar(props: SidebarProps) {
           folder={contextMenu.folder}
           position={contextMenu.position}
           onClose={() => setContextMenu(null)}
-          onRename={() => {
-            const name = requestRename(contextMenu.folder.name)
-            if (name) props.onRenameFolder(contextMenu.folder.id, name)
-          }}
-          onNewSubfolder={() => {
-            const name = window.prompt(t("folderName"))?.trim()
-            if (name) props.onCreateSubfolder(contextMenu.folder.id, name)
-          }}
+          onRename={() =>
+            setPromptState({
+              mode: "rename",
+              kind: "folder",
+              id: contextMenu.folder.id,
+              currentName: contextMenu.folder.name,
+            })
+          }
+          onNewSubfolder={() =>
+            setPromptState({ mode: "create", parentID: contextMenu.folder.id })
+          }
           onMarkAllRead={() => props.onMarkFolderRead(contextMenu.folder.id)}
           onDelete={() => props.onDeleteFolder(contextMenu.folder.id)}
         />
       )}
+      <PromptDialog
+        open={promptState !== null}
+        title={promptState?.mode === "create" ? t("newSubfolder") : t("rename")}
+        label={
+          promptState?.mode === "rename" && promptState.kind === "feed"
+            ? t("feedName")
+            : t("folderName")
+        }
+        initialValue={promptState?.mode === "rename" ? promptState.currentName : ""}
+        submitLabel={promptState?.mode === "create" ? t("newSubfolder") : t("rename")}
+        cancelLabel={t("cancel")}
+        onSubmit={submitPrompt}
+        onCancel={() => setPromptState(null)}
+      />
     </aside>
   )
 }

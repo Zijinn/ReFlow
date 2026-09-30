@@ -58,26 +58,51 @@ afterEach(() => {
 })
 
 describe("Sidebar rename menus", () => {
-  it("renames a subscription from its context menu", () => {
+  it("renames a subscription through the in-app dialog, never window.prompt", () => {
     const onRenameFeed = vi.fn()
-    vi.spyOn(window, "prompt").mockReturnValue("Renamed feed")
+    // window.prompt never shows in the WKWebView/WebView2 desktop shell.
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Renamed feed")
     renderSidebar({ onRenameFeed })
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "Example feed2" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }))
 
+    // The dialog opens pre-filled with the current title, all selected.
+    const input = screen.getByLabelText<HTMLInputElement>("Feed name")
+    expect(input.value).toBe("Example feed")
+    fireEvent.change(input, { target: { value: "Renamed feed" } })
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }))
+
+    expect(promptSpy).not.toHaveBeenCalled()
     expect(onRenameFeed).toHaveBeenCalledWith("feed-1", "Renamed feed")
   })
 
-  it("renames a folder from its context menu", () => {
+  it("renames a folder through the in-app dialog, never window.prompt", () => {
     const onRenameFolder = vi.fn()
-    vi.spyOn(window, "prompt").mockReturnValue("Papers")
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Papers")
     renderSidebar({ onRenameFolder })
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "Research2" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }))
 
+    const input = screen.getByLabelText<HTMLInputElement>("Folder name")
+    expect(input.value).toBe("Research")
+    fireEvent.change(input, { target: { value: "Papers" } })
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }))
+
+    expect(promptSpy).not.toHaveBeenCalled()
     expect(onRenameFolder).toHaveBeenCalledWith("folder-1", "Papers")
+  })
+
+  it("keeps an unchanged folder name a no-op", () => {
+    const onRenameFolder = vi.fn()
+    renderSidebar({ onRenameFolder })
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Research2" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename" }))
+    fireEvent.click(screen.getByRole("button", { name: "Rename" }))
+
+    expect(onRenameFolder).not.toHaveBeenCalled()
   })
 })
 
@@ -139,14 +164,23 @@ describe("Sidebar folder interactions", () => {
     expect(onMarkFolderRead).toHaveBeenCalledWith("folder-1")
   })
 
-  it("creates a subfolder from the folder context menu", () => {
+  it("creates a subfolder through the in-app dialog, never window.prompt", () => {
     const onCreateSubfolder = vi.fn()
-    vi.spyOn(window, "prompt").mockReturnValue("Papers")
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Papers")
     renderSidebar({ onCreateSubfolder })
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "Research2" }))
     fireEvent.click(screen.getByRole("menuitem", { name: "New subfolder" }))
 
+    const input = screen.getByLabelText<HTMLInputElement>("Folder name")
+    expect(input.value).toBe("")
+    // Submit stays disabled until a name exists.
+    const submit = screen.getByRole("button", { name: "New subfolder" })
+    expect(submit).toBeDisabled()
+    fireEvent.change(input, { target: { value: "Papers" } })
+    fireEvent.click(submit)
+
+    expect(promptSpy).not.toHaveBeenCalled()
     expect(onCreateSubfolder).toHaveBeenCalledWith("folder-1", "Papers")
   })
 })

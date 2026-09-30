@@ -4,7 +4,7 @@ import type { ResearchPaper, ResearchPaperPatch, SubmissionRecord } from "../../
 import { useTranslation } from "../../lib/i18n"
 import { SUBMISSION_STATUS_OPTIONS } from "../../lib/research"
 import { toast } from "../../store/toast"
-import { ChipEditor, DragHandle, EmptyState, ExpandToggle, InlineText, MenuSelect, Row } from "./shared"
+import { ChipEditor, DragHandle, EmptyState, ExpandToggle, InlineText, MenuSelect, NotesCell, Row } from "./shared"
 import {
   daysUntil,
   displayID,
@@ -38,6 +38,7 @@ export function SubmittedPage(props: {
   onDelete: (id: string) => void
   onReorder: (orderedIDs: string[]) => void
   onMove: (id: string) => void
+  onMoveBack: (id: string) => void
 }) {
   const { t } = useTranslation()
   const onFocusConsumed = props.onFocusConsumed
@@ -55,25 +56,8 @@ export function SubmittedPage(props: {
     journal: string
     date: string
   } | null>(null)
-  // 备注格是"预览 + 入口"：点它展开详情行并把光标送进那格的备注字段。
-  // seq 让同一行连着点两次也能再聚焦一次（expandedID 没变，effect 就不会重跑）。
-  const [notesRequest, setNotesRequest] = useState<{ id: string; seq: number } | null>(null)
-
-  useEffect(() => {
-    if (!notesRequest || expandedID !== notesRequest.id) return
-    const field = document.querySelector<HTMLElement>(
-      `[data-notes-field="${notesRequest.id}"] .wb-editable, [data-notes-field="${notesRequest.id}"] textarea`,
-    )
-    if (!field) return
-    field.scrollIntoView({ block: "nearest" })
-    field.focus({ preventScroll: true })
-  }, [notesRequest, expandedID])
-
-  const openNotes = (id: string) => {
-    setExpandedID(id)
-    setNotesRequest((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))
-  }
-
+  // 备注格是栏内直接编辑的 textarea（见 shared.tsx 的 NotesCell），不再需要
+  // "点预览 → 展开详情 → 聚焦字段"的传送：详情行里的备注编辑器仍保留。
   useEffect(() => {
     if (!mountedFocus) return
     document
@@ -283,24 +267,11 @@ export function SubmittedPage(props: {
                         />
                       </td>
                       <td className="wb-col-notes">
-                        <button
-                          type="button"
-                          className="wb-editable wb-notes-cell"
-                          aria-label={`${t("notesEditHint")}: ${paper.title || displayID("submitted", index)}`}
-                          title={paper.notes || t("notesEditHint")}
-                          onClick={() => openNotes(paper.id)}
-                        >
-                          {paper.notes ? (
-                            paper.notes
-                          ) : (
-                            <>
-                              <span className="wb-notes-pen" aria-hidden="true">
-                                ✎
-                              </span>
-                              <span className="wb-ph">{t("fillPlaceholder")}</span>
-                            </>
-                          )}
-                        </button>
+                        <NotesCell
+                          value={paper.notes}
+                          ariaLabel={`${t("notesEditHint")}: ${paper.title || displayID("submitted", index)}`}
+                          onCommit={(notes) => props.onUpdate(paper.id, { notes })}
+                        />
                       </td>
                       <td className="wb-col-actions">
                         <ExpandToggle
@@ -308,6 +279,15 @@ export function SubmittedPage(props: {
                           label={expanded ? t("collapseRow") : t("expandRow")}
                           onToggle={() => setExpandedID(expanded ? null : paper.id)}
                         />
+                        <button
+                          type="button"
+                          className="wb-btn wb-flow-btn"
+                          disabled={props.offline}
+                          title={props.offline ? t("workbenchOfflineHint") : undefined}
+                          onClick={() => props.onMoveBack(paper.id)}
+                        >
+                          {t("flowToResearch")}
+                        </button>
                         <button
                           type="button"
                           className="wb-btn wb-flow-btn"
