@@ -55,6 +55,24 @@ export function SubmittedPage(props: {
     journal: string
     date: string
   } | null>(null)
+  // 备注格是"预览 + 入口"：点它展开详情行并把光标送进那格的备注字段。
+  // seq 让同一行连着点两次也能再聚焦一次（expandedID 没变，effect 就不会重跑）。
+  const [notesRequest, setNotesRequest] = useState<{ id: string; seq: number } | null>(null)
+
+  useEffect(() => {
+    if (!notesRequest || expandedID !== notesRequest.id) return
+    const field = document.querySelector<HTMLElement>(
+      `[data-notes-field="${notesRequest.id}"] .wb-editable, [data-notes-field="${notesRequest.id}"] textarea`,
+    )
+    if (!field) return
+    field.scrollIntoView({ block: "nearest" })
+    field.focus({ preventScroll: true })
+  }, [notesRequest, expandedID])
+
+  const openNotes = (id: string) => {
+    setExpandedID(id)
+    setNotesRequest((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))
+  }
 
   useEffect(() => {
     if (!mountedFocus) return
@@ -162,13 +180,14 @@ export function SubmittedPage(props: {
               <th className="wb-col-text wb-col-note">{t("nextAction")}</th>
               <th className="wb-col-date">{t("deadlineLabel")}</th>
               <th className="wb-col-count">{t("submissionCountLabel")}</th>
+              <th className="wb-col-notes">{t("colNotes")}</th>
               <th className="wb-col-actions">{t("colActions")}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="wb-empty">
+                <td colSpan={9} className="wb-empty">
                   {search.trim() || status ? (
                     <EmptyState title={t("noMatchingPapers")} hint={t("emptySearchHint")} />
                   ) : (
@@ -263,6 +282,26 @@ export function SubmittedPage(props: {
                           }
                         />
                       </td>
+                      <td className="wb-col-notes">
+                        <button
+                          type="button"
+                          className="wb-editable wb-notes-cell"
+                          aria-label={`${t("notesEditHint")}: ${paper.title || displayID("submitted", index)}`}
+                          title={paper.notes || t("notesEditHint")}
+                          onClick={() => openNotes(paper.id)}
+                        >
+                          {paper.notes ? (
+                            paper.notes
+                          ) : (
+                            <>
+                              <span className="wb-notes-pen" aria-hidden="true">
+                                ✎
+                              </span>
+                              <span className="wb-ph">{t("fillPlaceholder")}</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
                       <td className="wb-col-actions">
                         <ExpandToggle
                           expanded={expanded}
@@ -292,7 +331,7 @@ export function SubmittedPage(props: {
                     </Row>
                     {expanded && (
                       <tr className="wb-row-detail">
-                        <td colSpan={8}>
+                        <td colSpan={9}>
                           <div className="wb-detail-grid">
                             <div className="wb-history">
                               <div className="wb-history-head">
@@ -456,6 +495,17 @@ export function SubmittedPage(props: {
                                 >
                                   {t("copyPath")}
                                 </button>
+                              </div>
+                              <div className="wb-detail-notes" data-notes-field={paper.id}>
+                                <div className="wb-muted wb-abstract-label">{t("colNotes")}</div>
+                                <div className="wb-abstract">
+                                  <InlineText
+                                    multiline
+                                    value={paper.notes}
+                                    placeholder={t("fillPlaceholder")}
+                                    onCommit={(notes) => props.onUpdate(paper.id, { notes })}
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>

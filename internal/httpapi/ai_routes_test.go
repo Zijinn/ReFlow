@@ -136,6 +136,174 @@ func TestAIAPIPrivacyCachingChatAndSecretBoundaries(t *testing.T) {
 	}
 }
 
+func createAIAAPITestPaper(t *testing.T, db *sql.DB, paper domain.ResearchPaper) string {
+	t.Helper()
+	created, err := storage.CreateResearchPaper(context.Background(), db, domain.DefaultProfileID, paper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return created.ID
+}
+
+func TestAIPaperChatAndDailyDigestAPI(t *testing.T) {
+	var calls atomic.Int32
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		var request struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		joined := ""
+		for _, message := range request.Messages {
+			joined += message.Content
+		}
+		if !strings.Contains(joined, "Digital yuan and CBDC") {
+			t.Errorf("research prompt missing paper context: %s", joined)
+		}
+		// The digest prompt asks for the structured JSON document; a compliant
+		// provider answers with `sections`, while the paper chat keeps the old
+		// prose shape. Both must survive the same job/session transport.
+		answer := "Focus on the overdue submission."
+		if strings.Contains(joined, "Today's progress plan") {
+			answer = `{"sections":[{"kicker":"Manuscripts · status","headline":"Focus on the overdue submission.","blocks":[{"type":"status-rows","items":[{"status":"stuck on data","title":"Digital yuan and CBDC","next":"finish the robustness table"}]}]}]}`
+		}
+		w.Header().Set("Content-Type", "application/json")
+		response, err := json.Marshal(map[string]any{
+			"choices": []map[string]any{{"message": map[string]string{"role": "assistant", "content": answer}}},
+			"usage":   map[string]int{"prompt_tokens": 25, "completion_tokens": 7, "total_tokens": 32},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, _ = w.Write(response)
+	}))
+	defer provider.Close()
+
+	db, apiServer := newAIAPITestServer(t)
+	profileResponse := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/profiles", map[string]any{
+		"provider": "openai_compatible", "name": "Research AI", "endpoint": provider.URL + "/v1",
+		"model": "fixture-model", "api_key": "research-route-secret", "allow_private_network": true,
+		"remote_content_approved": true, "is_default": true,
+	})
+	var profile struct {
+		ID string `json:"id"`
+	}
+	decodeResponse(t, profileResponse, &profile)
+
+	researchID := createAIAAPITestPaper(t, db, domain.ResearchPaper{
+		Kind: domain.ResearchKindResearch, Title: "Digital yuan and CBDC", Priority: "high",
+		Stages: []domain.ResearchStage{{Name: "Robustness checks", Done: false}},
+	})
+
+	// Paper-context chat: 202 with an ai.research job and a session with no entry id.
+	chatResponse := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/paper-chat", map[string]any{
+		"profile_id": profile.ID, "paper_ids": []string{researchID}, "message": "What should I do first?",
+	})
+	if chatResponse.StatusCode != http.StatusAccepted {
+		t.Fatalf("paper chat: %d %s", chatResponse.StatusCode, readBody(t, chatResponse))
+	}
+	var chatStarted struct {
+		Job     domain.Job           `json:"job"`
+		Session domain.AIChatSession `json:"session"`
+	}
+	decodeResponse(t, chatResponse, &chatStarted)
+	if chatStarted.Job.Kind != "ai.research" {
+		t.Fatalf("paper chat job kind: %q", chatStarted.Job.Kind)
+	}
+	if chatStarted.Session.EntryID != nil {
+		t.Fatalf("paper chat session should not bind an article")
+	}
+	waitForJobState(t, apiServer.URL, chatStarted.Job.ID, "succeeded")
+	chatDetail, err := http.Get(apiServer.URL + "/api/v1/ai/chats/" + chatStarted.Session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatBody := readBody(t, chatDetail)
+	if !strings.Contains(chatBody, "What should I do first?") || !strings.Contains(chatBody, "overdue submission") {
+		t.Fatalf("unexpected paper chat: %s", chatBody)
+	}
+
+	// Daily digest: reads the whole workspace, returns the same job/session shape.
+	digestResponse := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/daily-digest", map[string]any{
+		"profile_id": profile.ID, "language": "Simplified Chinese",
+	})
+	if digestResponse.StatusCode != http.StatusAccepted {
+		t.Fatalf("daily digest: %d %s", digestResponse.StatusCode, readBody(t, digestResponse))
+	}
+	var digestStarted struct {
+		Job     domain.Job           `json:"job"`
+		Session domain.AIChatSession `json:"session"`
+	}
+	decodeResponse(t, digestResponse, &digestStarted)
+	if digestStarted.Job.Kind != "ai.research" {
+		t.Fatalf("digest job kind: %q", digestStarted.Job.Kind)
+	}
+	waitForJobState(t, apiServer.URL, digestStarted.Job.ID, "succeeded")
+	digestDetail, err := http.Get(apiServer.URL + "/api/v1/ai/chats/" + digestStarted.Session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var digestSession domain.AIChatSession
+	decodeResponse(t, digestDetail, &digestSession)
+	// The digest session still holds exactly one assistant message; its content
+	// is now the structured `sections` document (stored verbatim, unvalidated —
+	// providers that answer in prose keep working through the client fallback).
+	if len(digestSession.Messages) != 1 || digestSession.Messages[0].Role != "assistant" ||
+		!strings.Contains(digestSession.Messages[0].Content, `"sections"`) ||
+		!strings.Contains(digestSession.Messages[0].Content, "overdue submission") {
+		t.Fatalf("unexpected digest session: %+v", digestSession.Messages)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected two provider calls, got %d", calls.Load())
+	}
+
+	// The job payload must not carry the API key.
+	var payloadJSON string
+	if err := db.QueryRowContext(context.Background(), "SELECT payload_json FROM jobs WHERE id = ?", digestStarted.Job.ID).Scan(&payloadJSON); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(payloadJSON, "research-route-secret") {
+		t.Fatalf("research job payload leaked API key: %s", payloadJSON)
+	}
+}
+
+func TestAIPaperChatAndDigestValidation(t *testing.T) {
+	_, apiServer := newAIAPITestServer(t)
+	profileResponse := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/profiles", map[string]any{
+		"provider": "openai_compatible", "name": "Validation AI", "endpoint": "http://127.0.0.1:1/v1",
+		"model": "m", "api_key": "k", "allow_private_network": true, "remote_content_approved": true, "is_default": true,
+	})
+	var profile struct {
+		ID string `json:"id"`
+	}
+	decodeResponse(t, profileResponse, &profile)
+
+	// Unknown paper id resolves through the research store, so it is a 404.
+	missing := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/paper-chat", map[string]any{
+		"profile_id": profile.ID, "paper_ids": []string{"does-not-exist"}, "message": "hi",
+	})
+	if missing.StatusCode != http.StatusNotFound {
+		t.Fatalf("unknown paper id: %d %s", missing.StatusCode, readBody(t, missing))
+	}
+	// Empty paper list is rejected before enqueue.
+	empty := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/paper-chat", map[string]any{
+		"profile_id": profile.ID, "paper_ids": []string{}, "message": "hi",
+	})
+	if empty.StatusCode != http.StatusBadRequest {
+		t.Fatalf("empty paper list: %d %s", empty.StatusCode, readBody(t, empty))
+	}
+	// Digest over an empty workspace is a 400, not a 500.
+	digest := requestJSON(t, http.MethodPost, apiServer.URL+"/api/v1/ai/daily-digest", map[string]any{"profile_id": profile.ID})
+	if digest.StatusCode != http.StatusBadRequest {
+		t.Fatalf("digest with no papers: %d %s", digest.StatusCode, readBody(t, digest))
+	}
+}
+
 func newAIAPITestServer(t *testing.T) (*sql.DB, *httptest.Server) {
 	t.Helper()
 	db, err := storage.Open(context.Background(), filepath.Join(t.TempDir(), "reflow.db"))

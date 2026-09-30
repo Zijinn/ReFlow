@@ -35,6 +35,14 @@ interface SidebarProps {
   onScopeChange: (scope: LibraryScope) => void
   onAdd: () => void
   onOrganizeLibrary: () => void
+  /**
+   * The AI / theme / preferences cluster, owned by AppShell and mounted into
+   * the pinned bottom-left block. AppShell hands over `null` below the 900px
+   * breakpoint, where this whole aside is `display: none` and the same cluster
+   * is rendered into MobileNav instead — two live copies would double every
+   * accessible name and every tab stop.
+   */
+  actions?: ReactNode
   onMarkFeedRead: (feedID: string) => void
   onMarkFolderRead: (folderID: string) => void
   onRefreshFeed: (feedID: string) => void
@@ -256,6 +264,10 @@ export function Sidebar(props: SidebarProps) {
           </div>
         </div>
       </section>
+      {/* Pinned under `.subscription-section`, which owns the free flex space:
+          this block is `flex: 0 0 auto`, so the cluster stays at the sidebar's
+          bottom-left while the feed tree scrolls above it. */}
+      {props.actions ? <div className="sidebar__actions">{props.actions}</div> : null}
       {sseState === "reconnecting" && (
         <footer className="sidebar__footer" role="status">
           <span className="server-state">

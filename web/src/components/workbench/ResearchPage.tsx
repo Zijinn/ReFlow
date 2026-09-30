@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 
 import { CaretRight } from "@phosphor-icons/react"
 
@@ -35,6 +35,24 @@ export function ResearchPage(props: {
   const [search, setSearch] = useState("")
   const [priority, setPriority] = useState("")
   const [expandedID, setExpandedID] = useState<string | null>(null)
+  // 备注格是"预览 + 入口"：点它展开详情行并把光标送进那格的备注字段。
+  // seq 让同一行连着点两次也能再聚焦一次（expandedID 没变，effect 就不会重跑）。
+  const [notesRequest, setNotesRequest] = useState<{ id: string; seq: number } | null>(null)
+
+  useEffect(() => {
+    if (!notesRequest || expandedID !== notesRequest.id) return
+    const field = document.querySelector<HTMLElement>(
+      `[data-notes-field="${notesRequest.id}"] .wb-editable, [data-notes-field="${notesRequest.id}"] textarea`,
+    )
+    if (!field) return
+    field.scrollIntoView({ block: "nearest" })
+    field.focus({ preventScroll: true })
+  }, [notesRequest, expandedID])
+
+  const openNotes = (id: string) => {
+    setExpandedID(id)
+    setNotesRequest((prev) => ({ id, seq: (prev?.seq ?? 0) + 1 }))
+  }
 
   const priorityOptions = useMemo(
     () =>
@@ -106,13 +124,14 @@ export function ResearchPage(props: {
               <th className="wb-col-text">{t("targetJournal")}</th>
               <th className="wb-col-text wb-col-note">{t("nextAction")}</th>
               <th className="wb-col-date">{t("lastUpdatedLabel")}</th>
+              <th className="wb-col-notes">{t("colNotes")}</th>
               <th className="wb-col-actions">{t("colActions")}</th>
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="wb-empty">
+                <td colSpan={9} className="wb-empty">
                   {search.trim() || priority ? (
                     <EmptyState title={t("noMatchingPapers")} hint={t("emptySearchHint")} />
                   ) : (
@@ -233,6 +252,26 @@ export function ResearchPage(props: {
                       <td className="wb-col-date wb-muted">
                         {(paper.last_updated || "").slice(0, 10) || "—"}
                       </td>
+                      <td className="wb-col-notes">
+                        <button
+                          type="button"
+                          className="wb-editable wb-notes-cell"
+                          aria-label={`${t("notesEditHint")}: ${paper.title || displayID("research", index)}`}
+                          title={paper.notes || t("notesEditHint")}
+                          onClick={() => openNotes(paper.id)}
+                        >
+                          {paper.notes ? (
+                            paper.notes
+                          ) : (
+                            <>
+                              <span className="wb-notes-pen" aria-hidden="true">
+                                ✎
+                              </span>
+                              <span className="wb-ph">{t("fillPlaceholder")}</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
                       <td className="wb-col-actions">
                         <button
                           type="button"
@@ -257,7 +296,7 @@ export function ResearchPage(props: {
                     </Row>
                     {expanded && (
                       <tr className="wb-row-detail">
-                        <td colSpan={8}>
+                        <td colSpan={9}>
                           <div className="wb-detail-grid">
                             <StageTree
                               stages={stages}
@@ -288,6 +327,17 @@ export function ResearchPage(props: {
                                 >
                                   {t("copyPath")}
                                 </button>
+                              </div>
+                              <div className="wb-detail-notes" data-notes-field={paper.id}>
+                                <div className="wb-muted wb-abstract-label">{t("colNotes")}</div>
+                                <div className="wb-abstract">
+                                  <InlineText
+                                    multiline
+                                    value={paper.notes}
+                                    placeholder={t("fillPlaceholder")}
+                                    onCommit={(notes) => props.onUpdate(paper.id, { notes })}
+                                  />
+                                </div>
                               </div>
                               <div className="wb-muted wb-detail-meta">
                                 {t("stageProgress")} · {leaves.done}/{leaves.total}

@@ -6,7 +6,7 @@ import {
   NotePencil,
   PaperPlaneTilt,
 } from "@phosphor-icons/react"
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   createResearchPaper,
@@ -19,17 +19,25 @@ import {
   reorderResearchPapers,
   updateResearchPaper,
 } from "../../api/client"
-import type { ListResponse, ResearchKind, ResearchPaper, ResearchPaperPatch } from "../../api/types"
+import type {
+  AIProfile,
+  ListResponse,
+  ResearchKind,
+  ResearchPaper,
+  ResearchPaperPatch,
+} from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
 import { isEnglishPaper, normalizeDoi } from "../../lib/research"
 import { toast } from "../../store/toast"
+import { AIWorkbench } from "../AIWorkbench"
 import { ConfirmDialog } from "../ConfirmDialog"
 import { CalendarPage } from "./CalendarPage"
 import { Dashboard } from "./Dashboard"
 import { PublishedPage } from "./PublishedPage"
 import { ResearchPage } from "./ResearchPage"
 import { SubmittedPage } from "./SubmittedPage"
+import { daysUntil, parseDeadline } from "./utils"
 
 type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
 
@@ -41,7 +49,40 @@ const TABS: Array<{ id: WorkbenchTab; labelKey: string; Icon: typeof Books }> = 
   { id: "calendar", labelKey: "calendar", Icon: CalendarBlank },
 ]
 
-export function Workbench() {
+// `/ai/paper-chat` accepts 1..20 ids; anything longer is a 400.
+const AI_PAPER_LIMIT = 20
+
+function deadlineDays(paper: ResearchPaper): number {
+  const date = parseDeadline(paper.deadline)
+  return date ? daysUntil(date) : Number.MAX_SAFE_INTEGER
+}
+
+function truncateTitle(title: string): string {
+  const trimmed = title.trim()
+  if (trimmed.length === 0) return "—"
+  return trimmed.length > 36 ? `${trimmed.slice(0, 36)}…` : trimmed
+}
+
+function aiContextKey(tab: WorkbenchTab): string {
+  if (tab === "research") return "aiContextResearch"
+  if (tab === "submitted") return "aiContextSubmitted"
+  if (tab === "published") return "aiContextPublished"
+  if (tab === "calendar") return "aiContextCalendar"
+  return "aiContextOverview"
+}
+
+export interface WorkbenchProps {
+  /** The shell owns the AI toggle so one button drives reader and workbench. */
+  aiOpen?: boolean
+  aiProfiles?: AIProfile[]
+  aiPanelWidth?: number
+  onAIPanelWidthChange?: (width: number) => void
+  onAskAI?: () => void
+  onCloseAI?: () => void
+  onConfigureAI?: () => void
+}
+
+export function Workbench(props: WorkbenchProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const online = useOnlineState()
@@ -52,6 +93,8 @@ export function Workbench() {
   const [citationProgress, setCitationProgress] = useState<{ done: number; total: number } | null>(
     null,
   )
+  const shellRef = useRef<HTMLDivElement>(null)
+  const [openRowID, setOpenRowID] = useState<string | null>(null)
   // Stable so the submissions page's jump effect does not re-run every render.
   const clearFocus = useCallback(() => setFocusPaperID(null), [])
 
@@ -62,15 +105,96 @@ export function Workbench() {
       queryFn: ({ signal }: { signal: AbortSignal }) => listResearchPapers(kind, signal),
     })),
   })
-  const research = results[0]?.data?.items ?? []
-  const submitted = results[1]?.data?.items ?? []
-  const published = results[2]?.data?.items ?? []
+  // Memoised per kind: the AI context memo below depends on these, and a fresh
+  // `?? []` on every render would recompute the paper set (and remount nothing,
+  // but re-key nothing) for no reason.
+  const researchItems = results[0]?.data?.items
+  const submittedItems = results[1]?.data?.items
+  const publishedItems = results[2]?.data?.items
+  const research = useMemo(() => researchItems ?? [], [researchItems])
+  const submitted = useMemo(() => submittedItems ?? [], [submittedItems])
+  const published = useMemo(() => publishedItems ?? [], [publishedItems])
   const isLoading = results.some((result) => result.isPending)
   const hasError = results.some((result) => result.isError)
   const retryAll = () => {
     for (const result of results) void result.refetch()
   }
 
+  // The assistant answers about the rows the owner is looking at. Expansion
+  // state lives inside each page component, which the shell does not own, so it
+  // is read back from the markup the pages already produce: a row is
+  // `tr[data-paper-id]` and its toggle carries `aria-expanded`. Changing tab
+  // drops the focus here (an event handler, not an effect) because the new tab
+  // has no expanded row yet.
+  const selectTab = useCallback((next: WorkbenchTab) => {
+    setOpenRowID(null)
+    setTab(next)
+  }, [])
+
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!shell) return
+    let frame = 0
+    const read = () => {
+      const toggle = shell.querySelector<HTMLElement>('[data-paper-id] [aria-expanded="true"]')
+      // Read the attribute, not `dataset.paperID`: the camelCase key for
+      // `data-paper-id` is `paperId`, so the dataset form silently returned
+      // undefined and the context never narrowed.
+      const id = toggle?.closest("[data-paper-id]")?.getAttribute("data-paper-id") ?? null
+      setOpenRowID((current) => (current === id ? current : id))
+    }
+    // React attaches its handlers at the root container, i.e. above this
+    // bubble-phase listener, so the state update it schedules has to be given a
+    // frame before the DOM reflects the new expanded row.
+    const onClick = () => {
+      window.cancelAnimationFrame(frame)
+      frame = window.requestAnimationFrame(read)
+    }
+    shell.addEventListener("click", onClick)
+    return () => {
+      shell.removeEventListener("click", onClick)
+      window.cancelAnimationFrame(frame)
+    }
+  }, [tab])
+
+  // Paper set per tab: the calendar only ever shows submitted deadlines, so it
+  // scopes to the papers that actually have one; the overview spans the whole
+  // workspace. An expanded row narrows the context to that single paper.
+  const tabPapers = useMemo<ResearchPaper[]>(() => {
+    if (tab === "research") return research
+    if (tab === "submitted") return submitted
+    if (tab === "published") return published
+    if (tab === "calendar") {
+      return submitted
+        .filter((paper) => parseDeadline(paper.deadline) !== null)
+        .sort((left, right) => deadlineDays(left) - deadlineDays(right))
+    }
+    return [...research, ...submitted, ...published]
+  }, [published, research, submitted, tab])
+
+  const focusedPaper = openRowID ? tabPapers.find((paper) => paper.id === openRowID) ?? null : null
+  const aiPaperIDs = useMemo(
+    () =>
+      (focusedPaper ? [focusedPaper] : tabPapers.slice(0, AI_PAPER_LIMIT)).map((paper) => paper.id),
+    [focusedPaper, tabPapers],
+  )
+  const aiContextLabel = focusedPaper
+    ? `${t("aiContextFocusedPaper")} · ${truncateTitle(focusedPaper.title)}`
+    : `${t(aiContextKey(tab))} · ${tabPapers.length}`
+  // The digest's per-section action bubble jumps to the paper's own view.
+  // Submitted papers additionally get the existing calendar-style focus, so
+  // the bubble does exactly what the calendar event click already does.
+  const openPaperFromDigest = useCallback(
+    (paperID: string) => {
+      const found = [...research, ...submitted, ...published].find(
+        (paper) => paper.id === paperID,
+      )
+      if (!found) return
+      if (found.kind === "submitted") setFocusPaperID(paperID)
+      selectTab(found.kind)
+    },
+    [published, research, selectTab, submitted],
+  )
   const preferences = useQuery({
     queryKey: ["preferences"],
     queryFn: ({ signal }) => listPreferences(signal),
@@ -307,7 +431,7 @@ export function Workbench() {
   }
 
   return (
-    <div className="wb-shell">
+    <div className="wb-shell" ref={shellRef}>
       <div className="wb-main">
         <nav className="wb-nav" aria-label={t("workbench")}>
           {TABS.map((entry) => (
@@ -316,7 +440,7 @@ export function Workbench() {
               type="button"
               className={`wb-nav-item ${tab === entry.id ? "wb-nav-item--active" : ""}`}
               aria-current={tab === entry.id ? "page" : undefined}
-              onClick={() => setTab(entry.id)}
+              onClick={() => selectTab(entry.id)}
             >
               <entry.Icon size={15} weight={tab === entry.id ? "fill" : "regular"} />
               <span>{t(entry.labelKey)}</span>
@@ -366,7 +490,11 @@ export function Workbench() {
                   research={research}
                   submitted={submitted}
                   published={published}
-                  onNavigate={setTab}
+                  aiProfiles={props.aiProfiles ?? []}
+                  onConfigureAI={props.onConfigureAI}
+                  onAskAI={props.onAskAI}
+                  onOpenPaper={openPaperFromDigest}
+                  onNavigate={selectTab}
                 />
               )}
               {tab === "research" && (
@@ -418,9 +546,12 @@ export function Workbench() {
               {tab === "calendar" && (
                 <CalendarPage
                   papers={submitted}
+                  aiProfiles={props.aiProfiles ?? []}
+                  onConfigureAI={props.onConfigureAI}
+                  onAskAI={props.onAskAI}
                   onSelectPaper={(id) => {
                     setFocusPaperID(id)
-                    setTab("submitted")
+                    selectTab("submitted")
                   }}
                 />
               )}
@@ -428,6 +559,18 @@ export function Workbench() {
           )}
         </section>
       </div>
+      {props.aiOpen && (
+        <AIWorkbench
+          paperIDs={aiPaperIDs}
+          profiles={props.aiProfiles ?? []}
+          width={props.aiPanelWidth ?? 380}
+          contextLabel={aiContextLabel}
+          initialMode="chat"
+          onWidthChange={props.onAIPanelWidthChange ?? (() => {})}
+          onClose={props.onCloseAI ?? (() => {})}
+          onConfigure={props.onConfigureAI ?? (() => {})}
+        />
+      )}
       <ConfirmDialog
         open={confirm !== null}
         message={confirm?.message ?? ""}

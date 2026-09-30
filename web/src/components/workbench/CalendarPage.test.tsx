@@ -142,6 +142,27 @@ describe("CalendarPage", () => {
     expect(screen.getByRole("heading", { name: "March 2026" })).toBeInTheDocument()
     expect(document.querySelector(".wb-cal-day--today")).not.toBeNull()
   })
+
+  // The assistant has to be usable from the calendar too, so the daily plan lives
+  // here rather than only on the overview — and it sits above the grid, not
+  // inside it, so a narrow viewport never squeezes the month.
+  it("hosts the daily progress plan between the month header and the grid", () => {
+    render(
+      <CalendarPage
+        papers={[paper({ id: "s-due", title: "Due soon", deadline: dayOffset(1) })]}
+        onSelectPaper={vi.fn()}
+      />,
+    )
+    const card = screen.getByRole("region", { name: "Today's progress plan" })
+    expect(card).toBeInTheDocument()
+    const calendar = document.querySelector(".wb-calendar") as HTMLElement
+    expect(Array.from(calendar.children).indexOf(card)).toBe(1)
+    expect(card.previousElementSibling?.className).toBe("wb-cal-head")
+    expect(card.nextElementSibling?.className).toBe("wb-cal-grid")
+    expect(card).toHaveTextContent("Configure AI to get a daily progress plan here.")
+    expect(card).toHaveTextContent("Due in 7 days")
+    expect(screen.getByRole("heading", { name: "March 2026" })).toBeInTheDocument()
+  })
 })
 
 afterEach(() => {

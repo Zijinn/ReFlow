@@ -1226,6 +1226,95 @@ paths:
                     $ref: "#/components/schemas/AIChatSession"
         "428":
           $ref: "#/components/responses/Problem"
+  /api/v1/ai/paper-chat:
+    post:
+      operationId: startAIPaperChat
+      tags: [ai, jobs, research]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [paper_ids, message]
+              properties:
+                paper_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 20
+                  items:
+                    type: string
+                    format: uuid
+                profile_id:
+                  type: string
+                  format: uuid
+                session_id:
+                  type: string
+                  format: uuid
+                message:
+                  type: string
+                  minLength: 1
+                  maxLength: 4000
+      responses:
+        "202":
+          description: Paper-workspace chat job accepted; poll the job then read the session.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job, session]
+                properties:
+                  job:
+                    $ref: "#/components/schemas/Job"
+                  session:
+                    $ref: "#/components/schemas/AIChatSession"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
+  /api/v1/ai/daily-digest:
+    post:
+      operationId: startAIDailyDigest
+      tags: [ai, jobs, research]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                profile_id:
+                  type: string
+                  format: uuid
+                language:
+                  type: string
+                  maxLength: 40
+                  description: Response language (e.g. "Simplified Chinese"); "auto" or omitted matches the paper titles.
+      responses:
+        "202":
+          description: >-
+            Daily progress digest job accepted; poll the job then read the assistant-only session.
+            The session's single assistant message carries the structured digest document: a JSON
+            object {"sections":[{"kicker","headline","lead","blocks","closing","action"}]} where
+            blocks are typed entries (status-rows | timeline | grid | chips | quote | note), or
+            plain text when the provider ignores the JSON contract — the client strips code
+            fences, validates the shape, and degrades to line-based text rendering.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [job, session]
+                properties:
+                  job:
+                    $ref: "#/components/schemas/Job"
+                  session:
+                    $ref: "#/components/schemas/AIChatSession"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "428":
+          $ref: "#/components/responses/Problem"
   /api/v1/integrations/zotero/status:
     get:
       operationId: getZoteroStatus

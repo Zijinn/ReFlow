@@ -86,6 +86,7 @@ import { enqueueStateMutation, flushMutationOutbox, queueStateMutation } from ".
 import { useReaderStore, type PaneLayout } from "../store/reader"
 import { toast } from "../store/toast"
 import { Sidebar } from "./Sidebar"
+import { ShellActions } from "./ShellActions"
 import { TimelinePane } from "./TimelinePane"
 import { ConfirmDialog } from "./ConfirmDialog"
 import { MobileNav } from "./MobileNav"
@@ -241,6 +242,12 @@ export function AppShell() {
   // column is fluid, so reserving a reader measure there would cap the sidebar
   // against a pane that isn't even rendered.
   const readerMinimum = appView === "reader" ? minimumReaderWidth(viewportWidth) : 0
+
+  // The shell cluster (AI / theme / preferences) has exactly one home per
+  // viewport: `.sidebar` is `display: none` at the same 900px the stylesheet
+  // switches on, and a hidden copy would still double every accessible name in
+  // tests and assistive tech. Pick the surface the pointer can reach.
+  const isDesktopShell = viewportWidth > DESKTOP_BREAKPOINT
 
   const constrainedPaneLayout = useMemo(
     () => constrainPaneLayout(paneLayout, viewportWidth, readerMinimum),
@@ -1140,6 +1147,16 @@ export function AppShell() {
     )
   }
 
+  const shellActions = (
+    <ShellActions
+      theme={theme}
+      onThemeChange={setTheme}
+      aiOpen={aiOpen}
+      onAI={() => setAIOpen((open) => !open)}
+      onPreferences={() => setPreferencesOpen(true)}
+    />
+  )
+
   return (
     <>
       <a className="skip-link" href="#main-content">
@@ -1160,6 +1177,7 @@ export function AppShell() {
           folders={folders.data?.items ?? []}
           tags={tags.data?.items ?? []}
           savedFilters={savedFilters.data?.items ?? []}
+          actions={isDesktopShell ? shellActions : null}
           onScopeChange={setScope}
           onAdd={() => setAddOpen(true)}
           onOrganizeLibrary={() => {
@@ -1203,7 +1221,15 @@ export function AppShell() {
         <section className="workspace">
           {appView === "workbench" ? (
             <Suspense fallback={<ReaderPlaceholder label={t("workbench")} message={t("workbench")} />}>
-              <Workbench />
+              <Workbench
+                aiOpen={aiOpen}
+                aiProfiles={aiProfiles.data?.items ?? []}
+                aiPanelWidth={aiPanelWidth}
+                onAIPanelWidthChange={setAIPanelWidth}
+                onAskAI={() => setAIOpen(true)}
+                onCloseAI={() => setAIOpen(false)}
+                onConfigureAI={() => setAIProfileOpen(true)}
+              />
             </Suspense>
           ) : (
           <>
@@ -1211,13 +1237,8 @@ export function AppShell() {
             scope={scope}
             search={search}
             searchShortcut={shortcuts.search}
-            theme={theme}
             onSearchChange={setSearch}
-            onThemeChange={setTheme}
-            onPreferences={() => setPreferencesOpen(true)}
             onAdd={() => setAddOpen(true)}
-            aiOpen={aiOpen}
-            onAI={() => setAIOpen((open) => !open)}
           />
           <div className={aiOpen ? "workspace-body workspace-body--ai-open" : "workspace-body"}>
             <TimelinePane
@@ -1316,6 +1337,7 @@ export function AppShell() {
           scope={scope}
           onScopeChange={setScope}
           onLibrary={() => setMobileLibraryOpen(true)}
+          actions={isDesktopShell ? null : shellActions}
         />
         <MobileLibraryDialog
           open={mobileLibraryOpen}

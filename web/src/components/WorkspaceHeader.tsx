@@ -1,49 +1,20 @@
-import {
-  GearSix,
-  MagnifyingGlass,
-  Minus,
-  Moon,
-  Plus,
-  Square,
-  Sun,
-  X,
-} from "@phosphor-icons/react"
-import { useEffect, useState } from "react"
+import { MagnifyingGlass, Minus, Plus, Square, X } from "@phosphor-icons/react"
 
 import type { LibraryScope } from "../api/types"
 import { controlDesktopWindow, desktopPlatform } from "../lib/desktop"
 import { localizedScopeTitle, useTranslation } from "../lib/i18n"
-import type { ThemeMode } from "../store/reader"
-import { AIIcon } from "./AIIcon"
 
 interface WorkspaceHeaderProps {
   scope: LibraryScope
   search: string
   searchShortcut: string
-  theme: ThemeMode
   onSearchChange: (value: string) => void
-  onThemeChange: (theme: ThemeMode) => void
-  onPreferences: () => void
   onAdd: () => void
-  aiOpen: boolean
-  onAI: () => void
 }
 
 export function WorkspaceHeader(props: WorkspaceHeaderProps) {
   const { locale, t } = useTranslation()
   const platform = desktopPlatform()
-  const [systemDark, setSystemDark] = useState(
-    () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false,
-  )
-  const dark = props.theme === "dark" || (props.theme === "system" && systemDark)
-
-  useEffect(() => {
-    const query = window.matchMedia?.("(prefers-color-scheme: dark)")
-    if (!query) return
-    const update = () => setSystemDark(query.matches)
-    query.addEventListener("change", update)
-    return () => query.removeEventListener("change", update)
-  }, [])
 
   return (
     <header className="workspace-header">
@@ -64,35 +35,13 @@ export function WorkspaceHeader(props: WorkspaceHeaderProps) {
         />
         <kbd>{props.searchShortcut}</kbd>
       </label>
+      {/* AI / theme / preferences used to sit here (top-right, reader only).
+          They live in Sidebar.tsx's bottom-left cluster and MobileNav.tsx now,
+          so the reader and the workbench share one entry point. Add-feed stays:
+          it is a library action, the sidebar already owns an add button, and
+          this is the only add entry the phone layout has above the hidden
+          sidebar. */}
       <div className="workspace-actions">
-        <button
-          className={props.aiOpen ? "icon-button icon-button--active" : "icon-button"}
-          type="button"
-          aria-label={t("aiAssistant")}
-          title={t("aiAssistant")}
-          aria-expanded={props.aiOpen}
-          onClick={props.onAI}
-        >
-          <AIIcon />
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={dark ? t("switchToLight") : t("switchToDark")}
-          title={dark ? t("switchToLight") : t("switchToDark")}
-          onClick={() => props.onThemeChange(dark ? "light" : "dark")}
-        >
-          {dark ? <Sun /> : <Moon />}
-        </button>
-        <button
-          className="icon-button"
-          type="button"
-          aria-label={t("preferences")}
-          title={t("preferences")}
-          onClick={props.onPreferences}
-        >
-          <GearSix />
-        </button>
         <button
           className="button button--primary workspace-add"
           type="button"

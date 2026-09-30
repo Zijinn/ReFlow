@@ -7513,9 +7513,14 @@ button:disabled {
   grid-template-columns: 1fr 1fr;
   gap: var(--space-9);
 }
+/* 参考文献两张卡原来是实心 --surface-raised + 1px 灰边：在一整片有色画布上等于
+   贴了两块白纸，正是"割裂"的那种白面。换成和表体同一档的 --card-glass + 0.5px
+   鬓发线，两栏的边、圆角、材质都和上面工具栏带/邮箱行同源。
+   这里只做材质，不做 -8px 出血：两栏是 1fr 网格，各自往外扩 8 会把栏间距从
+   40 顶到 56.5，那是版式位置，不是设计感。 */
 .wb-reference-column {
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background: var(--card-glass);
+  border: 0.5px solid var(--sheet-edge);
   border-radius: var(--radius-panel);
   padding: var(--space-9) var(--space-10);
 }
@@ -7807,22 +7812,28 @@ button:disabled {
 .wb-table .wb-chip-label {
   display: none;
 }
-/* The dashed add-chip wraps onto its own line and inflates every resting row.
-   Collapse it until the row is hovered or the editor is focused.
-   触屏上这一条必须反过来：:hover 永远不会命中，而 display:none 的按钮也拿不到焦点，
-   "悬停才出现"在没有悬停的设备上等于把"加作者/加关键词"整个动作删掉（实测
-   display:none、0×0、getClientRects()=0）。所以无悬停能力的设备让它常驻，行里
-   本来就有的 ＋ 只是多占一格。 */
+/* The dashed add-chip used to be display:none until the row was hovered — and
+   that is exactly what made a chip-less row jump: measured 57.0 → 77.3 (+20.3px)
+   on :hover, which shoves every row below it down a notch. The owner called it
+   "没有作者的行悬停突然放大". Keep the box in flow and fade opacity instead, so
+   the resting layout and the hovered layout are the same layout and row height
+   stops depending on where the pointer is.
+   触屏上这一条必须反过来：:hover 永远不会命中，opacity:0 的按钮虽然仍占位但看不见，
+   "悬停才出现"在没有悬停的设备上等于把"加作者/加关键词"整个动作藏掉。
+   键盘同理，靠 :focus-within 把这一档抬回 1（与 .wb-stage-handle 同一套做法）。 */
 .wb-table .wb-chip-editor .wb-chip-add {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
 }
 .wb-table .wb-row:hover .wb-chip-add,
 .wb-table .wb-chip-editor:focus-within .wb-chip-add {
-  display: inline-flex;
+  opacity: 1;
+  pointer-events: auto;
 }
 @media (hover: none) {
   .wb-table .wb-chip-editor .wb-chip-add {
-    display: inline-flex;
+    opacity: 1;
+    pointer-events: auto;
   }
 }
 /* 研究阶段格：整格是一枚白面玻璃按键（材质见文件末尾的玻璃段——白面、鬓发边减淡到
@@ -7973,7 +7984,13 @@ button:disabled {
   grid-template-columns: repeat(7, minmax(0, 1fr));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface-raised);
+  /* 整块月历吃卡片玻璃：.wb-main → .workspace 一路 transparent，画布就在它
+     正下方，所以这一档透得出去。星期表头本来就是 transparent，格子也只有
+     邻月那一档铺色，因此一层 --card-glass 就够了——不给 42 个格子各叠一层，
+     那样只会把面板糊回实心。照片档与"减弱透明"由 --card-glass 自己的覆盖规则
+     接管（[data-canvas-photo="on"][data-theme="dark"] 与 prefers-reduced-transparency
+     那两处），这里不需要再写特例。 */
+  background: var(--card-glass);
   overflow: hidden;
 }
 /* 星期表头：只靠字色和 0.5px 鬓发线分层，不做灰底条。它是 --surface-muted
@@ -8064,10 +8081,15 @@ button:disabled {
   border: 0;
   border-left: 2px solid var(--wb-cal-hue, var(--accent));
   border-radius: var(--radius-sm);
-  background: color-mix(
-    in srgb,
-    var(--wb-cal-hue, var(--accent)) var(--wb-cal-tint, 10%),
-    transparent
+  /* 色相淡底不吃"月历那一层玻璃"的底：芯片自己先落一档接近实心的面，再往上上色相。
+     原因是量出来的——月历容器是 70% 白，画布顶端 #cfe0f6 比白暗 5%，10% 主色淡底压在
+     这层暗底上，11px 的字在 warm-paper 档掉到 4.47:1，差 0.03 就是 AA 以下。
+     和表头/详情抽屉同一条规矩（见文件末尾"坐在滚动内容之上"那组）：字要读清的那一面
+     用接近实心的白，通透留给容器——芯片只有 200×18，它不透也不影响整块月历的观感。 */
+  background-color: var(--wb-cal-chip-plate);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--wb-cal-hue, var(--accent)) var(--wb-cal-tint, 10%), transparent),
+    color-mix(in srgb, var(--wb-cal-hue, var(--accent)) var(--wb-cal-tint, 10%), transparent)
   );
   color: var(--wb-cal-ink, var(--accent-strong));
   font-size: var(--text-xs);
@@ -8395,10 +8417,13 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* 空值占位"—"是装饰性记号，走 faint 档。这里不再叠 opacity：旧写法
-   tertiary + 0.45 叠加后实测约 1.7:1，等于完全看不见；令牌本身已经是降档的一步。 */
+/* 空值占位"—"要走 tertiary 而不是 faint：表体现在坐在 --card-glass 上，
+   合成后的面比原来的实心白暗了一档，实测 faint 在深档只有 3.07:1。faint 这档
+   在数学上够不到正文标准——#6f727a 放在纯黑上也只有 4.36:1，所以它只留给
+   滚动条、圆点这类装饰；凡是能被读到的字形都归 tertiary。
+   这里同样不叠 opacity：旧写法 tertiary + 0.45 叠加后实测约 1.7:1，等于完全看不见。 */
 .wb-ph {
-  color: var(--text-faint);
+  color: var(--text-tertiary);
   font-weight: var(--fw-regular);
 }
 .wb-editable {
@@ -8495,13 +8520,26 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* ▾ 是可读到的控件指示符（玻璃表体上 faint 实测 2.73:1），归 tertiary。 */
 .wb-menu-chevron {
-  color: var(--text-faint);
+  color: var(--text-tertiary);
   font-size: var(--text-sm);
   transition: transform var(--dur-fast) var(--ease);
 }
 .wb-menu-chevron--open {
   transform: rotate(180deg);
+}
+/* ▾ 在"自己的字色已经被这块面校过"的控件里不再单独降档，一律跟着 currentColor：
+   · 药丸面是 accent 10-20% 的淡面，比表体玻璃更亮，tertiary 压在上面深档实测 4.27:1；
+   · 筛选/排序按钮坐在卡片里，白加白（--surface 的 9% 白叠在 --card-glass 的 7.5% 白）
+     把面抬到 [58,59,51]，tertiary 只剩 3.69:1——而同一颗按钮的标签字在这块面上是 4.65:1。
+   这两处的标签墨色本来就是按自己的面调过的，箭头跟着它既稳过 AA，也让控件读成一个
+   整体而不是"字＋一个更淡的洞"。普通下拉（标签是 --text）仍留 tertiary 那一档安静。
+   特异度 (0,2,0) 稳压上面的 (0,1,0)。 */
+.wb-status-pill .wb-menu-chevron,
+.wb-priority-pill .wb-menu-chevron,
+.wb-filter-menu .wb-menu-chevron {
+  color: currentColor;
 }
 /* 结构骨架：材质/圆角/配色由下面的弹层与去灰阶两段负责 */
 .wb-menu-pop {
@@ -8639,7 +8677,11 @@ button:disabled {
   gap: 2px;
   box-sizing: border-box;
   height: var(--wb-nav-h);
-  padding: 0 var(--space-2);
+  /* 出血 8px，再用内边距把 8px 还回去：border-box 从 272→1225 变成 264→1233，和工具栏带、
+     表体玻璃同一条竖边；content-box 仍是 276→1221，五个分段项一格没动（实测逐项对齐）。
+     三条带原来各宽各的——导航 272、工具栏 264、表体 272——那 8px 的错台就是"割裂"本身。 */
+  padding: 0 calc(var(--space-2) + var(--space-4));
+  margin-inline: calc(var(--space-4) * -1);
   margin-bottom: 20px;
   border: 0;
   border-radius: var(--radius-xl);
@@ -9422,8 +9464,11 @@ button:disabled {
 .wb-shell {
   --surface: var(--surface-raised);
   --surface-muted: #f3f7fe;
-  /* 浮动 chrome 只有一套材质：导航条和工具栏共用，滚动叠放时看不出接缝。 */
-  --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 82%, transparent);
+  /* 浮动 chrome 只有一套材质：导航条和工具栏共用，滚动叠放时看不出接缝。
+     76% 白卡在卡片（70%）与控件（78%）之间：带上控件坐在自己的带子上时，
+     最透的仍然是"面"而不是"按键"，白胶囊才读得出是浮起来的凸面。
+     条与条 12px 交叠处合成后约 95% 不透明，接缝处不会透出正在滚过的行。 */
+  --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 76%, transparent);
   --wb-chrome-ring: inset 0 0 0 0.5px rgb(255 255 255 / 0.55);
   --wb-chrome-blur: blur(20px) saturate(160%);
   --wb-nav-h: 46px;
@@ -9473,8 +9518,14 @@ button:disabled {
      recede 是沉下去，所以深色模式必须往更暗混，否则邻月格子会凸到纸面之前。
      浅底用色相池里的中性灰而不是蓝调：hover/当天都是主色淡底，邻月若也用蓝
      就会和它们撞色（实测 6% 蓝和 5% 主色算出来是同一个 rgb）。控件不铺灰，
-     但"整片区域退到纸后"这件事本来就该是灰的。 */
-  --wb-recede: color-mix(in srgb, var(--wb-hue-gray) 6%, var(--surface-raised));
+     但"整片区域退到纸后"这件事本来就该是灰的。
+     必须是不含底色的纯 alpha 蒙层：月历的容器现在是 --card-glass 玻璃，邻月若
+     还混一个实心色，就会在 42 格里凿出若干不透的洞，透出的画布被切成斑马纹。 */
+  --wb-recede: color-mix(in srgb, var(--wb-hue-gray) 9%, transparent);
+  /* 日历事件芯片的底：浅档要给 11px 的字垫一层接近实心的面（见 .wb-cal-event 那段），
+     深档不需要——夜档的面是往画布上叠白叠出来的，再铺一块 #0f1012 就成一个黑洞，
+     所以那一档直接把这一层让给透明，让芯片继续吃它下面那层玻璃。 */
+  --wb-cal-chip-plate: color-mix(in srgb, var(--surface-raised) 92%, transparent);
   /* 页签选中底：深浅两档只在这一处换值，:hover 里重述底色时才不会漏掉深色档。 */
   --nav-selected: var(--accent-soft);
 }
@@ -9482,8 +9533,12 @@ button:disabled {
   --surface: #191c22;
   --surface-muted: #21262f;
   --nav-selected: color-mix(in srgb, var(--accent) 22%, transparent);
-  --wb-recede: color-mix(in srgb, #000 34%, var(--surface-raised));
-  --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 78%, transparent);
+  /* 与浅档同一条纯 alpha 蒙层：原来是 #000 34% 混进 --surface-raised，等价于把
+     所在面整体乘 0.66。月历容器换成玻璃之后，同样写法（0.34 不透明度盖在面上）
+     精确复现同一档相对压暗，而不会凿出不透的洞。 */
+  --wb-recede: rgb(0 0 0 / 0.34);
+  --wb-cal-chip-plate: transparent;
+  --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 72%, transparent);
   --wb-chrome-ring: inset 0 0 0 0.5px rgb(255 255 255 / 0.09);
   /* 深色底上同一色相要提亮，否则 700 级字色直接糊进背景 */
   --wb-hue-blue-ink: #93c5fd;
@@ -10253,13 +10308,41 @@ body,
   backdrop-filter: var(--glass-blur-sm);
   -webkit-backdrop-filter: var(--glass-blur-sm);
 }
-/* 表头与详情抽屉坐在滚动内容之上，半透明会让字压在穿过的行上读不清：
-   这两处用接近实心的白，只保留高光边与阴影。 */
-.wb-table thead th,
+/* 详情抽屉坐在滚动内容之上，半透明会让字压在穿过的行上读不清：用接近实心的白。 */
 .wb-detail-grid {
   background-color: color-mix(in srgb, var(--surface-raised) 92%, transparent);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+}
+/* 表头不再是独立的一条白带。上面那组把 thead 和卡片一起换成了 --card-glass，
+   这里再把它擦回透明：整张表只有一层玻璃（见下面 .wb-table-wrap），表头只靠
+   一条鬓发线和字色分行。
+   那档 92% 近实心原本是为"表头会盖住滚过去的行"准备的——实测 sticky 的只有
+   .wb-nav 和 .wb-toolbar，thead 不是，没有任何内容从它下面穿过。它剩下的作用
+   只是把表头切成一根不属于表头下方、也不属于工具栏上方的孤条，
+   这正是"工具栏卡 + 白带 + 悬空的行"三层割裂的来源。 */
+.wb-table thead th {
+  background-color: transparent;
+  background-image: none;
+  border-bottom: 0.5px solid var(--border-strong);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+/* 一张表 = 一张玻璃面板。修复前实测三层各自为政：工具栏带 264→1248（左右各借
+   8px）、表头是 92% 近实心的孤条、行完全透明坐在画布上，中间还透出 16px 画布。
+   现在整表吃和月历同一档的 --card-glass，并左右各借 8px 与工具栏带对齐——再用
+   等量内衬把表格本体放回原来的 272→1240，几何一格没动：内衬 8 抵消外扩 8，
+   内容盒仍是 968px，所以 container-type: inline-size 量到的宽度不变，窄档断言
+   不受影响。
+   这里刻意不加 backdrop-filter：backdrop-filter 会为绝对/固定定位的后代建立新的
+   包含块，MenuSelect 的下拉弹层正是表格里的绝对定位后代（见 7679 那段溢出注释），
+   而且画布是 background-attachment: fixed，面板底下根本没有会动的东西可采样。 */
+.wb-table-wrap {
+  margin-inline: calc(var(--space-4) * -1);
+  padding-inline: var(--space-4);
+  border-radius: var(--radius-xl);
+  background-color: var(--card-glass);
+  box-shadow: inset 0 0 0 0.5px var(--sheet-edge);
 }
 /* 侧栏那层白色蒙纱（6535 的 ::before，8% 白）是"白画布时代"用来做微差的，
    现在它正好把透进来的画布擦掉，撤掉。 */

@@ -2,9 +2,10 @@ import { useMemo } from "react"
 
 import { Books, ChartPieSlice, CaretRight, NotePencil, PaperPlaneTilt } from "@phosphor-icons/react"
 
-import type { ResearchPaper } from "../../api/types"
+import type { AIProfile, ResearchPaper } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { computeProgress } from "../../lib/research"
+import { DailyDigestCard } from "./DailyDigest"
 import { EmptyState } from "./shared"
 import { relativeTime } from "./utils"
 
@@ -14,6 +15,10 @@ export function Dashboard(props: {
   research: ResearchPaper[]
   submitted: ResearchPaper[]
   published: ResearchPaper[]
+  aiProfiles?: AIProfile[]
+  onConfigureAI?: () => void
+  onAskAI?: () => void
+  onOpenPaper?: (paperID: string) => void
   onNavigate: (tab: DashboardTab) => void
 }) {
   const { t, locale } = useTranslation()
@@ -39,8 +44,18 @@ export function Dashboard(props: {
 
   const priorityProjects = research.filter((paper) => paper.priority === "High")
 
+  // The digest covers the papers that actually have a next step or a deadline.
+  const digestPapers = useMemo(() => [...research, ...submitted], [research, submitted])
+
   return (
     <div className="wb-dashboard">
+      <DailyDigestCard
+        papers={digestPapers}
+        profiles={props.aiProfiles ?? []}
+        onConfigure={props.onConfigureAI}
+        onAskAI={props.onAskAI}
+        onOpenPaper={props.onOpenPaper}
+      />
       <div className="wb-stats-grid">
         <StatCard
           label={t("workingPapers")}

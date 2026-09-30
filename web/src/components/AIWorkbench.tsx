@@ -20,6 +20,7 @@ import {
   runAIOperation,
   startAIChat,
   startAILibraryChat,
+  startAIPaperChat,
 } from "../api/client"
 import type { AIChatSession, AIOperation, AIProfile, AIResult, ListResponse } from "../api/types"
 import { formatAIResult } from "../lib/ai"
@@ -29,6 +30,12 @@ import { AIIcon } from "./AIIcon"
 interface AIWorkbenchProps {
   entryID?: string
   entryIDs?: string[]
+  /**
+   * Research paper ids for the workbench context. When present the panel chats
+   * through `/ai/paper-chat` instead of the library endpoint, which validates
+   * against RSS content and structurally cannot take paper ids.
+   */
+  paperIDs?: string[]
   profiles: AIProfile[]
   width: number
   contextLabel: string
@@ -49,6 +56,15 @@ export function AIWorkbench(props: AIWorkbenchProps) {
   const { locale, t } = useTranslation()
   const queryClient = useQueryClient()
   const articleMode = Boolean(props.entryID)
+  // Workbench papers mode: chat only. The paper endpoint has no per-entry
+  // operations (summary/translation/…) and the digest endpoint deliberately
+  // opens a session with no user turn, so the two never share a session id.
+  const paperMode = Boolean(props.paperIDs)
+  const contextCount = paperMode
+    ? (props.paperIDs?.length ?? 0)
+    : articleMode
+      ? 1
+      : (props.entryIDs?.length ?? 0)
   const [mode, setMode] = useState<AIOperation | "chat">(
     props.initialMode ?? (articleMode ? "summary" : "chat"),
   )
@@ -155,14 +171,21 @@ export function AIWorkbench(props: AIWorkbenchProps) {
   })
   const chatMutation = useMutation({
     mutationFn: (input: { profile: string; text: string }) =>
-      props.entryID
-        ? startAIChat(props.entryID, input.profile, sessionID || undefined, input.text)
-        : startAILibraryChat(
-            props.entryIDs ?? [],
-            input.profile,
-            sessionID || undefined,
-            input.text,
-          ),
+      props.paperIDs
+        ? startAIPaperChat({
+            paperIDs: props.paperIDs,
+            profileID: input.profile,
+            sessionID: sessionID || undefined,
+            message: input.text,
+          })
+        : props.entryID
+          ? startAIChat(props.entryID, input.profile, sessionID || undefined, input.text)
+          : startAILibraryChat(
+              props.entryIDs ?? [],
+              input.profile,
+              sessionID || undefined,
+              input.text,
+            ),
     onSuccess: (response) => {
       setSessionID(response.session.id)
       setPendingJobID(response.job.id)
@@ -179,6 +202,12 @@ export function AIWorkbench(props: AIWorkbenchProps) {
     cancelMutation.error ??
     (jobFailure ? new Error(jobFailure) : null)
 
+  const askLabel = paperMode
+    ? t("askAboutPapers")
+    : articleMode
+      ? t("askAboutArticle")
+      : t("askAboutLatest")
+
   const startOperation = (operation: AIOperation) => {
     if (!activeProfileID) {
       props.onConfigure()
@@ -193,8 +222,7 @@ export function AIWorkbench(props: AIWorkbenchProps) {
       props.onConfigure()
       return
     }
-    if (!message.trim() || jobActive || (!props.entryID && (props.entryIDs?.length ?? 0) === 0))
-      return
+    if (!message.trim() || jobActive || contextCount === 0) return
     setJobFailure(null)
     chatMutation.mutate({ profile: activeProfileID, text: message.trim() })
   }
@@ -328,7 +356,7 @@ export function AIWorkbench(props: AIWorkbenchProps) {
             )}
             {mode === "chat" || !articleMode ? (
               <div className="ai-chat" id="ai-tool-panel" role="tabpanel">
-                {!articleMode && !chat.data && (
+                {!articleMode && !paperMode && !chat.data && (
                   <div className="ai-chat__suggestions">
                     <button type="button" onClick={() => setMessage(t("summarizeLatestPrompt"))}>
                       {t("summarizeLatest")}
@@ -337,6 +365,9 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                       {t("politicalBrief")}
                     </button>
                   </div>
+                )}
+                {paperMode && !chat.data && (
+                  <p className="ai-chat__context-note">{props.contextLabel}</p>
                 )}
                 <div className="ai-chat__messages" aria-live="polite">
                   {chat.data?.messages.map((item) => (
@@ -352,8 +383,8 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                 <form className="ai-chat__form" onSubmit={submitChat}>
                   <textarea
                     className="text-input"
-                    aria-label={articleMode ? t("askAboutArticle") : t("askAboutLatest")}
-                    placeholder={articleMode ? t("askAboutArticle") : t("askAboutLatest")}
+                    aria-label={askLabel}
+                    placeholder={askLabel}
                     maxLength={4000}
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
@@ -365,7 +396,7 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                       !message.trim() ||
                       jobActive ||
                       chatMutation.isPending ||
-                      (!articleMode && (props.entryIDs?.length ?? 0) === 0)
+                      contextCount === 0
                     }
                   >
                     {chatMutation.isPending || jobActive ? (

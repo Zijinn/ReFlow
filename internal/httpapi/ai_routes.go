@@ -242,6 +242,61 @@ func (s *Server) startAILibraryChat(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, map[string]any{"job": queued, "session": session})
 }
 
+func (s *Server) startAIPaperChat(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAI(w, r) {
+		return
+	}
+	var request struct {
+		ProfileID string   `json:"profile_id"`
+		SessionID string   `json:"session_id"`
+		Message   string   `json:"message"`
+		PaperIDs  []string `json:"paper_ids"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	session, payload, err := s.ai.PreparePaperChat(r.Context(), request.PaperIDs, request.ProfileID, request.SessionID, request.Message)
+	if err != nil {
+		s.aiRequestError(w, r, err)
+		return
+	}
+	queued, err := s.jobs.Enqueue(r.Context(), "ai.research", payload)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": queued, "session": session})
+}
+
+// startAIDailyDigest enqueues the whole-workspace progress briefing. Response
+// and polling match the chat endpoints: the client waits for the job then reads
+// the assistant message from GET /api/v1/ai/chats/{session_id}.
+func (s *Server) startAIDailyDigest(w http.ResponseWriter, r *http.Request) {
+	if !s.requireAI(w, r) {
+		return
+	}
+	var request struct {
+		ProfileID string `json:"profile_id"`
+		Language  string `json:"language"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	session, payload, err := s.ai.PrepareDigest(r.Context(), request.ProfileID, request.Language)
+	if err != nil {
+		s.aiRequestError(w, r, err)
+		return
+	}
+	queued, err := s.jobs.Enqueue(r.Context(), "ai.research", payload)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"job": queued, "session": session})
+}
+
 func (s *Server) getAIChat(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAI(w, r) {
 		return

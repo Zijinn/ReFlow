@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react"
 
-import type { ResearchPaper } from "../../api/types"
+import type { AIProfile, ResearchPaper } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
+import { DailyDigestCard } from "./DailyDigest"
 import { daysUntil, displayID, formatDeadline, parseDeadline } from "./utils"
 
 interface DeadlineEvent {
@@ -31,6 +32,9 @@ function urgencyClass(days: number): string {
 // this view can never drift from it.
 export function CalendarPage(props: {
   papers: ResearchPaper[]
+  aiProfiles?: AIProfile[]
+  onConfigureAI?: () => void
+  onAskAI?: () => void
   onSelectPaper: (paperID: string) => void
 }) {
   const { t, locale } = useTranslation()
@@ -144,6 +148,13 @@ export function CalendarPage(props: {
           </button>
         </div>
       </div>
+      <DailyDigestCard
+        papers={props.papers}
+        profiles={props.aiProfiles ?? []}
+        onConfigure={props.onConfigureAI}
+        onAskAI={props.onAskAI}
+        onOpenPaper={props.onSelectPaper}
+      />
       <div className="wb-cal-grid">
         {weekdayNames.map((name, index) => (
           <div className="wb-cal-weekday" key={`${name}-${index}`}>

@@ -4,6 +4,7 @@ import type {
   AIProfile,
   AIProvider,
   AIProviderID,
+  AIResearchStartResponse,
   AIResult,
   AIUsage,
   EntryDetail,
@@ -299,6 +300,49 @@ export function startAILibraryChat(
       profile_id: profileID,
       session_id: sessionID,
       message,
+    }),
+  })
+}
+
+/**
+ * The workbench asks questions about research papers, not RSS entries, so it
+ * cannot go through `startAILibraryChat` (which validates against entry
+ * content). Async like the other chat endpoints: 202 -> poll `getJob` -> read
+ * the answer from `getAIChat(session.id)`.
+ */
+export function startAIPaperChat(input: {
+  paperIDs: string[]
+  profileID?: string
+  sessionID?: string
+  message: string
+}): Promise<AIResearchStartResponse> {
+  return request<AIResearchStartResponse>("/api/v1/ai/paper-chat", {
+    method: "POST",
+    body: JSON.stringify({
+      // The endpoint takes 1..20 ids and dedupes server-side; cap here so a
+      // long tab list never turns into a 400.
+      paper_ids: input.paperIDs.slice(0, 20),
+      ...(input.profileID ? { profile_id: input.profileID } : {}),
+      ...(input.sessionID ? { session_id: input.sessionID } : {}),
+      message: input.message,
+    }),
+  })
+}
+
+/**
+ * One-shot daily progress briefing over the whole workspace. Each call opens a
+ * fresh session holding exactly one assistant message, so its session id must
+ * never be fed back into a chat.
+ */
+export function startAIDailyDigest(input: {
+  profileID?: string
+  language?: string
+}): Promise<AIResearchStartResponse> {
+  return request<AIResearchStartResponse>("/api/v1/ai/daily-digest", {
+    method: "POST",
+    body: JSON.stringify({
+      ...(input.profileID ? { profile_id: input.profileID } : {}),
+      ...(input.language ? { language: input.language } : {}),
     }),
   })
 }

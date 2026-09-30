@@ -209,3 +209,200 @@ func createAIServiceTestEntry(t *testing.T, db *sql.DB) string {
 	}
 	return page.Items[0].ID
 }
+
+func TestResearchEnvelopeSummarizesStagesAndDeadlines(t *testing.T) {
+	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	if _, ok := parseResearchDate("2026-10-15"); !ok {
+		t.Fatal("YYYY-MM-DD deadline should parse")
+	}
+	if _, ok := parseResearchDate("not-a-date"); ok {
+		t.Fatal("garbage deadline should not parse")
+	}
+	if got := researchDeadlineStatus("2026-10-10", now); got != "due in 10 days" {
+		t.Fatalf("upcoming deadline: %q", got)
+	}
+	if got := researchDeadlineStatus("2026-09-20", now); got != "overdue by 10 days" {
+		t.Fatalf("overdue deadline: %q", got)
+	}
+	if got := researchIdleDays(now.AddDate(0, 0, -5), now); got != 5 {
+		t.Fatalf("idle days: %d", got)
+	}
+	stages := []domain.ResearchStage{
+		{Name: "Draft", Done: true, Children: []domain.ResearchStage{{Name: "Figures", Done: false}}},
+		{Name: "Revise", Done: false},
+	}
+	done, total, pending := summarizeResearchStages(stages)
+	if done != 1 || total != 3 {
+		t.Fatalf("stage tally: done=%d total=%d", done, total)
+	}
+	if len(pending) != 2 || pending[0] != "Figures" || pending[1] != "Revise" {
+		t.Fatalf("pending stages: %#v", pending)
+	}
+	envelope := researchEnvelope([]domain.ResearchPaper{{
+		ID: "paper-1", Kind: domain.ResearchKindSubmitted, Title: "Network Centrality and Trade",
+		Deadline: "2026-10-10", Notes: "revise the identification section", Stages: stages,
+	}}, now)
+	for _, want := range []string{"<title>Network Centrality and Trade</title>", "<pending>Revise</pending>",
+		"stages done=\"1\" total=\"3\"", "due in 10 days", "(none recorded)", "revise the identification section"} {
+		if !strings.Contains(envelope, want) {
+			t.Fatalf("envelope missing %q:\n%s", want, envelope)
+		}
+	}
+}
+
+func TestResearchDigestMessageShape(t *testing.T) {
+	papers := []domain.ResearchPaper{{ID: "p", Kind: domain.ResearchKindResearch, Title: "Idle Paper"}}
+	messages := researchDigestMessages(papers, "Simplified Chinese")
+	if len(messages) != 2 || messages[0].Role != "system" || messages[1].Role != "user" {
+		t.Fatalf("unexpected digest turns: %+v", messages)
+	}
+	if !strings.Contains(messages[1].Content, "Today's progress plan") || !strings.Contains(messages[1].Content, "Respond in Simplified Chinese") {
+		t.Fatalf("digest instruction missing lead or localization: %q", messages[1].Content)
+	}
+	if !strings.Contains(messages[0].Content, "<Idle Paper>") && !strings.Contains(messages[0].Content, "Idle Paper") {
+		t.Fatalf("digest envelope missing paper title: %q", messages[0].Content)
+	}
+	// The answer is a structured document now: the instruction must spell out
+	// the JSON contract, the section and block field names, the honesty rules,
+	// and the fact that the payload carries dates but no clock times.
+	instruction := messages[1].Content
+	for _, want := range []string{
+		"JSON object", `"sections"`, `"kicker"`, `"headline"`, `"blocks"`,
+		"status-rows", "timeline", `"grid"`, `"chips"`, `"quote"`, `"note"`,
+		"no code fences", "do not invent papers, dates, journals, filenames, or timestamps",
+		"never write times like 23:05",
+	} {
+		if !strings.Contains(instruction, want) {
+			t.Fatalf("digest instruction missing %q:\n%s", want, instruction)
+		}
+	}
+	if strings.Contains(instruction, "bulleted list") {
+		t.Fatalf("digest instruction still asks for the old prose list shape")
+	}
+	// With no explicit language the reader's own wording governs.
+	auto := researchDigestMessages(papers, "auto")
+	if !strings.Contains(auto[1].Content, "same language as the paper titles") {
+		t.Fatalf("auto-language digest missing fallback clause: %q", auto[1].Content)
+	}
+}
+
+func TestPaperChatAndDigestRunThroughFakeProvider(t *testing.T) {
+	ctx := context.Background()
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	box, err := secretbox.LoadOrCreate(filepath.Join(t.TempDir(), "master.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var lastMessages string
+	var calls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		var request map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		body, _ := json.Marshal(request["messages"])
+		lastMessages = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"Paper plan ready"}}],"usage":{"prompt_tokens":20,"completion_tokens":3,"total_tokens":23}}`)
+	}))
+	defer upstream.Close()
+
+	service := newAIService(db, box, func(bool) *http.Client { return upstream.Client() })
+	profile, err := service.CreateProfile(ctx, AIProfileInput{
+		Provider: "openai_compatible", Name: "Research fixture", Endpoint: upstream.URL + "/v1",
+		Model: "model", APIKey: "research-test-key", AllowPrivateNetwork: true, IsDefault: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	draft := "Paper on identification"
+	researchPaper, err := storage.CreateResearchPaper(ctx, db, domain.DefaultProfileID, domain.ResearchPaper{
+		Kind: domain.ResearchKindResearch, Title: draft, Priority: "high",
+		Stages: []domain.ResearchStage{{Name: "Data cleaning", Done: false}, {Name: "Draft", Done: true}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	submittedPaper, err := storage.CreateResearchPaper(ctx, db, domain.DefaultProfileID, domain.ResearchPaper{
+		Kind: domain.ResearchKindSubmitted, Title: "Overdue submission", Deadline: time.Now().UTC().AddDate(0, 0, 2).Format("2006-01-02"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Paper-context chat answers a question about the selected paper.
+	session, chatPayload, err := service.PreparePaperChat(ctx, []string{researchPaper.ID, researchPaper.ID, submittedPaper.ID}, profile.ID, "", "Which is at risk?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chatPayload.PaperIDs) != 2 {
+		t.Fatalf("expected de-duplicated paper IDs, got %#v", chatPayload.PaperIDs)
+	}
+	if session.EntryID != nil {
+		t.Fatalf("paper chat session should not carry an entry id")
+	}
+	chatJob, err := storage.CreateJob(ctx, db, "ai.research", chatPayload, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	chatResult, err := service.RunResearch(ctx, chatJob.ID, chatPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chatResult.Messages) != 2 || chatResult.Messages[1].Content != "Paper plan ready" {
+		t.Fatalf("unexpected paper chat session: %+v", chatResult)
+	}
+	if !strings.Contains(lastMessages, draft) || !strings.Contains(lastMessages, "Which is at risk?") ||
+		!strings.Contains(lastMessages, "Data cleaning") || !strings.Contains(lastMessages, "Overdue submission") {
+		t.Fatalf("paper chat prompt missing context: %s", lastMessages)
+	}
+
+	// Daily digest reads the whole workspace and shapes the answer as a briefing.
+	_, digestPayload, err := service.PrepareDigest(ctx, profile.ID, "Simplified Chinese")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !digestPayload.Digest || len(digestPayload.PaperIDs) != 0 {
+		t.Fatalf("digest payload: %+v", digestPayload)
+	}
+	digestJob, err := storage.CreateJob(ctx, db, "ai.research", digestPayload, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	digestResult, err := service.RunResearch(ctx, digestJob.ID, digestPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(digestResult.Messages) != 1 || digestResult.Messages[0].Role != "assistant" {
+		t.Fatalf("digest session should hold only the assistant answer: %+v", digestResult)
+	}
+	if !strings.Contains(lastMessages, "Today's progress plan") || !strings.Contains(lastMessages, "(none recorded)") {
+		t.Fatalf("digest prompt missing briefing shape or idle paper: %s", lastMessages)
+	}
+
+	// Re-running a job must reuse the persisted answer, not call the provider.
+	replay, err := service.RunResearch(ctx, digestJob.ID, digestPayload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if replay.ID != digestResult.ID || len(replay.Messages) != 1 {
+		t.Fatalf("digest replay: %+v", replay)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("expected two provider calls, got %d", calls.Load())
+	}
+	usage, err := service.UsageTotals(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if usage.TotalTokens != 46 {
+		t.Fatalf("unexpected research usage: %+v", usage)
+	}
+}

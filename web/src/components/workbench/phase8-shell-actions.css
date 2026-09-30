@@ -1,0 +1,67 @@
+/* 侧栏左下快捷操作（AI / 主题 / 设置）专用样式。只放本文件的内容，勿写进 styles.css。
+   main.tsx 在 styles.css 之后导入本文件，所以同类名后写者胜；这里全部用新类名
+   （.shell-actions / .sidebar__actions），不复用那个被四层规则来回改写的
+   .sidebar__footer（见下方「不动的死规则」说明）。 */
+
+/* 三个图标按钮本身沿用 .icon-button（34px 玻璃图标钮，明暗主题都由
+   styles.css 的 token 负责），这里只管排列与两块宿主表面的贴合。 */
+.shell-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── 桌面：钉在侧栏左下角 ─────────────────────────────────────────────
+   .sidebar 是 display:flex / column / overflow:hidden（styles.css:644），
+   .subscription-section 拿走 flex:1 与 min-height:0（styles.css:929），
+   所以这一块只要 flex:0 0 auto 就自然沉到底部，不需要新的 flex 规则。 */
+.sidebar__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 34px;
+  padding-top: var(--space-4);
+  margin-top: var(--space-4);
+  /* 与侧栏其余分线同一档：整幅 1px 实线太硬，压到 62% 边框色做鬓发线。 */
+  border-top: 1px solid color-mix(in srgb, var(--border) 62%, transparent);
+}
+.sidebar__actions .shell-actions {
+  justify-content: flex-start;
+}
+/* 侧栏最窄 210px（AppShell 的 SIDEBAR_MIN），3×34 + 2×4 仍留得住左对齐一排。 */
+
+/* ── 移动：≤900px 时 .sidebar 是 display:none（styles.css:3840），
+   同一簇按钮改由 MobileNav 承接。AppShell 按视口只挂载其中一份，
+   所以这里不会和侧栏那份同时出现在可访问性树/Tab 序里。 */
+@media (max-width: 900px) {
+  /* styles.css:3875 把这条栏排成 5 等分；这里改成「5 个视图项 + 一个
+     内容宽的尾格」，视图项的分宽规则完全不变，只多出一列。 */
+  .mobile-nav {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+    column-gap: var(--space-3);
+  }
+  /* 视图项标签在 320px 档只剩 ~32px 格宽，超长时省略而不是顶穿尾格。 */
+  .mobile-nav__item span {
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .mobile-nav .shell-actions {
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-left: var(--space-2);
+  }
+  /* 触控靶放大到 38px（栏高 62px，垂直居中的网格项会自动拉伸）。 */
+  .mobile-nav .shell-actions .icon-button {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+  .mobile-nav .shell-actions .icon-button svg {
+    width: 20px;
+    height: 20px;
+  }
+}

@@ -104,6 +104,58 @@ describe("Dashboard", () => {
     fireEvent.click(screen.getByRole("button", { name: /Average progress/ }))
     expect(onNavigate).toHaveBeenLastCalledWith("research")
   })
+
+  // The AI half of the daily plan must not be reachable without a configured
+  // provider, and must not shadow the stats it sits above.
+  it("leads with the daily progress card and degrades it without AI", () => {
+    const onConfigureAI = vi.fn()
+    render(
+      <Dashboard
+        research={[paper()]}
+        submitted={[paper({ id: "s-1", kind: "submitted", deadline: "2026-09-12" })]}
+        published={[]}
+        onConfigureAI={onConfigureAI}
+        onNavigate={() => {}}
+      />,
+    )
+    const card = screen.getByRole("region", { name: "Today's progress plan" })
+    expect(card).toBeInTheDocument()
+    expect(document.querySelector(".wb-dashboard > .wb-daily")).toBe(card)
+    expect(card).toHaveTextContent("Configure AI to get a daily progress plan here.")
+    // The call to action only appears when the host can actually open the AI
+    // settings; without `onConfigureAI` the card degrades to text alone.
+    fireEvent.click(screen.getByRole("button", { name: "Configure AI" }))
+    expect(onConfigureAI).toHaveBeenCalled()
+    expect(screen.getByText("Working papers")).toBeInTheDocument()
+  })
+
+  it("counts the deadline pressure of the papers it is given", () => {
+    const today = Date.now()
+    const day = (offset: number) => new Date(today + offset * 86_400_000).toISOString().slice(0, 10)
+    render(
+      <Dashboard
+        research={[paper()]}
+        submitted={[
+          paper({ id: "s-1", kind: "submitted", deadline: day(2) }),
+          paper({ id: "s-2", kind: "submitted", deadline: day(30) }),
+          paper({ id: "s-3", kind: "submitted", deadline: "TBD" }),
+        ]}
+        published={[paper({ id: "q-1", kind: "published" })]}
+        onNavigate={() => {}}
+      />,
+    )
+    const rows = Array.from(document.querySelectorAll(".wb-daily dl > div")).map((row) => [
+      row.querySelector("dt")?.textContent,
+      row.querySelector("dd")?.textContent,
+    ])
+    // Published papers have no forward deadline, so the plan covers the live
+    // queue only; unparseable deadlines are ignored, never guessed.
+    expect(rows).toEqual([
+      ["Papers", "4"],
+      ["Due in 7 days", "1"],
+      ["Overdue", "0"],
+    ])
+  })
 })
 
 afterEach(() => cleanup())

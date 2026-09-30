@@ -1,8 +1,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { ReactNode } from "react"
+
 import type { Folder, LibraryScope, Subscription } from "../api/types"
 import { useReaderStore } from "../store/reader"
+import { ShellActions } from "./ShellActions"
 import { Sidebar } from "./Sidebar"
 
 const folder: Folder = {
@@ -221,8 +224,44 @@ describe("Sidebar drag and drop", () => {
   })
 })
 
+describe("Sidebar shell action slot", () => {
+  it("pins the AI / theme / preferences cluster under the scrolling library", () => {
+    const onPreferences = vi.fn()
+    const { container } = renderSidebar({
+      actions: (
+        <ShellActions
+          theme="light"
+          onThemeChange={vi.fn()}
+          aiOpen={false}
+          onAI={vi.fn()}
+          onPreferences={onPreferences}
+        />
+      ),
+    })
+
+    const block = container.querySelector(".sidebar__actions")
+    expect(block).not.toBeNull()
+    // Sibling order is what makes the block sit at the bottom-left: the
+    // subscription section above it owns the flex space.
+    expect(block?.previousElementSibling?.className).toBe("subscription-section")
+    expect(block?.parentElement?.className).toBe("sidebar")
+    expect(block?.querySelectorAll(".shell-actions .icon-button").length).toBe(3)
+
+    fireEvent.click(screen.getByRole("button", { name: "Preferences" }))
+    expect(onPreferences).toHaveBeenCalledTimes(1)
+  })
+
+  it("renders no bottom block when AppShell hands the cluster to the mobile bar", () => {
+    const { container } = renderSidebar({ actions: null })
+
+    expect(container.querySelector(".sidebar__actions")).toBeNull()
+    expect(screen.queryByRole("button", { name: "Preferences" })).not.toBeInTheDocument()
+  })
+})
+
 function renderSidebar(overrides: {
   folders?: Folder[]
+  actions?: ReactNode
   onRenameFeed?: (feedID: string, name: string) => void
   onRenameFolder?: (folderID: string, name: string) => void
   onScopeChange?: (scope: LibraryScope) => void
@@ -242,6 +281,7 @@ function renderSidebar(overrides: {
       folders={overrides.folders ?? [folder]}
       tags={[]}
       savedFilters={[]}
+      actions={overrides.actions}
       onScopeChange={overrides.onScopeChange ?? vi.fn()}
       onAdd={vi.fn()}
       onOrganizeLibrary={vi.fn()}

@@ -189,6 +189,19 @@ func (s *Server) ConfigureAI(box *secretbox.Box) {
 		}
 		return err
 	})
+	s.jobs.Register("ai.research", func(ctx context.Context, current domain.Job, progress job.ProgressFunc) error {
+		var payload service.AIResearchPayload
+		if err := job.DecodePayload(current, &payload); err != nil {
+			return err
+		}
+		progress(0, 1)
+		session, err := aiService.RunResearch(ctx, current.ID, payload)
+		if err == nil {
+			progress(1, 1)
+			s.events.Publish("ai.chat", map[string]any{"session_id": session.ID, "digest": payload.Digest})
+		}
+		return err
+	})
 }
 
 func (s *Server) ConfigureSecurity(requireDeviceAuth bool, allowedOrigins []string, trustedProxies []netip.Prefix) {

@@ -101,6 +101,16 @@ export interface AIResult {
   created_at: string
 }
 
+/**
+ * Both paper-context AI endpoints (`/ai/paper-chat`, `/ai/daily-digest`) answer
+ * 202 with the same envelope the chat already uses: a job to poll and the
+ * session the assistant message lands in.
+ */
+export interface AIResearchStartResponse {
+  job: Job
+  session: AIChatSession
+}
+
 export interface AIChatMessage {
   id: string
   role: "user" | "assistant"

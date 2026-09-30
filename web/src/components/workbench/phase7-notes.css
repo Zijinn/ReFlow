@@ -1,0 +1,83 @@
+/* 备注栏（在研 / 在投）专用样式。本任务的所有 CSS 只写在这一份文件里。
+   main.tsx 里它排在 styles.css 之后，同特异度靠文件顺序取胜，所以这里能覆盖通用档；
+   但"能覆盖"是把双刃剑：特异度要对着对手那一档算——抬太高会把该继承的悬停/按压反馈
+   一起钉死（下面 .wb-notes-cell 那条写过一次错的），压太低又顶不动要改的既有档。 */
+
+/* ── 备注列：一格预览，不是输入框 ─────────────────────────────────────────
+   表格是 table-layout: fixed，标题列是唯一的弹性列，所以这一列给确定像素。
+   96px 是按"容器 968（视口 1280，用户的常用窗口）时标题仍 ≥300px"倒推的：
+   在研那一排固定列合计 68＋168＋118＋84＋122＝560，＋备注 96＝656，标题剩 312；
+   再加宽就要把标题压到 300 以下，那一档是收列线（见 styles.css 容器档位段的注释）。
+   列位放在"操作"之前，不动任何现有列的宽度与顺序。 */
+.wb-col-notes {
+  width: 96px;
+}
+/* 这一格复用 .wb-editable 的悬停/按压/焦点三档（主色 10% → 18%、焦点环），
+   不新造灰色填充；差别只在它不是"打字进去"的字段而是入口，所以指针是 pointer。
+   真实 <button> 要先抹掉 UA 的底色/边框/居中才接得住那一条配方，而这几个 reset 必须
+   写成单类 (0,1,0)：作者样式永远压得过 UA，而 .wb-editable:hover / :active 是 (0,2,0)/(0,3,0)，
+   把 reset 抬到 .wb-table .wb-notes-cell (0,2,0) 就会和悬停档同特异度、靠本文件排在后面
+   取胜——实测那样 hover 时 background-color 仍钉在 transparent，这一格成了表格里唯一
+   没有指针反馈的按键。布局类属性没有竞争者，留在 (0,2,0) 那一档。 */
+.wb-notes-cell {
+  border: 0;
+  background-color: transparent;
+  font: inherit;
+  text-align: left;
+}
+.wb-table .wb-notes-cell {
+  display: block;
+  width: 100%;
+  line-height: var(--leading-ui);
+  /* 唯一的单行截断列：不换行才不会把行高顶起来（行高取各格最大值），
+     省略号是"这里还有内容"的提示，全文在悬停标题和展开详情里都读得到。 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  overflow-wrap: normal;
+  word-break: normal;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+/* 全局 button:active 是 scale(--press-scale)（styles.css 那一族）：这一格在表格里，
+   按下去缩放会带着相邻列一起晃，正是用户否掉的"按压抖动"。特异度 (0,4,0) 压过
+   button:active:not(:disabled) (0,2,1)，按压只换色不换形。
+   焦点环不在这儿写：.wb-editable:focus-visible (0,2,0) 已经给了 outline:none + 焦点环。 */
+.wb-table .wb-notes-cell:active:not(:disabled) {
+  transform: none;
+}
+/* ✎ 是"这一格还没写过"的记号，但它仍然要被读到，所以和空占位"—"一样走 tertiary。
+   faint 那档在玻璃表体上实测 3.07:1（深档），够不到正文标准，只留给装饰。 */
+.wb-notes-pen {
+  margin-right: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+
+/* ── 展开详情里的备注编辑器 ──────────────────────────────────────────────
+   照已发表那张表的摘要字段配方来：标签走 .wb-abstract-label，正文走 .wb-abstract
+   （同一档 13px 正文 + leading-prose 行距），这里只补一个能挂 data-notes-field 的
+   包装层，不重抄一遍字号。放在 wb-detail-side 末尾，与关键词/文件夹同列。 */
+.wb-detail-side .wb-detail-notes {
+  min-width: 0;
+}
+/* 备注是多行自由文本：纵向可拉（写长资料时用得上），横向拉不宽——否则 textarea
+   挣脱详情栅格，把列挤动的正是用户否掉的"表格在动"。 */
+.wb-detail-notes .wb-inline-input {
+  resize: vertical;
+  max-width: 100%;
+}
+
+/* ── 窄档让位：备注列跟着"最近更新"那一档一起收 ──────────────────────────
+   备注在展开详情里始终可编辑，属于"关于这一行的附注"，所以让位顺序排在日期同一档
+   （styles.css 的 ≤880 档已经收掉日期）。收法照抄那一段的配方：0 宽而不是
+   display:none，宽度还给唯一的弹性列；nowrap 保证 0 宽格子里不是一行一个字。 */
+@container wbtable (max-width: 880px) {
+  .wb-table .wb-col-notes {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+}

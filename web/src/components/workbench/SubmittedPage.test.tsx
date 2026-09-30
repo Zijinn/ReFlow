@@ -160,6 +160,42 @@ describe("SubmittedPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /Move to publications/ }))
     expect(handlers.onMove).toHaveBeenCalledWith("s-1")
   })
+
+  it("adds a notes column that previews the note or offers a pen when empty", () => {
+    render(<SubmittedPage papers={[paper()]} {...props()} />)
+    expect(screen.getByRole("columnheader", { name: "Notes" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Edit notes: Submitted Paper" })).toHaveTextContent(
+      "✎",
+    )
+  })
+
+  it("opens the detail row from the notes cell and focuses the notes field", () => {
+    const notes = "AEJR desk-rejected; next try JBF with the revised intro"
+    render(<SubmittedPage papers={[paper({ notes })]} {...props()} />)
+    const cell = screen.getByRole("button", { name: "Edit notes: Submitted Paper" })
+    expect(cell).toHaveTextContent(notes)
+    expect(document.querySelector("tr.wb-row-detail")).toBeNull()
+    fireEvent.click(cell)
+    const field = document.querySelector<HTMLElement>("[data-notes-field] .wb-editable")
+    expect(field).not.toBeNull()
+    expect(field).toHaveTextContent(notes)
+    expect(field).toHaveFocus()
+  })
+
+  it("commits a multiline note edit through onUpdate", () => {
+    const handlers = props()
+    render(<SubmittedPage papers={[paper({ notes: "Referee 2 due 12 Oct" })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit notes: Submitted Paper" }))
+    fireEvent.doubleClick(document.querySelector("[data-notes-field] .wb-editable")!)
+    // 工具栏的搜索框也是 textbox，所以备注那一格从详情行里取。
+    const area = document.querySelector<HTMLTextAreaElement>("[data-notes-field] textarea")!
+    expect(area).toHaveClass("wb-inline-input")
+    fireEvent.change(area, { target: { value: "R&R resubmission window closes 2026-10-12" } })
+    fireEvent.blur(area)
+    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", {
+      notes: "R&R resubmission window closes 2026-10-12",
+    })
+  })
 })
 
 afterEach(() => cleanup())

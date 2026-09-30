@@ -76,12 +76,17 @@
   font-weight: var(--fw-semibold);
 }
 
-/* 邮箱行：分组行质感（静置只有鬓发线，没有阴影） */
+/* 邮箱行：和整表同一张玻璃面板，不是另一块实心白卡。
+   修复前实测它是 #0f1012 全实心、左右边缘 272→1225，而头顶的工具栏带在 264→1233——
+   一块不透的白卡缩在玻璃带下面一圈，就是"这些块彼此不认识"。
+   左右各借 8px 与工具栏带对齐，再用等量内衬把内容放回原来的横向位置：
+   264 + (14 + 8) = 272 + 14，标签与输入框一格没动。 */
 .wb-email-row {
-  padding: var(--space-5) var(--space-7);
-  border: 0.5px solid var(--border);
+  padding: var(--space-5) calc(var(--space-7) + var(--space-4));
+  margin-inline: calc(var(--space-4) * -1);
+  border: 0.5px solid var(--sheet-edge);
   border-radius: var(--radius-xl);
-  background: var(--surface-raised);
+  background: var(--card-glass);
   gap: var(--space-5);
 }
 .wb-email-input {
@@ -91,9 +96,11 @@
     background-color var(--dur-fast) var(--ease),
     box-shadow var(--dur-fast) var(--ease);
 }
+/* 聚焦不换面：深档 --surface-raised(#0f1012) 比这张玻璃还暗，一聚焦就凿出个洞
+   （和 .wb-search:focus 同一个坑）。凹陷由内阴影说，外面再套焦点环。 */
 .wb-email-input:focus {
   outline: none;
-  background: var(--surface-raised);
+  background: var(--field-glass);
   box-shadow: var(--focus-ring);
 }
 

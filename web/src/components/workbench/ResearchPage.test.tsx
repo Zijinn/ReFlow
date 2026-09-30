@@ -154,6 +154,46 @@ describe("ResearchPage", () => {
     render(<ResearchPage papers={[paper()]} {...props()} creating />)
     expect(screen.getByRole("button", { name: /Add paper/ })).toBeDisabled()
   })
+
+  it("adds a notes column that previews the note or offers a pen when empty", () => {
+    render(<ResearchPage papers={[paper()]} {...props()} />)
+    expect(screen.getByRole("columnheader", { name: "Notes" })).toBeInTheDocument()
+    const cell = screen.getByRole("button", { name: "Edit notes: Working Paper One" })
+    expect(cell).toHaveClass("wb-notes-cell")
+    expect(cell).toHaveTextContent("✎")
+  })
+
+  it("opens the detail row from the notes cell and focuses the notes field", () => {
+    const notes = "CSMAR sample runs to 2024; robustness needs an IV"
+    render(<ResearchPage papers={[paper({ notes })]} {...props()} />)
+    const cell = screen.getByRole("button", { name: "Edit notes: Working Paper One" })
+    // The cell is a preview, not an editor: the full note lives in the detail row.
+    expect(cell).toHaveTextContent(notes)
+    expect(document.querySelector("tr.wb-row-detail")).toBeNull()
+    fireEvent.click(cell)
+    const field = document.querySelector<HTMLElement>("[data-notes-field] .wb-editable")
+    expect(field).not.toBeNull()
+    expect(field).toHaveTextContent(notes)
+    expect(field).toHaveFocus()
+  })
+
+  it("commits a multiline note edit through onUpdate", () => {
+    const handlers = props()
+    render(<ResearchPage papers={[paper({ notes: "Draft note" })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Edit notes: Working Paper One" }))
+    fireEvent.doubleClick(document.querySelector("[data-notes-field] .wb-editable")!)
+    // 工具栏的搜索框也是 textbox，所以这一格要从详情行里取，不能用 getByRole。
+    const area = document.querySelector<HTMLTextAreaElement>("[data-notes-field] textarea")!
+    expect(area).toHaveClass("wb-inline-input")
+    fireEvent.change(area, { target: { value: "Reviewer 2 asked for a placebo test" } })
+    // Multiline fields commit on blur, never on Enter (Enter writes a new line).
+    fireEvent.keyDown(area, { key: "Enter" })
+    expect(handlers.onUpdate).not.toHaveBeenCalled()
+    fireEvent.blur(area)
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", {
+      notes: "Reviewer 2 asked for a placebo test",
+    })
+  })
 })
 
 afterEach(() => cleanup())
