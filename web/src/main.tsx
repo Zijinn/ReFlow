@@ -19,12 +19,16 @@ import { createRoot } from "react-dom/client"
 import { registerSW } from "virtual:pwa-register"
 
 import App from "./App"
-import { applyCanvas, defaultCanvasPhotoVeil, isCanvasTheme } from "./lib/canvas"
+import { applyCanvas, isCanvasTheme } from "./lib/canvas"
 import { trackDesktopPlatform } from "./lib/desktop"
+import { installScrollReveal } from "./lib/scroll-reveal"
 import { applyTheme } from "./lib/theme"
 
 trackDesktopPlatform()
 applyPersistedTheme()
+// 滚动条"滚才显形"是一个全局捕获监听（scroll 不冒泡，组件里各绑各的会漏掉表格深处的
+// 笔记格），所以挂在这里，不进 React 生命周期。
+installScrollReveal()
 
 // persist 存的是偏好片段，旧版本没有画布那三个键，所以这里全部按 unknown 读再回退默认。
 interface PersistedPreferences {
@@ -71,11 +75,10 @@ function applyPersistedTheme() {
   // 所以中间不会有闪烁。
   const canvasTheme = persisted?.canvasTheme
   const canvasPhoto = persisted?.canvasPhoto
-  const canvasPhotoVeil = persisted?.canvasPhotoVeil
   applyCanvas({
     theme: isCanvasTheme(canvasTheme) ? canvasTheme : "aurora",
     photo: typeof canvasPhoto === "string" ? canvasPhoto : "",
-    veil: typeof canvasPhotoVeil === "number" ? canvasPhotoVeil : defaultCanvasPhotoVeil,
+    veil: persisted?.canvasPhotoVeil,
   })
 }
 

@@ -4,7 +4,7 @@ import { persist } from "zustand/middleware"
 import type { Locale } from "../lib/i18n"
 import type { LibraryScope, ViewMode } from "../api/types"
 import type { ReaderAnnotation } from "../lib/annotations"
-import { defaultCanvasPhotoVeil } from "../lib/canvas"
+import { clampCanvasPhotoVeil, defaultCanvasPhotoVeil } from "../lib/canvas"
 
 export type ShortcutAction =
   "palette" | "search" | "next" | "previous" | "toggleStar" | "toggleRead"
@@ -116,7 +116,7 @@ export const useReaderStore = create<ReaderStore>()(
       accentTheme: "academic-blue",
       canvasTheme: "aurora",
       canvasPhoto: "",
-      // 三档之一，见 lib/canvas 的 canvasPhotoVeilLevels；真正的对比度地板在 CSS 里。
+      // 拉轴区间见 lib/canvas；persist 回填不走 setter，所以进 CSS 前还有一道 clamp。
       canvasPhotoVeil: defaultCanvasPhotoVeil,
       paneLayout: defaultPaneLayout,
       aiPanelWidth: 380,
@@ -154,7 +154,8 @@ export const useReaderStore = create<ReaderStore>()(
       setAccentTheme: (accentTheme) => set({ accentTheme }),
       setCanvasTheme: (canvasTheme) => set({ canvasTheme }),
       setCanvasPhoto: (canvasPhoto) => set({ canvasPhoto }),
-      setCanvasPhotoVeil: (canvasPhotoVeil) => set({ canvasPhotoVeil }),
+      setCanvasPhotoVeil: (canvasPhotoVeil) =>
+        set({ canvasPhotoVeil: clampCanvasPhotoVeil(canvasPhotoVeil) }),
       setPaneLayout: (paneLayout) => set({ paneLayout }),
       setAIPanelWidth: (aiPanelWidth) => set({ aiPanelWidth }),
       toggleFolder: (folderID) =>

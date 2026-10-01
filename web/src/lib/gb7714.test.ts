@@ -103,7 +103,7 @@ describe("parseGb7714", () => {
       notes: "",
       research_area: "",
       status: "",
-      priority: "",
+      tag_id: "",
       target_journal: "",
       stages: [],
       current_journal: "",

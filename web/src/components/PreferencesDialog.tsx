@@ -37,7 +37,7 @@ import type {
 } from "../api/types"
 import { useTranslation, type Locale, type Translator } from "../lib/i18n"
 import { listPreferences, putPreference } from "../api/client"
-import { canvasPhotoVeilLevels } from "../lib/canvas"
+import { canvasPhotoVeilMax, canvasPhotoVeilMin, canvasPhotoVeilSafe } from "../lib/canvas"
 import { CanvasPhotoError, readCanvasPhoto } from "../lib/canvas-photo"
 import { displayShortcut, keyboardChord } from "../lib/shortcuts"
 import { ConfirmDialog } from "./ConfirmDialog"
@@ -462,31 +462,38 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                         )}
                       </section>
                       {canvasPhoto && (
-                        <section className="preference-section preference-section--row">
-                          <div>
+                        <section className="preference-section">
+                          <div className="preference-heading">
                             <h2>{t("canvasPhotoVeil")}</h2>
-                            <p>{t("canvasPhotoVeilDescription")}</p>
+                            <output className="range-output" htmlFor="canvas-photo-veil">
+                              {canvasPhotoVeil}%
+                            </output>
                           </div>
-                          <div
-                            className="segmented-control"
-                            role="group"
-                            aria-label={t("canvasPhotoVeil")}
-                          >
-                            {canvasPhotoVeilLevels.map((level) => (
-                              <button
-                                className={
-                                  canvasPhotoVeil === level.value
-                                    ? "segmented-control__item segmented-control__item--active"
-                                    : "segmented-control__item"
-                                }
-                                type="button"
-                                key={level.value}
-                                onClick={() => setCanvasPhotoVeil(level.value)}
-                              >
-                                {t(level.labelKey)}
-                              </button>
-                            ))}
+                          <p>{t("canvasPhotoVeilDescription")}</p>
+                          {/* 连续拉轴，不再是三档：用户要的是"这一档还是糊"，那只有
+                              中间值能满足。步进 1，落到整数百分比才好读。 */}
+                          <input
+                            className="range-input canvas-veil-input"
+                            id="canvas-photo-veil"
+                            type="range"
+                            min={canvasPhotoVeilMin}
+                            max={canvasPhotoVeilMax}
+                            step={1}
+                            value={canvasPhotoVeil}
+                            onChange={(event) => setCanvasPhotoVeil(Number(event.target.value))}
+                          />
+                          <div className="canvas-veil-scale" aria-hidden="true">
+                            <span>{t("canvasPhotoVeilImageEnd")}</span>
+                            <span>{t("canvasPhotoVeilTextEnd")}</span>
                           </div>
+                          {/* 地板降到拉轴下限后，低于安全值不再被 CSS 的 max() 偷偷顶
+                              回去，代价必须由这一行明说。不加 role="alert"：拖动时它反复
+                              出现/消失，读屏会被刷屏。 */}
+                          {canvasPhotoVeil < canvasPhotoVeilSafe && (
+                            <p className="canvas-veil-hint canvas-veil-hint--low">
+                              {t("canvasPhotoVeilLowWarning")}
+                            </p>
+                          )}
                         </section>
                       )}
                       <section className="preference-section">

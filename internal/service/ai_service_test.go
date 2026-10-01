@@ -241,9 +241,11 @@ func TestResearchEnvelopeSummarizesStagesAndDeadlines(t *testing.T) {
 	envelope := researchEnvelope([]domain.ResearchPaper{{
 		ID: "paper-1", Kind: domain.ResearchKindSubmitted, Title: "Network Centrality and Trade",
 		Deadline: "2026-10-10", Notes: "revise the identification section", Stages: stages,
-	}}, now)
+		TagID: "tag-1",
+	}}, map[string]string{"tag-1": "急件"}, now)
 	for _, want := range []string{"<title>Network Centrality and Trade</title>", "<pending>Revise</pending>",
-		"stages done=\"1\" total=\"3\"", "due in 10 days", "(none recorded)", "revise the identification section"} {
+		"stages done=\"1\" total=\"3\"", "due in 10 days", "(none recorded)", "revise the identification section",
+		"<tag>急件</tag>"} {
 		if !strings.Contains(envelope, want) {
 			t.Fatalf("envelope missing %q:\n%s", want, envelope)
 		}
@@ -252,7 +254,7 @@ func TestResearchEnvelopeSummarizesStagesAndDeadlines(t *testing.T) {
 
 func TestResearchDigestMessageShape(t *testing.T) {
 	papers := []domain.ResearchPaper{{ID: "p", Kind: domain.ResearchKindResearch, Title: "Idle Paper"}}
-	messages := researchDigestMessages(papers, "Simplified Chinese")
+	messages := researchDigestMessages(papers, nil, "Simplified Chinese")
 	if len(messages) != 2 || messages[0].Role != "system" || messages[1].Role != "user" {
 		t.Fatalf("unexpected digest turns: %+v", messages)
 	}
@@ -280,7 +282,7 @@ func TestResearchDigestMessageShape(t *testing.T) {
 		t.Fatalf("digest instruction still asks for the old prose list shape")
 	}
 	// With no explicit language the reader's own wording governs.
-	auto := researchDigestMessages(papers, "auto")
+	auto := researchDigestMessages(papers, nil, "auto")
 	if !strings.Contains(auto[1].Content, "same language as the paper titles") {
 		t.Fatalf("auto-language digest missing fallback clause: %q", auto[1].Content)
 	}
@@ -324,7 +326,7 @@ func TestPaperChatAndDigestRunThroughFakeProvider(t *testing.T) {
 
 	draft := "Paper on identification"
 	researchPaper, err := storage.CreateResearchPaper(ctx, db, domain.DefaultProfileID, domain.ResearchPaper{
-		Kind: domain.ResearchKindResearch, Title: draft, Priority: "high",
+		Kind: domain.ResearchKindResearch, Title: draft,
 		Stages: []domain.ResearchStage{{Name: "Data cleaning", Done: false}, {Name: "Draft", Done: true}},
 	})
 	if err != nil {

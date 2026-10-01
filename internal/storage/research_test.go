@@ -51,8 +51,17 @@ func TestResearchPaperLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create second: %v", err)
 	}
-	if second.Position != 1 {
-		t.Fatalf("expected position 1, got %d", second.Position)
+	// New rows land on top: the row the user just made is the one they are
+	// looking for, so it takes the head of the list instead of the tail.
+	if second.Position >= created.Position {
+		t.Fatalf("expected second paper before first, positions %d and %d", second.Position, created.Position)
+	}
+	fresh, err := ListResearchPapers(ctx, db, domain.DefaultProfileID, domain.ResearchKindResearch)
+	if err != nil {
+		t.Fatalf("list after create: %v", err)
+	}
+	if len(fresh) != 2 || fresh[0].ID != second.ID {
+		t.Fatalf("expected newest paper first, got %+v", fresh)
 	}
 
 	title := "First (edited)"
@@ -70,15 +79,15 @@ func TestResearchPaperLifecycle(t *testing.T) {
 		t.Fatalf("stages not persisted: %+v", updated.Stages)
 	}
 
-	// Reorder: put second before first.
-	if err := ReorderResearchPapers(ctx, db, domain.DefaultProfileID, domain.ResearchKindResearch, []string{second.ID, created.ID}); err != nil {
+	// Reorder: put the older paper back on top.
+	if err := ReorderResearchPapers(ctx, db, domain.DefaultProfileID, domain.ResearchKindResearch, []string{created.ID, second.ID}); err != nil {
 		t.Fatalf("reorder: %v", err)
 	}
 	list, err := ListResearchPapers(ctx, db, domain.DefaultProfileID, domain.ResearchKindResearch)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	if len(list) != 2 || list[0].ID != second.ID {
+	if len(list) != 2 || list[0].ID != created.ID {
 		t.Fatalf("reorder not applied: %+v", list)
 	}
 
@@ -88,6 +97,35 @@ func TestResearchPaperLifecycle(t *testing.T) {
 	remaining, _ := ListResearchPapers(ctx, db, domain.DefaultProfileID, domain.ResearchKindResearch)
 	if len(remaining) != 1 {
 		t.Fatalf("expected one remaining, got %d", len(remaining))
+	}
+}
+
+func TestMoveResearchPaperLandsOnTop(t *testing.T) {
+	ctx := context.Background()
+	db := newResearchTestDB(t)
+
+	if _, err := CreateResearchPaper(ctx, db, domain.DefaultProfileID, domain.ResearchPaper{
+		Kind: domain.ResearchKindPublished, Title: "Already published",
+	}); err != nil {
+		t.Fatalf("seed published paper: %v", err)
+	}
+	moved, err := CreateResearchPaper(ctx, db, domain.DefaultProfileID, domain.ResearchPaper{
+		Kind: domain.ResearchKindResearch, Title: "Moving",
+	})
+	if err != nil {
+		t.Fatalf("create paper: %v", err)
+	}
+
+	result, err := MoveResearchPaper(ctx, db, domain.DefaultProfileID, moved.ID, domain.ResearchKindPublished)
+	if err != nil {
+		t.Fatalf("move: %v", err)
+	}
+	published, err := ListResearchPapers(ctx, db, domain.DefaultProfileID, domain.ResearchKindPublished)
+	if err != nil {
+		t.Fatalf("list published: %v", err)
+	}
+	if len(published) != 2 || published[0].ID != result.ID {
+		t.Fatalf("expected moved paper first, got %+v", published)
 	}
 }
 

@@ -18,7 +18,7 @@ const LibrarySnapshotFormat = "reflow-library-snapshot"
 var librarySnapshotTables = []string{
 	"folders", "feeds", "subscriptions", "entries", "entry_contents", "entry_states",
 	"entry_annotations", "tags", "feed_tags", "entry_tags", "rules", "saved_filters", "preferences",
-	"research_papers",
+	"research_papers", "research_tags",
 }
 
 // ExportLibrarySnapshot intentionally excludes device tokens, background jobs,

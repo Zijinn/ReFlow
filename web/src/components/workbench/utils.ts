@@ -117,16 +117,47 @@ export function statusBadgeClass(status: string): string {
   }
 }
 
-export function priorityDotClass(priority: string): string {
-  if (priority === "High") return "wb-dot--red"
-  if (priority === "Medium") return "wb-dot--amber"
-  return "wb-dot--gray"
+// 标签色阶：前三档沿用旧优先级的红/琥珀/灰（迁移把 High/Medium/Average 播种为
+// position 0/1/2，旧行的含义不变），第四档起循环 wb-badge 家族其余既有淡底。
+// 只按调色板下标取色，不新增任何色板令牌。
+const TAG_BADGE_TINTS = [
+  "wb-badge--red",
+  "wb-badge--amber",
+  "wb-badge--gray",
+  "wb-badge--green",
+  "wb-badge--teal",
+  "wb-badge--orange",
+  "wb-badge--violet",
+  "wb-badge--blue",
+]
+
+const TAG_DOT_TINTS = [
+  "wb-dot--red",
+  "wb-dot--amber",
+  "wb-dot--gray",
+  "wb-dot--green",
+  "wb-dot--teal",
+  "wb-dot--orange",
+  "wb-dot--violet",
+  "wb-dot--blue",
+]
+
+export function tagBadgeClass(index: number): string {
+  if (index < 0) return "wb-badge--gray"
+  return TAG_BADGE_TINTS[index % TAG_BADGE_TINTS.length]!
 }
 
-export function priorityBadgeClass(priority: string): string {
-  if (priority === "High") return "wb-badge--red"
-  if (priority === "Medium") return "wb-badge--amber"
-  return "wb-badge--gray"
+export function tagDotClass(index: number): string {
+  if (index < 0) return "wb-dot--gray"
+  return TAG_DOT_TINTS[index % TAG_DOT_TINTS.length]!
+}
+
+// 迁移播种的三个旧优先级标签按既有 i18n 键显示本地化名；其余名字原样渲染。
+export function tagDisplayName(name: string, t: (key: string) => string): string {
+  if (name === "High") return t("priorityHigh")
+  if (name === "Medium") return t("priorityMedium")
+  if (name === "Average") return t("priorityAverage")
+  return name
 }
 
 // 相对时间：总览最近动态用；解析失败回退原文。

@@ -317,6 +317,17 @@ export interface SubmissionRecord {
   status: string
 }
 
+/**
+ * Research-workbench tag palette entry. Distinct from the library `Tag`:
+ * these live under `/research/tags` and papers reference one by `tag_id`.
+ * The list endpoint returns them ordered by `position` ascending.
+ */
+export interface ResearchTag {
+  id: string
+  name: string
+  position: number
+}
+
 export interface ResearchPaper {
   id: string
   kind: ResearchKind
@@ -329,7 +340,7 @@ export interface ResearchPaper {
   notes: string
   research_area: string
   status: string
-  priority: string
+  tag_id: string
   target_journal: string
   stages: ResearchStage[]
   current_journal: string
@@ -365,7 +376,7 @@ export interface ResearchPaperPatch {
   notes?: string
   research_area?: string
   status?: string
-  priority?: string
+  tag_id?: string
   target_journal?: string
   stages?: ResearchStage[]
   current_journal?: string

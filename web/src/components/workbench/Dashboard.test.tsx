@@ -22,7 +22,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "",
     status: "",
-    priority: "High",
+    tag_id: "t-high",
     target_journal: "经济研究",
     stages: [
       { name: "Done", done: true, children: [] },
@@ -74,11 +74,17 @@ describe("Dashboard", () => {
   })
 
   it("lists high-priority projects with the localized eyebrow", () => {
+    // 优先项目取调色板最前的标签，与标签叫什么无关：用户改名后这一栏依旧成立。
+    const tags = [
+      { id: "t-high", name: "冲刺中", position: 0 },
+      { id: "t-average", name: "Average", position: 2 },
+    ]
     render(
       <Dashboard
-        research={[paper(), paper({ id: "p-2", title: "Low prio", priority: "Average" })]}
+        research={[paper(), paper({ id: "p-2", title: "Low prio", tag_id: "t-average" })]}
         submitted={[]}
         published={[]}
+        tags={tags}
         onNavigate={() => {}}
       />,
     )

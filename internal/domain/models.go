@@ -347,7 +347,7 @@ type ResearchPaper struct {
 	// research
 	ResearchArea  string          `json:"research_area"`
 	Status        string          `json:"status"`
-	Priority      string          `json:"priority"`
+	TagID         string          `json:"tag_id"`
 	TargetJournal string          `json:"target_journal"`
 	Stages        []ResearchStage `json:"stages"`
 
@@ -379,6 +379,15 @@ type ResearchPaper struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+// ResearchTag is one label in a profile's ordered, user-defined palette. It
+// replaced the fixed High/Medium/Average priority enum: position is the tag's
+// priority order, and papers reference tags by id so renames stay cheap.
+type ResearchTag struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Position int    `json:"position"`
+}
+
 // ResearchPaperPatch carries optional field updates; nil fields are untouched.
 type ResearchPaperPatch struct {
 	Title           *string
@@ -389,7 +398,7 @@ type ResearchPaperPatch struct {
 	Notes           *string
 	ResearchArea    *string
 	Status          *string
-	Priority        *string
+	TagID           *string
 	TargetJournal   *string
 	Stages          *[]ResearchStage
 	CurrentJournal  *string

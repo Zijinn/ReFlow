@@ -1543,7 +1543,13 @@ paths:
                 notes: { type: string, maxLength: 2000 }
                 research_area: { type: string, maxLength: 500 }
                 status: { type: string, maxLength: 500 }
-                priority: { type: string, maxLength: 500 }
+                tag_id:
+                  type: string
+                  maxLength: 500
+                  description: >
+                    Id of a tag from /api/v1/research/tags. An empty string
+                    leaves the paper untagged; unknown ids are accepted and
+                    simply render as untagged until the palette is reloaded.
                 target_journal: { type: string, maxLength: 500 }
                 stages:
                   type: array
@@ -1648,6 +1654,82 @@ paths:
         "422":
           $ref: "#/components/responses/Problem"
         "502":
+          $ref: "#/components/responses/Problem"
+  /api/v1/research/tags:
+    get:
+      operationId: listResearchTags
+      tags: [research]
+      description: >
+        The profile's tag palette in priority order. The three legacy priority
+        labels are seeded by migration 0016 at positions 0, 1 and 2.
+      responses:
+        "200":
+          description: Tags ordered by position.
+    post:
+      operationId: createResearchTag
+      tags: [research]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 40
+                  description: Trimmed; a name already used by the profile returns 409.
+      responses:
+        "201":
+          description: Tag appended to the end of the palette.
+        "400":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /api/v1/research/tags/{tagId}:
+    parameters:
+      - name: tagId
+        in: path
+        required: true
+        schema:
+          type: string
+    patch:
+      operationId: renameResearchTag
+      tags: [research]
+      description: >
+        Renames a tag. Papers reference tags by id, so their tag_id is
+        unchanged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 40
+      responses:
+        "200":
+          description: Renamed tag.
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteResearchTag
+      tags: [research]
+      description: Deletes a tag and clears it from every paper carrying it.
+      responses:
+        "204":
+          description: Tag deleted and papers untagged.
+        "404":
           $ref: "#/components/responses/Problem"
 components:
   securitySchemes:

@@ -11,14 +11,25 @@ export class CanvasPhotoError extends Error {
 }
 
 // 这张图最终只当画布底色用：CSS 那边 `background-size: cover` 会把它拉满整个窗口，
-// 所以这里的长边上限实际决定"放大多少倍"。480 拉到 2560 设备像素是 5 倍多，照片只剩
-// 色块走向，用户要的是认得出这张图，所以保留到 1600（约 1.6 倍放大，轮廓与细节还在）。
-// 高频颗粒不会变成文字底下的噪点：画布上压的是有地板的蒙纱（styles.css 实测浅档
-// 87% / 深档 88% 才守住 11px 三级墨 AA），亮度带宽只剩几十级。
-const MAX_EDGE = 1600
-const JPEG_QUALITY = 0.82
+// 所以这里的长边上限实际决定"放大多少倍"。用户的主力窗口是 2960 设备像素宽，1600
+// 在那儿要放大 1.85 倍，边缘和纹理直接糊成一片——这正是"图片还是不够清晰"的另一半
+// 原因（另一半是蒙纱地板，已在 styles.css 里降到拉轴下限）。2560 覆盖到外接屏短边，
+// 放大约 1.16 倍，肉眼几乎看不出来。
+// 但纱变薄意味着照片颗粒也一起露出来：JPEG 这一道重编码仍然是主要的低通，所以下面
+// 的阶梯先降质量、后降尺寸——糊成马赛克比少 500 像素更难看。
+const MAX_EDGE = 2560
 // 存的是 data URL，配额只有 ~5MB，还要给标注等数据留空间。
 const MAX_DATA_URL_LENGTH = 2_000_000
+
+// 超配额不再直接报错，而是按这张表从"最清楚"往"最省字节"退。2560 长边的写实照片在
+// 0.82 下通常落在 0.6–1.3M 字符，第一档大多就能过；退到最后一档还装不下才抛 too-large，
+// 因为"这张图存不下"对用户来说比任何画质妥协都更莫名其妙。
+const ENCODE_LADDER = [
+  { edge: MAX_EDGE, quality: 0.82 },
+  { edge: MAX_EDGE, quality: 0.72 },
+  { edge: 2000, quality: 0.72 },
+  { edge: 1600, quality: 0.7 },
+]
 
 interface DecodedSource {
   width: number
@@ -27,11 +38,11 @@ interface DecodedSource {
   dispose: () => void
 }
 
-function scaleToFit(width: number, height: number) {
+function scaleToFit(width: number, height: number, maxEdge: number) {
   const longest = Math.max(width, height)
   // 小图保持原尺寸：放大只会让 data URL 变大，画质不会变好。
-  if (longest <= MAX_EDGE) return { width, height }
-  const scale = MAX_EDGE / longest
+  if (longest <= maxEdge) return { width, height }
+  const scale = maxEdge / longest
   return {
     width: Math.max(1, Math.round(width * scale)),
     height: Math.max(1, Math.round(height * scale)),
@@ -83,6 +94,20 @@ async function decode(file: File): Promise<DecodedSource> {
   return decodeViaObjectURL(file)
 }
 
+function encode(source: DecodedSource, edge: number, quality: number): string {
+  const { width, height } = scaleToFit(source.width, source.height, edge)
+  const canvas = document.createElement("canvas")
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext("2d")
+  if (!context) throw new CanvasPhotoError("decode", "Canvas 2d context is unavailable.")
+  // JPEG 没有 alpha 通道，透明 PNG 直接画会压成黑底，先铺一层白。
+  context.fillStyle = "#ffffff"
+  context.fillRect(0, 0, width, height)
+  source.paint(context, width, height)
+  return canvas.toDataURL("image/jpeg", quality)
+}
+
 export async function readCanvasPhoto(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) {
     throw new CanvasPhotoError("unsupported", `Not an image file: ${file.type || "unknown type"}`)
@@ -92,21 +117,11 @@ export async function readCanvasPhoto(file: File): Promise<string> {
     if (source.width < 1 || source.height < 1) {
       throw new CanvasPhotoError("decode", "Canvas photo has no pixels.")
     }
-    const { width, height } = scaleToFit(source.width, source.height)
-    const canvas = document.createElement("canvas")
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext("2d")
-    if (!context) throw new CanvasPhotoError("decode", "Canvas 2d context is unavailable.")
-    // JPEG 没有 alpha 通道，透明 PNG 直接画会压成黑底，先铺一层白。
-    context.fillStyle = "#ffffff"
-    context.fillRect(0, 0, width, height)
-    source.paint(context, width, height)
-    const dataURL = canvas.toDataURL("image/jpeg", JPEG_QUALITY)
-    if (dataURL.length > MAX_DATA_URL_LENGTH) {
-      throw new CanvasPhotoError("too-large", "Canvas photo exceeds the storage quota.")
+    for (const rung of ENCODE_LADDER) {
+      const dataURL = encode(source, rung.edge, rung.quality)
+      if (dataURL.length <= MAX_DATA_URL_LENGTH) return dataURL
     }
-    return dataURL
+    throw new CanvasPhotoError("too-large", "Canvas photo exceeds the storage quota.")
   } finally {
     source.dispose()
   }

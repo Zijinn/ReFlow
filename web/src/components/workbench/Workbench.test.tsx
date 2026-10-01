@@ -22,13 +22,16 @@ vi.mock("../../api/client", async (importOriginal) => {
     ...actual,
     cancelJob: vi.fn(),
     createResearchPaper: vi.fn(),
+    createResearchTag: vi.fn(),
     deleteResearchPaper: vi.fn(),
+    deleteResearchTag: vi.fn(),
     fetchResearchCitation: vi.fn(),
     getAIChat: vi.fn(),
     getJob: vi.fn(),
     listAIResults: vi.fn(),
     listPreferences: vi.fn(() => Promise.resolve({ items: {} })),
     listResearchPapers: vi.fn(),
+    listResearchTags: vi.fn(),
     moveResearchPaper: vi.fn(),
     putPreference: vi.fn(),
     reorderResearchPapers: vi.fn(),
@@ -38,6 +41,7 @@ vi.mock("../../api/client", async (importOriginal) => {
     startAILibraryChat: vi.fn(),
     startAIPaperChat: vi.fn(),
     updateResearchPaper: vi.fn(),
+    updateResearchTag: vi.fn(),
   }
 })
 
@@ -56,7 +60,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "",
     status: "",
-    priority: "Medium",
+    tag_id: "",
     target_journal: "",
     stages: [{ name: "Empirics", done: false, children: [] }],
     current_journal: "",
@@ -195,6 +199,10 @@ beforeEach(() => {
     Promise.resolve({ ...paper({ kind }), id }),
   )
   vi.mocked(api.putPreference).mockResolvedValue({})
+  vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
+  vi.mocked(api.createResearchTag).mockImplementation((name) =>
+    Promise.resolve({ id: `tag-${name}`, name, position: 0 }),
+  )
   // The daily-digest card auto-runs once an AI profile exists; default it to the
   // honest degraded path (no provider on the server) so panel tests stay focused
   // and nothing reaches the network.
@@ -360,6 +368,60 @@ describe("Workbench paper move", () => {
     expect(papersByKind.submitted[0]!.stages).toEqual([
       { name: "Empirics", done: false, children: [] },
     ])
+  })
+})
+
+describe("Workbench research tags", () => {
+  it("loads the tag palette and renders the paper's tag as a pill", async () => {
+    vi.mocked(api.listResearchTags).mockResolvedValue({
+      tags: [
+        { id: "t-high", name: "High", position: 0 },
+        { id: "t-field", name: "Fieldwork", position: 1 },
+      ],
+    })
+    papersByKind.research = [paper({ tag_id: "t-field" })]
+    renderWorkbench()
+    goToTab(/Working papers/)
+    // 迁移播种的旧名走既有 i18n 键（en: High → High），自定义名原样渲染。
+    expect(await screen.findByRole("button", { name: "Tag: Fieldwork" })).toBeInTheDocument()
+  })
+
+  it("creates a tag through the API and assigns it to the paper", async () => {
+    vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
+    vi.mocked(api.createResearchTag).mockResolvedValue({
+      id: "t-placebo",
+      name: "Placebo",
+      position: 0,
+    })
+    renderWorkbench()
+    goToTab(/Working papers/)
+    fireEvent.click(await screen.findByRole("button", { name: "Tag: No tag" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
+    const input = screen.getByRole("textbox", { name: "New tag" })
+    fireEvent.change(input, { target: { value: "Placebo" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    await waitFor(() => expect(api.createResearchTag).toHaveBeenCalledWith("Placebo"))
+    await waitFor(() =>
+      expect(api.updateResearchPaper).toHaveBeenCalledWith("r-1", { tag_id: "t-placebo" }),
+    )
+  })
+
+  it("toasts and keeps the draft when the tag name is rejected", async () => {
+    vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
+    vi.mocked(api.createResearchTag).mockRejectedValue(new api.APIError(409, "duplicate tag"))
+    renderWorkbench()
+    goToTab(/Working papers/)
+    fireEvent.click(await screen.findByRole("button", { name: "Tag: No tag" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
+    const input = screen.getByRole("textbox", { name: "New tag" })
+    fireEvent.change(input, { target: { value: "Duplicate" } })
+    fireEvent.keyDown(input, { key: "Enter" })
+    await waitFor(() =>
+      expect(useToastStore.getState().toasts.some((entry) => /create the tag/i.test(entry.message))).toBe(true),
+    )
+    // 失败后输入现场保留，论文没有被指派任何标签。
+    expect(screen.getByRole("textbox", { name: "New tag" })).toHaveValue("Duplicate")
+    expect(api.updateResearchPaper).not.toHaveBeenCalled()
   })
 })
 

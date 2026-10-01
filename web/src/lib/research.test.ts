@@ -28,7 +28,7 @@ function paper(overrides: Partial<ResearchPaper>): ResearchPaper {
     notes: "",
     research_area: "",
     status: "",
-    priority: "",
+    tag_id: "",
     target_journal: "",
     stages: [],
     current_journal: "",

@@ -70,7 +70,7 @@ func (s *Server) updateResearchPaper(w http.ResponseWriter, r *http.Request) {
 		Notes           *string                    `json:"notes"`
 		ResearchArea    *string                    `json:"research_area"`
 		Status          *string                    `json:"status"`
-		Priority        *string                    `json:"priority"`
+		TagID           *string                    `json:"tag_id"`
 		TargetJournal   *string                    `json:"target_journal"`
 		Stages          *[]domain.ResearchStage    `json:"stages"`
 		CurrentJournal  *string                    `json:"current_journal"`
@@ -99,7 +99,7 @@ func (s *Server) updateResearchPaper(w http.ResponseWriter, r *http.Request) {
 	patch := domain.ResearchPaperPatch{
 		Title: request.Title, Authors: request.Authors, Keywords: request.Keywords,
 		FilePath: request.FilePath, NextAction: request.NextAction, Notes: request.Notes,
-		ResearchArea: request.ResearchArea, Status: request.Status, Priority: request.Priority,
+		ResearchArea: request.ResearchArea, Status: request.Status, TagID: request.TagID,
 		TargetJournal: request.TargetJournal, Stages: request.Stages,
 		CurrentJournal: request.CurrentJournal, SubmissionDate: request.SubmissionDate,
 		ManuscriptID: request.ManuscriptID, SubmissionCount: request.SubmissionCount,
@@ -201,4 +201,56 @@ func (s *Server) fetchResearchCitation(w http.ResponseWriter, r *http.Request) {
 	}
 	s.events.Publish("research.updated", map[string]string{"paper_id": paper.ID, "kind": paper.Kind})
 	writeJSON(w, http.StatusOK, paper)
+}
+
+func (s *Server) listResearchTags(w http.ResponseWriter, r *http.Request) {
+	items, err := storage.ListResearchTags(r.Context(), s.db, domain.DefaultProfileID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"tags": items})
+}
+
+func (s *Server) createResearchTag(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Name string `json:"name"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	tag, err := storage.CreateResearchTag(r.Context(), s.db, domain.DefaultProfileID, request.Name)
+	if err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.events.Publish("research.updated", map[string]string{"tag_id": tag.ID})
+	writeJSON(w, http.StatusCreated, map[string]any{"tag": tag})
+}
+
+func (s *Server) renameResearchTag(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Name string `json:"name"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	tag, err := storage.RenameResearchTag(r.Context(), s.db, domain.DefaultProfileID, r.PathValue("tagID"), request.Name)
+	if err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.events.Publish("research.updated", map[string]string{"tag_id": tag.ID})
+	writeJSON(w, http.StatusOK, map[string]any{"tag": tag})
+}
+
+func (s *Server) deleteResearchTag(w http.ResponseWriter, r *http.Request) {
+	if err := storage.DeleteResearchTag(r.Context(), s.db, domain.DefaultProfileID, r.PathValue("tagID")); err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.events.Publish("research.updated", map[string]string{"tag_id": r.PathValue("tagID")})
+	w.WriteHeader(http.StatusNoContent)
 }

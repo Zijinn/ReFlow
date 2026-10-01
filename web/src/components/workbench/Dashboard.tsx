@@ -2,7 +2,7 @@ import { useMemo } from "react"
 
 import { Books, ChartPieSlice, CaretRight, NotePencil, PaperPlaneTilt } from "@phosphor-icons/react"
 
-import type { AIProfile, ResearchPaper } from "../../api/types"
+import type { AIProfile, ResearchPaper, ResearchTag } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { computeProgress } from "../../lib/research"
 import { DailyDigestCard } from "./DailyDigest"
@@ -15,6 +15,7 @@ export function Dashboard(props: {
   research: ResearchPaper[]
   submitted: ResearchPaper[]
   published: ResearchPaper[]
+  tags?: ResearchTag[]
   aiProfiles?: AIProfile[]
   onConfigureAI?: () => void
   onAskAI?: () => void
@@ -42,7 +43,17 @@ export function Dashboard(props: {
       .slice(0, 5)
   }, [research, submitted])
 
-  const priorityProjects = research.filter((paper) => paper.priority === "High")
+  // 调色板顺序就是用户的优先级顺序，所以"优先处理项目"取排在最前的那个标签。
+  // 按位置而不是按名字挑，用户把 High 改名后这一栏不会突然空掉。
+  const priorityProjects = useMemo(() => {
+    const palette = props.tags ?? []
+    const top = palette.reduce<ResearchTag | undefined>(
+      (best, tag) => (best === undefined || tag.position < best.position ? tag : best),
+      undefined,
+    )
+    if (!top) return []
+    return research.filter((paper) => paper.tag_id === top.id)
+  }, [props.tags, research])
 
   // The digest covers the papers that actually have a next step or a deadline.
   const digestPapers = useMemo(() => [...research, ...submitted], [research, submitted])

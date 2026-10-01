@@ -164,6 +164,15 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tagID := tag.ID
+	if _, err := UpdateResearchPaper(ctx, db, domain.DefaultProfileID, created.ID,
+		domain.ResearchPaperPatch{TagID: &tagID}); err != nil {
+		t.Fatal(err)
+	}
 	document, err := ExportLibrarySnapshot(ctx, db)
 	if err != nil {
 		t.Fatal(err)
@@ -171,6 +180,9 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 	title := "Local edit"
 	if _, err := UpdateResearchPaper(ctx, db, domain.DefaultProfileID, created.ID,
 		domain.ResearchPaperPatch{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, "本地改名"); err != nil {
 		t.Fatal(err)
 	}
 	if err := RestoreLibrarySnapshot(ctx, db, document); err != nil {
@@ -182,6 +194,16 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 	}
 	if restored.Title != "Tracked paper" || len(restored.Stages) != 1 || len(restored.Authors) != 1 {
 		t.Fatalf("snapshot restore lost research data: %+v", restored)
+	}
+	if restored.TagID != tag.ID {
+		t.Fatalf("snapshot restore lost the paper's tag: %q", restored.TagID)
+	}
+	restoredTag, err := GetResearchTag(ctx, db, domain.DefaultProfileID, tag.ID)
+	if err != nil {
+		t.Fatalf("research tag missing after snapshot restore: %v", err)
+	}
+	if restoredTag.Name != "急件" {
+		t.Fatalf("snapshot restore lost the tag name: %+v", restoredTag)
 	}
 }
 

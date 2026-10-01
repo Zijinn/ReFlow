@@ -92,7 +92,7 @@ func validateResearchPaper(paper domain.ResearchPaper) error {
 		{"notes", paper.Notes, researchLongTextLimit},
 		{"research_area", paper.ResearchArea, researchTextLimit},
 		{"status", paper.Status, researchTextLimit},
-		{"priority", paper.Priority, researchTextLimit},
+		{"tag_id", paper.TagID, researchTextLimit},
 		{"target_journal", paper.TargetJournal, researchTextLimit},
 		{"current_journal", paper.CurrentJournal, researchTextLimit},
 		{"submission_date", paper.SubmissionDate, researchTextLimit},
@@ -141,7 +141,7 @@ func validateResearchPatch(patch domain.ResearchPaperPatch) error {
 	add("notes", patch.Notes, researchLongTextLimit)
 	add("research_area", patch.ResearchArea, researchTextLimit)
 	add("status", patch.Status, researchTextLimit)
-	add("priority", patch.Priority, researchTextLimit)
+	add("tag_id", patch.TagID, researchTextLimit)
 	add("target_journal", patch.TargetJournal, researchTextLimit)
 	add("current_journal", patch.CurrentJournal, researchTextLimit)
 	add("submission_date", patch.SubmissionDate, researchTextLimit)
@@ -191,7 +191,7 @@ func IsResearchKind(kind string) bool {
 }
 
 const researchColumns = `id, kind, position, title, authors_json, keywords_json, file_path,
-	next_action, notes, research_area, status, priority, target_journal, stages_json,
+	next_action, notes, research_area, status, tag_id, target_journal, stages_json,
 	current_journal, submission_date, manuscript_id, submission_count, target_level, editor,
 	deadline, history_json, abstract, journal, language, year, volume, issue, pages, doi,
 	citations, citation_source, citation_updated_at, last_updated, created_at, updated_at`
@@ -208,7 +208,7 @@ func scanResearchPaper(scanner interface {
 	if err := scanner.Scan(
 		&paper.ID, &paper.Kind, &paper.Position, &paper.Title, &authorsJSON, &keywordsJSON,
 		&paper.FilePath, &paper.NextAction, &paper.Notes, &paper.ResearchArea, &paper.Status,
-		&paper.Priority, &paper.TargetJournal, &stagesJSON, &paper.CurrentJournal,
+		&paper.TagID, &paper.TargetJournal, &stagesJSON, &paper.CurrentJournal,
 		&paper.SubmissionDate, &paper.ManuscriptID, &paper.SubmissionCount, &paper.TargetLevel,
 		&paper.Editor, &paper.Deadline, &historyJSON, &paper.Abstract, &paper.Journal, &paper.Language,
 		&paper.Year, &paper.Volume, &paper.Issue, &paper.Pages, &paper.DOI, &citations,
@@ -278,8 +278,10 @@ func GetResearchPaper(ctx context.Context, db *sql.DB, profileID, id string) (do
 	return paper, nil
 }
 
-// CreateResearchPaper inserts a new paper at the end of its kind list. The
-// caller supplies kind and any starting field values through paper.
+// CreateResearchPaper inserts a new paper at the top of its kind list: the
+// row the user just made is the row they are looking for, so it takes
+// position MIN-1 instead of MAX+1 and the existing order stays untouched.
+// The caller supplies kind and any starting field values through paper.
 func CreateResearchPaper(ctx context.Context, db *sql.DB, profileID string, paper domain.ResearchPaper) (domain.ResearchPaper, error) {
 	if !IsResearchKind(paper.Kind) {
 		return domain.ResearchPaper{}, errors.New("invalid research paper kind")
@@ -299,21 +301,21 @@ func CreateResearchPaper(ctx context.Context, db *sql.DB, profileID string, pape
 	defer tx.Rollback()
 	var position int
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COALESCE(MAX(position)+1, 0) FROM research_papers WHERE profile_id = ? AND kind = ?",
+		"SELECT COALESCE(MIN(position)-1, 0) FROM research_papers WHERE profile_id = ? AND kind = ?",
 		profileID, paper.Kind).Scan(&position); err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("compute research position: %w", err)
 	}
 	paper.Position = position
 	if _, err := tx.ExecContext(ctx, `INSERT INTO research_papers (
 		id, profile_id, kind, position, title, authors_json, keywords_json, file_path,
-		next_action, notes, research_area, status, priority, target_journal, stages_json,
+		next_action, notes, research_area, status, tag_id, target_journal, stages_json,
 		current_journal, submission_date, manuscript_id, submission_count, target_level, editor,
 		deadline, history_json, abstract, journal, language, year, volume, issue, pages, doi,
 		citations, citation_source, citation_updated_at, last_updated, created_at, updated_at
 	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		paper.ID, profileID, paper.Kind, paper.Position, paper.Title, encodeStringSlice(paper.Authors),
 		encodeStringSlice(paper.Keywords), paper.FilePath, paper.NextAction, paper.Notes,
-		paper.ResearchArea, paper.Status, paper.Priority, paper.TargetJournal, encodeStages(paper.Stages),
+		paper.ResearchArea, paper.Status, paper.TagID, paper.TargetJournal, encodeStages(paper.Stages),
 		paper.CurrentJournal, paper.SubmissionDate, paper.ManuscriptID, paper.SubmissionCount,
 		paper.TargetLevel, paper.Editor, paper.Deadline, encodeHistory(paper.History), paper.Abstract,
 		paper.Journal, paper.Language, paper.Year, paper.Volume, paper.Issue, paper.Pages, paper.DOI,
@@ -363,8 +365,8 @@ func UpdateResearchPaper(ctx context.Context, db *sql.DB, profileID, id string, 
 	if patch.Status != nil {
 		add("status", *patch.Status)
 	}
-	if patch.Priority != nil {
-		add("priority", *patch.Priority)
+	if patch.TagID != nil {
+		add("tag_id", *patch.TagID)
 	}
 	if patch.TargetJournal != nil {
 		add("target_journal", *patch.TargetJournal)
@@ -498,8 +500,11 @@ func MoveResearchPaper(ctx context.Context, db *sql.DB, profileID, id, toKind st
 	defer tx.Rollback()
 	now := time.Now().UTC()
 	var position int
+	// Same rule as create: the paper the user just moved is the one they are
+	// looking at, so it lands on top of the destination list, not buried at
+	// the bottom of it.
 	if err := tx.QueryRowContext(ctx,
-		"SELECT COALESCE(MAX(position)+1, 0) FROM research_papers WHERE profile_id = ? AND kind = ?",
+		"SELECT COALESCE(MIN(position)-1, 0) FROM research_papers WHERE profile_id = ? AND kind = ?",
 		profileID, toKind).Scan(&position); err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("compute research move position: %w", err)
 	}

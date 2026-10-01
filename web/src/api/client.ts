@@ -32,6 +32,7 @@ import type {
   ResearchKind,
   ResearchPaper,
   ResearchPaperPatch,
+  ResearchTag,
 } from "./types"
 import { entryDetailCacheKey, entryPageCacheKey, readCache, writeCache } from "../offline/database"
 import type { ReaderAnnotation } from "../lib/annotations"
@@ -451,6 +452,36 @@ export function fetchResearchCitation(paperID: string): Promise<ResearchPaper> {
     `/api/v1/research/papers/${encodeURIComponent(paperID)}/citation`,
     { method: "POST" },
   )
+}
+
+/** Research tag palette, ordered by position ascending. */
+export function listResearchTags(signal?: AbortSignal): Promise<{ tags: ResearchTag[] }> {
+  return request<{ tags: ResearchTag[] }>("/api/v1/research/tags", { signal })
+}
+
+/** 400 when the name is empty or over 40 chars; 409 on a duplicate name. */
+export async function createResearchTag(name: string): Promise<ResearchTag> {
+  const response = await request<{ tag: ResearchTag }>("/api/v1/research/tags", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  })
+  return response.tag
+}
+
+/** 404 for an unknown id; 409 on a duplicate name. */
+export async function updateResearchTag(tagID: string, name: string): Promise<ResearchTag> {
+  const response = await request<{ tag: ResearchTag }>(
+    `/api/v1/research/tags/${encodeURIComponent(tagID)}`,
+    { method: "PATCH", body: JSON.stringify({ name }) },
+  )
+  return response.tag
+}
+
+/** Papers carrying the tag fall back to `tag_id: ""`. */
+export function deleteResearchTag(tagID: string): Promise<void> {
+  return request<void>(`/api/v1/research/tags/${encodeURIComponent(tagID)}`, {
+    method: "DELETE",
+  })
 }
 
 export function getJob(jobID: string, signal?: AbortSignal): Promise<Job> {

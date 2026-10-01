@@ -22,7 +22,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "",
     status: "under_review",
-    priority: "",
+    tag_id: "",
     target_journal: "",
     stages: [],
     current_journal: "Journal of Development Economics",

@@ -1,10 +1,94 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 
-import { importOPML, markEntriesRead, restoreBackup, updateEntryState } from "./client"
+import {
+  createResearchTag,
+  deleteResearchTag,
+  importOPML,
+  listResearchTags,
+  markEntriesRead,
+  restoreBackup,
+  updateEntryState,
+  updateResearchTag,
+} from "./client"
 
 afterEach(() => {
   vi.restoreAllMocks()
   localStorage.clear()
+})
+
+describe("research tags", () => {
+  const tag = { id: "t-1", name: "Fieldwork", position: 3 }
+
+  it("lists the palette in the server-provided order", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tags: [tag] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    await expect(listResearchTags()).resolves.toEqual({ tags: [tag] })
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/v1/research/tags")
+  })
+
+  it("unwraps the tag envelope on create and sends the name", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tag }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    await expect(createResearchTag("Fieldwork")).resolves.toEqual(tag)
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/research/tags",
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ name: "Fieldwork" }) }),
+    )
+  })
+
+  it("surfaces a duplicate name as an APIError", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ title: "Conflict", detail: "duplicate tag" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    await expect(createResearchTag("Fieldwork")).rejects.toMatchObject({
+      name: "APIError",
+      status: 409,
+    })
+  })
+
+  it("patches a rename through the tag envelope", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tag: { ...tag, name: "Placebo" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    await expect(updateResearchTag("t-1", "Placebo")).resolves.toEqual({
+      ...tag,
+      name: "Placebo",
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/research/tags/t-1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "Placebo" }) }),
+    )
+  })
+
+  it("deletes with a 204 and no body", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 204 }),
+    )
+
+    await expect(deleteResearchTag("t-1")).resolves.toBeUndefined()
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/research/tags/t-1",
+      expect.objectContaining({ method: "DELETE" }),
+    )
+  })
 })
 
 describe("updateEntryState", () => {

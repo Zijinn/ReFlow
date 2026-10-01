@@ -69,13 +69,17 @@
      画布上，所以画布的亮度地板必须由这一层守住。地板是量出来的，不是拍的：浅档白纱
      压到 87% 时最坏情形（照片里一处纯黑）画布落在 rgb(222)，三级墨 #5f6268 4.54:1
      刚过 AA；同一处只压 70% 就掉到 2.90:1，整张表直接不能读。
-     --canvas-photo-veil 由偏好面板写在 <html> 内联样式上（用户选的档位），
-     max() 拿地板兜底——用户再怎么往"清楚"那一端调也踩不到安全线以下。
+     87% 因此是"安全线"，但不再是靠 max() 强制执行的下限。旧写法把三档全排在地板之上，
+     于是往"清楚"那一端调毫无反应——用户唯一能看见的结果就是"图片还是不够清晰"。现在
+     它是一根连续拉轴：用户可以拖到线以下换清晰度，代价由偏好面板就地写明。
+     --canvas-photo-veil 由偏好面板写在 <html> 内联样式上，区间收口在 JS（lib/canvas）。
      两档写法：先算浓度再喂给 color-mix，百分比位置直接写 max() 在老 WebKit 上
      会整条声明作废，画布连图带纱一起消失。 */
   --canvas-photo-veil: 91%;
   --canvas-veil-tint: var(--surface-raised);
-  --canvas-photo-veil-floor: 87%;
+  /* 地板 = 拉轴下限，等于不设地板；变量必须留着，因为"减少透明度"那一档要把它顶到
+     96%。max() 也留着：它是 CSS 侧唯一的兜底，防止有人手改内联样式写出 0%。 */
+  --canvas-photo-veil-floor: 60%;
   --canvas-photo-veil-strength: max(var(--canvas-photo-veil), var(--canvas-photo-veil-floor));
   --canvas-photo-veil-color: color-mix(
     in srgb,
@@ -115,6 +119,16 @@
      灰阶填充永远只是"多蒙了一层灰"，压在任意静置底色上都能显形。 */
   --fill-hover: rgb(120 120 128 / 0.09);
   --fill-pressed: rgb(120 120 128 / 0.17);
+  /* 滚动条滑块。静止档根本不上色（各处写的是 scrollbar-color: transparent transparent），
+     只有滚动那一刻由 [data-scrolling="true"] 换成这一档——状态由 lib/scroll-reveal.ts 写，
+     停手 700ms 后摘掉，机制见 .sr-only 之后"滚动条：空闲隐藏"那一节。所以它不必像常驻
+     控件那样压够对比度：旧写法是常驻的 --text-faint 45%（白底上合成 #c2c4c7，1.75:1），
+     现在改成瞬时反馈，30% 合成 #d7d7da（1.43:1），浅 21 级，读起来是一道浅灰而不是一根
+     脏条；hover/拖动再提到 40%（#c9cacd），仍然比旧的常驻值浅。
+     scrollbar-color 是继承属性，所以写在滚动容器上的透明档也会传给它的后代
+     （工作台表格里的笔记格就是这么继承到"看不见"的）。 */
+  --scroll-thumb: color-mix(in srgb, var(--text-faint) 30%, transparent);
+  --scroll-thumb-strong: color-mix(in srgb, var(--text-faint) 40%, transparent);
   /* 键盘焦点环：全站只此一处配方。收敛前有三层纯淡底（3px/20%、3.5px/28%、2.5px/45%），
      把合成后的环与它所在背景的非文字对比实测了一遍（336 个样本：浅色/深色 × 六套强调色
      × 按钮/侧栏项/图标按钮/可编辑格/统计卡/搜索框/药丸），最坏只有 1.38:1——WCAG 1.4.11
@@ -386,10 +400,11 @@
     radial-gradient(90% 60% at 8% 108%, rgb(190 190 205 / 0.07) 0%, rgb(190 190 205 / 0) 65%);
   /* 夜档的蒙纱是"压暗"而不是"提亮"：同一张照片，浅档怕的是黑斑，深档怕的是过曝的
      白斑——白纱压在亮照片上等于把画布刷白，而这里每一级高程都是叠白，画布一亮控件
-     面跟着亮。所以深档的纱色取画布本色 #0d0e10，地板 88%（最坏情形纯白像素落在
-     rgb(43)，三级墨 4.6:1；87% 只剩 4.46:1）。 */
+     面跟着亮。所以深档的纱色取画布本色 #0d0e10，安全线 88%（最坏情形纯白像素落在
+     rgb(43)，三级墨 4.6:1；87% 只剩 4.46:1）。和浅档一样，这条线现在只是面板上的
+     提示阈值，不再顶住拉轴。 */
   --canvas-veil-tint: var(--canvas);
-  --canvas-photo-veil-floor: 88%;
+  --canvas-photo-veil-floor: 60%;
   --sheet-glass: rgb(255 255 255 / 0.06);
   --sheet-edge: rgb(255 255 255 / 0.1);
   --card-glass: rgb(255 255 255 / 0.075);
@@ -413,6 +428,11 @@
   /* 深底要更实的灰才压得住：沿用工作台导航已验证过的两档 */
   --fill-hover: rgb(99 99 102 / 0.32);
   --fill-pressed: rgb(99 99 102 / 0.46);
+  /* 深档的"浅"是叠白：0.26 白压在画布 #0d0e10 上合成 #4c4d4e（2.27:1），比旧的常驻档
+     --text-faint 45%（同一处 #393b40，1.72:1）明显更亮，但仍然只是薄霜一层，
+     不会读成一根亮条；hover/拖动提到 0.36（#0f1012 上合成 #656667）。 */
+  --scroll-thumb: rgb(255 255 255 / 0.26);
+  --scroll-thumb-strong: rgb(255 255 255 / 0.36);
   /* 鬓发线在深色下必须换成白描边：:root 那档近黑 5% 压在深面上等于没有。
      取与 --wb-chrome-ring 深色档同一量。焦点环本身不用覆盖——它的两层都由
      --accent / --accent-strong 派生，而这两枚令牌已经按主题翻面。 */
@@ -552,6 +572,48 @@ button:disabled {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* ── 滚动条：空闲隐藏，滚动才显形 ────────────────────────────────────────────
+   全站可滚容器的静止档写的都是 scrollbar-color: transparent transparent——槽还在、
+   宽度不变，只是滑块透明，所以显隐之间不会有任何抖动。滚起来才由这一节换成
+   --scroll-thumb（浅色档，见 :root 那两枚令牌）。
+   "在滚"由 lib/scroll-reveal.ts 表达：它在 window 上开一个捕获阶段的 scroll 监听，
+   滚到谁就给谁写 data-scrolling="true"，停手 700ms 后摘掉。CSS 只认这个属性，
+   JS 不直接改样式，也不用知道页面上有哪些滚动容器；新增一个时把选择器补进下面三组。
+   属性选择器把权重抬到 (0,2,0)（笔记格那条 (0,3,0)），稳压各组件自己 (0,1,0) 的静止档，
+   所以这一节放在文件前部也不会被后面的规则盖回去。
+   故意整条藏起来的容器（.wb-nav、.sidebar .subscription-scroll、
+   .app-shell--reader-open .timeline-scroll）走的是另一条属性 scrollbar-width: none 加
+   ::-webkit-scrollbar { display: none }：槽根本不存在，给滑块上色复活不了它，
+   而它们那几条类选择器规则的权重也仍然压得住这里的伪元素规则。
+   颜色不加 transition：WebKit 的 ::-webkit-scrollbar-* 对过渡支持不可靠，硬切一次到位，
+   密集表格里也正好符合"不抖动"那条要求。
+   两组列表不等长是有意的：伪元素那一档只给本来就写了 ::-webkit-scrollbar 尺寸的容器，
+   凭空给别的容器加一条 ::-webkit-scrollbar-thumb 会让 WebKit 把它切成自定义滚动条、
+   从此常驻占掉一条槽；那些容器走 scrollbar-color 就够了。 */
+.subscription-scroll[data-scrolling="true"],
+.timeline-scroll[data-scrolling="true"],
+.reader-scroll[data-scrolling="true"],
+.auto-tag-scope-list[data-scrolling="true"],
+.wb-main[data-scrolling="true"],
+.wb-content[data-scrolling="true"],
+.wb-table .wb-notes-input[data-scrolling="true"] {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.wb-main[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.wb-content[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.wb-table .wb-notes-input[data-scrolling="true"]::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-thumb);
+}
+.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.wb-main[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.wb-content[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.wb-table .wb-notes-input[data-scrolling="true"]::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scroll-thumb-strong);
 }
 
 .app-shell {
@@ -948,19 +1010,15 @@ button:disabled {
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--text-faint) 45%, transparent) transparent;
+  scrollbar-color: transparent transparent;
 }
 .subscription-scroll::-webkit-scrollbar {
   width: 8px;
 }
 .subscription-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-faint) 40%, transparent);
+  background: transparent;
   border: 2px solid transparent;
   border-radius: var(--radius-md);
-  background-clip: padding-box;
-}
-.subscription-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-faint) 65%, transparent);
   background-clip: padding-box;
 }
 .subscription-scroll::-webkit-scrollbar-track {
@@ -1160,6 +1218,7 @@ button:disabled {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 .timeline-list {
   position: relative;
@@ -1592,6 +1651,7 @@ button:disabled {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 .article-header,
 .article-content,
@@ -4569,6 +4629,7 @@ button:disabled {
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 .auto-tag-scope-list > label {
   display: grid;
@@ -7660,27 +7721,55 @@ button:disabled {
   border-color: var(--border-strong);
 }
 
+/* 工作台真正滚动的是 .wb-main（.wb-content 现在 overflow: visible，不滚），但两条都要写：
+   scrollbar-color 是继承属性，表格里那些自动增高的笔记格继承的正是这一条，所以静止档
+   必须在这里就落到透明，否则每个 .wb-notes-input 都会继承出一条常驻的灰滑块。 */
+.wb-main,
 .wb-content,
 .reader-scroll {
-  scrollbar-color: color-mix(in srgb, var(--text-faint) 45%, transparent) transparent;
+  scrollbar-color: transparent transparent;
   scrollbar-width: thin;
 }
 
+.wb-main::-webkit-scrollbar,
 .wb-content::-webkit-scrollbar,
 .reader-scroll::-webkit-scrollbar {
   width: 10px;
 }
 
+.wb-main::-webkit-scrollbar-thumb,
 .wb-content::-webkit-scrollbar-thumb,
 .reader-scroll::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--text-faint) 45%, transparent);
+  background: transparent;
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: var(--radius-full);
 }
 
+.wb-main::-webkit-scrollbar-track,
 .wb-content::-webkit-scrollbar-track,
 .reader-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 表格里的自动增高笔记格。基础外观归 phase3-research.css，滚动条这一族集中在本文件
+   （同一套令牌、同一个 data-scrolling 显隐机制），所以这几条也写在这里：它本来是靠
+   继承 .wb-content 才拿到滚动条颜色的，那条改成透明之后，这里显式补上自己的静止档，
+   不再依赖祖先。槽宽顺带从 auto 的 15px 收到 thin 的 11px，窄列多出 4px 给正文。 */
+.wb-table .wb-notes-input {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.wb-table .wb-notes-input::-webkit-scrollbar {
+  width: 8px;
+}
+.wb-table .wb-notes-input::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: 2px solid transparent;
+  background-clip: content-box;
+  border-radius: var(--radius-full);
+}
+.wb-table .wb-notes-input::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -8406,6 +8495,32 @@ button:disabled {
 .canvas-photo-preview--empty {
   background-image: none;
   box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+/* 蒙纱拉轴。滑块只回答"压多少"，两端注脚才说清"往哪边走会怎样"，所以贴着滑块左右
+   端点排（space-between），而不是居中。 */
+.canvas-veil-input {
+  margin-top: var(--space-7);
+}
+.canvas-veil-scale {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-5);
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+/* 掉到安全线以下时的代价说明。用 warning 不用 danger：这是用户主动选的取舍，不是出错。
+   字号跟面板里的正文一档（用户：设置里的字太小），不再是提示级的小字。
+   选择器要多带一层 .preference-section：.canvas-veil-hint 是 (0,1,0)，而面板里的
+   `.preference-section p` 是 (0,1,1)，会反过来吃掉这里的颜色与间距。 */
+.preference-section .canvas-veil-hint {
+  padding: var(--space-5);
+  margin: var(--space-7) 0 0;
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
+  color: var(--warning-strong);
+  background: color-mix(in srgb, var(--warning) 8%, transparent);
+  border-left: 3px solid var(--warning);
 }
 
 /* ── 工作台排版 ────────────────────────────────────────────────────────
@@ -10259,7 +10374,8 @@ body,
   background-repeat: no-repeat;
 }
 /* 用户自己上传的背景图：同一组面，把"光斑 + 渐变"两束换成"蒙纱 + 照片"两层。
-   照片 cover 铺满整窗，蒙纱盖在它上面（浓度含地板，见 :root 那段实测）。
+   照片 cover 铺满整窗，蒙纱盖在它上面（浓度就是偏好拉轴写下的值，地板已降到拉轴
+   下限，见 :root 那段实测）。
    三条都是 (0,2,x) 特异度，稳压上面那条 (0,1,x)；--canvas-photo-src 挂在 <html>
    内联样式上并向下继承，所以这里不需要重复写 url()。
    background-size / position 按层成对写：纱那层用 auto 平铺整个视口即可，

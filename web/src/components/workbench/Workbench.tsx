@@ -10,10 +10,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   createResearchPaper,
+  createResearchTag,
   deleteResearchPaper,
   fetchResearchCitation,
   listPreferences,
   listResearchPapers,
+  listResearchTags,
   moveResearchPaper,
   putPreference,
   reorderResearchPapers,
@@ -25,6 +27,7 @@ import type {
   ResearchKind,
   ResearchPaper,
   ResearchPaperPatch,
+  ResearchTag,
 } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
@@ -204,6 +207,14 @@ export function Workbench(props: WorkbenchProps) {
     return typeof raw === "string" ? raw : ""
   }, [preferences.data])
 
+  // 标签调色板：服务端按 position 升序返回，前端直接按下标取色/排序。
+  const tagsQuery = useQuery({
+    queryKey: ["research-tags"],
+    queryFn: ({ signal }: { signal: AbortSignal }) => listResearchTags(signal),
+  })
+  const tagItems = tagsQuery.data?.tags
+  const tags = useMemo(() => tagItems ?? [], [tagItems])
+
   const invalidate = (kind: ResearchKind) =>
     queryClient.invalidateQueries({ queryKey: ["research", kind] })
   const invalidateAll = () => queryClient.invalidateQueries({ queryKey: ["research"] })
@@ -345,6 +356,13 @@ export function Workbench(props: WorkbenchProps) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["preferences"] }),
     onError: () => toast(t("emailSaveFailed")),
   })
+  // 新建标签：成功后刷新调色板；调用方（在研页的标签格）拿到新标签立即指派。
+  // 失败（409 重名 / 400 空名或超长）在这里统一 toast，页面只保留输入现场。
+  const createTagMutation = useMutation({
+    mutationFn: (name: string) => createResearchTag(name),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["research-tags"] }),
+    onError: () => toast(t("tagCreateFailed")),
+  })
 
   const requestConfirm = (message: string, action: () => void) => setConfirm({ message, action })
 
@@ -417,6 +435,17 @@ export function Workbench(props: WorkbenchProps) {
   const saveEmail = (email: string) => {
     if (!requireOnline()) return
     emailMutation.mutate(email)
+  }
+  // Resolved value contract for ResearchPage: the created tag on success, null
+  // on any failure (offline guard, 400/409 from the server) — the toast above
+  // already told the user why.
+  const createTag = async (name: string): Promise<ResearchTag | null> => {
+    if (!requireOnline()) return null
+    try {
+      return await createTagMutation.mutateAsync(name)
+    } catch {
+      return null
+    }
   }
 
   const subtitle: Record<WorkbenchTab, string> = {
@@ -494,6 +523,7 @@ export function Workbench(props: WorkbenchProps) {
                   research={research}
                   submitted={submitted}
                   published={published}
+                  tags={tags}
                   aiProfiles={props.aiProfiles ?? []}
                   onConfigureAI={props.onConfigureAI}
                   onAskAI={props.onAskAI}
@@ -504,6 +534,7 @@ export function Workbench(props: WorkbenchProps) {
               {tab === "research" && (
                 <ResearchPage
                   papers={research}
+                  tags={tags}
                   offline={!online}
                   creating={creating}
                   onCreate={() => create("research")}
@@ -511,6 +542,7 @@ export function Workbench(props: WorkbenchProps) {
                   onDelete={remove}
                   onReorder={(ids) => reorder("research", ids)}
                   onMove={(id) => move(id, "submitted")}
+                  onCreateTag={createTag}
                 />
               )}
               {tab === "submitted" && (

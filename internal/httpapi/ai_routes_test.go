@@ -197,7 +197,7 @@ func TestAIPaperChatAndDailyDigestAPI(t *testing.T) {
 	decodeResponse(t, profileResponse, &profile)
 
 	researchID := createAIAAPITestPaper(t, db, domain.ResearchPaper{
-		Kind: domain.ResearchKindResearch, Title: "Digital yuan and CBDC", Priority: "high",
+		Kind: domain.ResearchKindResearch, Title: "Digital yuan and CBDC",
 		Stages: []domain.ResearchStage{{Name: "Robustness checks", Done: false}},
 	})
 

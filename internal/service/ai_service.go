@@ -528,6 +528,20 @@ func (s *AIService) listAllResearchPapers(ctx context.Context) ([]domain.Researc
 	return papers, nil
 }
 
+// researchTagNames maps tag ids to the labels the user chose, so the paper
+// envelope can carry a readable <tag> instead of an opaque id.
+func (s *AIService) researchTagNames(ctx context.Context) (map[string]string, error) {
+	tags, err := storage.ListResearchTags(ctx, s.db, domain.DefaultProfileID)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(tags))
+	for _, tag := range tags {
+		names[tag.ID] = tag.Name
+	}
+	return names, nil
+}
+
 func (s *AIService) RunChat(ctx context.Context, jobID string, payload AIChatPayload) (domain.AIChatSession, error) {
 	exists, err := storage.AIChatAssistantExistsForJob(ctx, s.db, jobID)
 	if err != nil {
@@ -621,10 +635,14 @@ func (s *AIService) RunResearch(ctx context.Context, jobID string, payload AIRes
 		return domain.AIChatSession{}, errors.New("no research papers to summarize")
 	}
 	var messages []aiprovider.Message
+	tagNames, err := s.researchTagNames(ctx)
+	if err != nil {
+		return domain.AIChatSession{}, err
+	}
 	if payload.Digest {
-		messages = researchDigestMessages(papers, payload.Language)
+		messages = researchDigestMessages(papers, tagNames, payload.Language)
 	} else {
-		messages = researchChatMessages(papers, session.Messages)
+		messages = researchChatMessages(papers, tagNames, session.Messages)
 	}
 	settings, err := decodeAISettings(record.SettingsJSON)
 	if err != nil {
@@ -995,8 +1013,8 @@ const researchSystemPreamble = "You are ReFlow's read-only research assistant fo
 // researchChatMessages builds the paper-context chat turn set: the system
 // message carries the summarized workspace, then the stored conversation
 // (including the latest user question) follows.
-func researchChatMessages(papers []domain.ResearchPaper, history []domain.AIChatMessage) []aiprovider.Message {
-	messages := []aiprovider.Message{{Role: "system", Content: researchSystemPreamble + "\n\n" + researchEnvelope(papers, time.Now().UTC())}}
+func researchChatMessages(papers []domain.ResearchPaper, tagNames map[string]string, history []domain.AIChatMessage) []aiprovider.Message {
+	messages := []aiprovider.Message{{Role: "system", Content: researchSystemPreamble + "\n\n" + researchEnvelope(papers, tagNames, time.Now().UTC())}}
 	if len(history) > maxChatHistory {
 		history = history[len(history)-maxChatHistory:]
 	}
@@ -1019,13 +1037,13 @@ func researchChatMessages(papers []domain.ResearchPaper, history []domain.AIChat
 // and anything unconfirmed belongs in a `note` block. Providers that ignore
 // the contract still return prose or fenced/truncated JSON; the client keeps a
 // text fallback for exactly that reason.
-func researchDigestMessages(papers []domain.ResearchPaper, language string) []aiprovider.Message {
+func researchDigestMessages(papers []domain.ResearchPaper, tagNames map[string]string, language string) []aiprovider.Message {
 	instruction := "Today's progress plan: review every paper below and return exactly ONE JSON object that the card renders as a stack of section cards. " +
 		"Output the JSON object alone — no Markdown, no code fences, no commentary before or after it. Field names are exact. " +
 		`Top level: {"sections":[…]} with at most 4 sections. Each section: ` +
 		`{"kicker":"short label like 'Manuscripts · status'","headline":"one assertive sentence with a judgement, not a topic label","lead":"optional 1-2 lines grounding the headline","blocks":[…at most 4…],"closing":"optional single wrap-up line","action":{…optional…}}. ` +
 		"Allowed block shapes: " +
-		`{"type":"status-rows","items":[{"status":"state pill","title":"paper title copied from <title>","meta":"optional facts from <deadline-status>, <stages>, <priority>, journals","next":"optional single concrete next step"}]} (at most 5 items); ` +
+		`{"type":"status-rows","items":[{"status":"state pill","title":"paper title copied from <title>","meta":"optional facts from <deadline-status>, <stages>, <tag>, journals","next":"optional single concrete next step"}]} (at most 5 items); ` +
 		`{"type":"timeline","items":[{"time":"a <deadline> date or a relative marker derived from <deadline-status>/<idle-days>, e.g. 'due in 3 days'","label":"…"}]} (at most 6; the data has no clock times, so never write times like 23:05); ` +
 		`{"type":"grid","items":[{"title":"…","text":"…"}]} (at most 4); ` +
 		`{"type":"chips","items":["quantified fact drawn from real fields, e.g. stages 3/8 done"]} (at most 8); ` +
@@ -1043,25 +1061,26 @@ func researchDigestMessages(papers []domain.ResearchPaper, language string) []ai
 		instruction += " Respond in the same language as the paper titles."
 	}
 	return []aiprovider.Message{
-		{Role: "system", Content: researchSystemPreamble + "\n\n" + researchEnvelope(papers, time.Now().UTC())},
+		{Role: "system", Content: researchSystemPreamble + "\n\n" + researchEnvelope(papers, tagNames, time.Now().UTC())},
 		{Role: "user", Content: instruction},
 	}
 }
 
 // researchEnvelope summarizes stage completion and deadline proximity for each
-// paper instead of dumping raw JSON.
-func researchEnvelope(papers []domain.ResearchPaper, now time.Time) string {
+// paper instead of dumping raw JSON. tagNames resolves a paper's tag id to the
+// label the user typed, since an id alone tells the model nothing.
+func researchEnvelope(papers []domain.ResearchPaper, tagNames map[string]string, now time.Time) string {
 	var builder strings.Builder
 	builder.WriteString("<research-papers>\n")
 	for _, paper := range papers {
-		builder.WriteString(researchPaperBlock(paper, now))
+		builder.WriteString(researchPaperBlock(paper, tagNames, now))
 		builder.WriteByte('\n')
 	}
 	builder.WriteString("</research-papers>")
 	return builder.String()
 }
 
-func researchPaperBlock(paper domain.ResearchPaper, now time.Time) string {
+func researchPaperBlock(paper domain.ResearchPaper, tagNames map[string]string, now time.Time) string {
 	var builder strings.Builder
 	builder.WriteString("<paper id=\"" + paper.ID + "\" kind=\"" + paper.Kind + "\">\n")
 	builder.WriteString("<title>" + strings.TrimSpace(paper.Title) + "</title>\n")
@@ -1072,7 +1091,7 @@ func researchPaperBlock(paper domain.ResearchPaper, now time.Time) string {
 		builder.WriteString("<keywords>" + keywords + "</keywords>\n")
 	}
 	for _, field := range []struct{ label, value string }{
-		{"status", paper.Status}, {"priority", paper.Priority},
+		{"status", paper.Status}, {"tag", tagNames[paper.TagID]},
 		{"target-journal", paper.TargetJournal}, {"current-journal", paper.CurrentJournal},
 	} {
 		if trimmed := strings.TrimSpace(field.value); trimmed != "" {

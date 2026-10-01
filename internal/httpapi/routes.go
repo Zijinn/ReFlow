@@ -93,6 +93,10 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/v1/research/papers/{paperID}", s.deleteResearchPaper)
 	mux.HandleFunc("POST /api/v1/research/papers/{paperID}/move", s.moveResearchPaper)
 	mux.HandleFunc("POST /api/v1/research/papers/{paperID}/citation", s.fetchResearchCitation)
+	mux.HandleFunc("GET /api/v1/research/tags", s.listResearchTags)
+	mux.HandleFunc("POST /api/v1/research/tags", s.createResearchTag)
+	mux.HandleFunc("PATCH /api/v1/research/tags/{tagID}", s.renameResearchTag)
+	mux.HandleFunc("DELETE /api/v1/research/tags/{tagID}", s.deleteResearchTag)
 	mux.HandleFunc("GET /api/v1/integrations/zotero/status", s.getZoteroStatus)
 	mux.HandleFunc("GET /api/v1/entries/{entryID}/zotero", s.getEntryZoteroStatus)
 	mux.HandleFunc("POST /api/v1/entries/{entryID}/zotero", s.saveEntryToZotero)
@@ -768,6 +772,15 @@ func (s *Server) storageError(w http.ResponseWriter, r *http.Request, err error)
 	var researchValidation *storage.ResearchValidationError
 	if errors.As(err, &researchValidation) {
 		writeProblem(w, r, http.StatusBadRequest, "invalid_research_paper", "Invalid research paper", researchValidation.Reason)
+		return
+	}
+	if errors.Is(err, storage.ErrDuplicateResearchTag) {
+		writeProblem(w, r, http.StatusConflict, "duplicate_research_tag", "Duplicate tag", "A tag with that name already exists in this profile.")
+		return
+	}
+	var tagValidation *storage.ResearchTagValidationError
+	if errors.As(err, &tagValidation) {
+		writeProblem(w, r, http.StatusBadRequest, "invalid_research_tag", "Invalid research tag", tagValidation.Reason)
 		return
 	}
 	s.internalError(w, r, err)
