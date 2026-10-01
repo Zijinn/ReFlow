@@ -35,6 +35,7 @@ vi.mock("../../api/client", async (importOriginal) => {
     moveResearchPaper: vi.fn(),
     putPreference: vi.fn(),
     reorderResearchPapers: vi.fn(),
+    reorderResearchTags: vi.fn(),
     runAIOperation: vi.fn(),
     startAIChat: vi.fn(),
     startAIDailyDigest: vi.fn(),
@@ -60,7 +61,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "",
     status: "",
-    tag_id: "",
+    tag_ids: [],
     target_journal: "",
     stages: [{ name: "Empirics", done: false, children: [] }],
     current_journal: "",
@@ -379,7 +380,7 @@ describe("Workbench research tags", () => {
         { id: "t-field", name: "Fieldwork", position: 1 },
       ],
     })
-    papersByKind.research = [paper({ tag_id: "t-field" })]
+    papersByKind.research = [paper({ tag_ids: ["t-field"] })]
     renderWorkbench()
     goToTab(/Working papers/)
     // 迁移播种的旧名走既有 i18n 键（en: High → High），自定义名原样渲染。
@@ -402,8 +403,45 @@ describe("Workbench research tags", () => {
     fireEvent.keyDown(input, { key: "Enter" })
     await waitFor(() => expect(api.createResearchTag).toHaveBeenCalledWith("Placebo"))
     await waitFor(() =>
-      expect(api.updateResearchPaper).toHaveBeenCalledWith("r-1", { tag_id: "t-placebo" }),
+      expect(api.updateResearchPaper).toHaveBeenCalledWith("r-1", { tag_ids: ["t-placebo"] }),
     )
+  })
+
+  it("writes the whole assignment back when a second tag is ticked", async () => {
+    // 多选写回的是一整串 tag_ids：已有的保持指派顺序在前，刚勾上的追加在末尾。
+    vi.mocked(api.listResearchTags).mockResolvedValue({
+      tags: [
+        { id: "t-high", name: "High", position: 0 },
+        { id: "t-field", name: "Fieldwork", position: 1 },
+      ],
+    })
+    papersByKind.research = [paper({ tag_ids: ["t-field"] })]
+    // 让 PATCH 像真服务器那样把改动落进列表：Workbench 成功后会重取 ["research", kind]，
+    // 若 listResearchPapers 仍返回写回前的数组，刷新一落地就把乐观更新覆盖成旧勾选。
+    vi.mocked(api.updateResearchPaper).mockImplementationOnce((id, patch) => {
+      papersByKind.research = papersByKind.research.map((node) =>
+        node.id === id ? { ...node, ...patch } : node,
+      )
+      return Promise.resolve(papersByKind.research[0]!)
+    })
+    renderWorkbench()
+    goToTab(/Working papers/)
+    const pill = await screen.findByRole("button", { name: "Tag: Fieldwork" })
+    fireEvent.click(pill)
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "High" }))
+    await waitFor(() =>
+      expect(api.updateResearchPaper).toHaveBeenCalledWith("r-1", {
+        tag_ids: ["t-field", "t-high"],
+      }),
+    )
+    // 勾完不关浮层：多选得能连着点。
+    expect(screen.getByRole("menu", { name: "Tag" })).toBeInTheDocument()
+    expect(screen.getByRole("menuitemcheckbox", { name: "High" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    )
+    // 写回落进列表后，收起态那颗药丸的完整名单也要跟着变（aria-label 是读屏的唯一入口）。
+    expect(await screen.findByRole("button", { name: "Tag: Fieldwork, High" })).toBeInTheDocument()
   })
 
   it("toasts and keeps the draft when the tag name is rejected", async () => {

@@ -1,15 +1,29 @@
+// 月历浮层的样式单独一份，走 SubmittedPage 引入：模块图里 main.tsx 那串
+// styles.css / phase*.css 都先于本模块求值，所以它仍排在最后，同特异度靠文件顺序取胜。
+import "./submitted-picker.css"
+
 import { Fragment, useEffect, useMemo, useState } from "react"
 
 import type { ResearchPaper, ResearchPaperPatch, SubmissionRecord } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { SUBMISSION_STATUS_OPTIONS } from "../../lib/research"
 import { toast } from "../../store/toast"
-import { ChipEditor, DragHandle, EmptyState, ExpandToggle, InlineText, MenuSelect, NotesCell, Row } from "./shared"
+import {
+  ChipEditor,
+  ColumnHead,
+  DatePickerCell,
+  DragHandle,
+  EmptyState,
+  ExpandToggle,
+  InlineText,
+  MenuSelect,
+  NotesCell,
+  Row,
+} from "./shared"
 import {
   daysUntil,
   displayID,
   matchesPaperQuery,
-  normalizeDeadlineInput,
   parseDeadline,
   reorderList,
   statusBadgeClass,
@@ -73,6 +87,19 @@ export function SubmittedPage(props: {
         label: t(option.key),
         dotClass: statusDotClass(option.value),
       })),
+    [t],
+  )
+
+  // 投稿次数从"手打数字"换成下拉：0…12 够覆盖实际轮次，label 只有两位数字，
+  // 装得下 58px 的窄列；下拉也顺手堵掉了负数（后端会 400）。
+  const countOptions = useMemo(
+    () => [
+      { value: "", label: t("notFilled") },
+      ...Array.from({ length: 13 }, (_, index) => ({
+        value: String(index),
+        label: String(index),
+      })),
+    ],
     [t],
   )
 
@@ -159,12 +186,24 @@ export function SubmittedPage(props: {
             <tr>
               <th className="wb-col-grip" aria-label={t("colCode")} />
               <th className="wb-col-title">{t("colTitle")}</th>
-              <th className="wb-col-text">{t("currentJournal")}</th>
-              <th className="wb-col-status">{t("colStatus")}</th>
-              <th className="wb-col-text wb-col-note">{t("nextAction")}</th>
-              <th className="wb-col-date">{t("deadlineLabel")}</th>
-              <th className="wb-col-count">{t("submissionCountLabel")}</th>
-              <th className="wb-col-notes">{t("colNotes")}</th>
+              <ColumnHead table="submitted" column="journal" className="wb-col-text">
+                {t("currentJournal")}
+              </ColumnHead>
+              <ColumnHead table="submitted" column="status" className="wb-col-status">
+                {t("colStatus")}
+              </ColumnHead>
+              <ColumnHead table="submitted" column="note" className="wb-col-text wb-col-note">
+                {t("nextAction")}
+              </ColumnHead>
+              <ColumnHead table="submitted" column="date" className="wb-col-date">
+                {t("deadlineLabel")}
+              </ColumnHead>
+              <ColumnHead table="submitted" column="count" className="wb-col-count">
+                {t("submissionCountLabel")}
+              </ColumnHead>
+              <ColumnHead table="submitted" column="notes" className="wb-col-notes">
+                {t("colNotes")}
+              </ColumnHead>
               <th className="wb-col-actions">{t("colActions")}</th>
             </tr>
           </thead>
@@ -242,12 +281,11 @@ export function SubmittedPage(props: {
                         />
                       </td>
                       <td className="wb-col-date">
-                        <InlineText
+                        <DatePickerCell
                           value={paper.deadline}
                           placeholder={t("fillPlaceholder")}
-                          onCommit={(value) =>
-                            props.onUpdate(paper.id, { deadline: normalizeDeadlineInput(value) })
-                          }
+                          ariaLabel={t("deadlineLabel")}
+                          onCommit={(deadline) => props.onUpdate(paper.id, { deadline })}
                         />
                         {urgency && urgency.key && (
                           <span className={`wb-deadline-hint ${urgency.className}`}>
@@ -258,12 +296,13 @@ export function SubmittedPage(props: {
                         )}
                       </td>
                       <td className="wb-col-count">
-                        <InlineText
+                        <MenuSelect
                           value={String(paper.submission_count || "")}
-                          placeholder={t("fillPlaceholder")}
-                          onCommit={(value) =>
+                          ariaLabel={t("submissionCountLabel")}
+                          onChange={(value) =>
                             props.onUpdate(paper.id, { submission_count: Number(value) || 0 })
                           }
+                          options={countOptions}
                         />
                       </td>
                       <td className="wb-col-notes">

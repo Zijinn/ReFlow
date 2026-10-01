@@ -60,12 +60,45 @@ describe("canvas preferences", () => {
   })
 
   // 拉轴是连续值，区间外的输入（手改 localStorage、旧版本的档位）都得在进 CSS 之前收住。
+  // 下限放开到 0：比它小的仍然收回 0，但 0 本身是可达的合法档。
   it("clamps the veil to the slider range", () => {
     useReaderStore.getState().setCanvasPhotoVeil(canvasPhotoVeilMin - 20)
     expect(useReaderStore.getState().canvasPhotoVeil).toBe(canvasPhotoVeilMin)
     useReaderStore.getState().setCanvasPhotoVeil(canvasPhotoVeilMax + 20)
     expect(useReaderStore.getState().canvasPhotoVeil).toBe(canvasPhotoVeilMax)
+    useReaderStore.getState().setCanvasPhotoVeil(0)
+    expect(useReaderStore.getState().canvasPhotoVeil).toBe(0)
     useReaderStore.getState().setCanvasPhotoVeil(defaultCanvasPhotoVeil)
     expect(useReaderStore.getState().canvasPhotoVeil).toBe(defaultCanvasPhotoVeil)
+  })
+})
+
+describe("workbench column widths", () => {
+  const restore = useReaderStore.getState().workbenchColumnWidths
+
+  it("keeps one entry per dragged column, per table", () => {
+    const { setWorkbenchColumnWidth, clearWorkbenchColumnWidth } = useReaderStore.getState()
+    setWorkbenchColumnWidth("submitted", "notes", 240)
+    setWorkbenchColumnWidth("submitted", "date", 120)
+    setWorkbenchColumnWidth("research", "stage", 200)
+    expect(useReaderStore.getState().workbenchColumnWidths).toEqual({
+      submitted: { notes: 240, date: 120 },
+      research: { stage: 200 },
+    })
+    clearWorkbenchColumnWidth("submitted", "notes")
+    expect(useReaderStore.getState().workbenchColumnWidths.submitted).toEqual({ date: 120 })
+    // 没拖过的列不落键，CSS 那侧的 width: var(--wb-col-w, 默认) 才退得回默认宽度。
+    const untouched = useReaderStore.getState().workbenchColumnWidths
+    clearWorkbenchColumnWidth("published", "doi")
+    expect(useReaderStore.getState().workbenchColumnWidths).toBe(untouched)
+    useReaderStore.setState({ workbenchColumnWidths: restore })
+  })
+
+  it("is included in the persisted partialize output", () => {
+    useReaderStore.getState().setWorkbenchColumnWidth("published", "doi", 260)
+    const partialize = useReaderStore.persist.getOptions().partialize
+    const persisted = partialize?.(useReaderStore.getState()) as Record<string, unknown>
+    expect(persisted).toMatchObject({ workbenchColumnWidths: { published: { doi: 260 } } })
+    useReaderStore.setState({ workbenchColumnWidths: restore })
   })
 })

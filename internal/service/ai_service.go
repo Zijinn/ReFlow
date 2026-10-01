@@ -1067,8 +1067,8 @@ func researchDigestMessages(papers []domain.ResearchPaper, tagNames map[string]s
 }
 
 // researchEnvelope summarizes stage completion and deadline proximity for each
-// paper instead of dumping raw JSON. tagNames resolves a paper's tag id to the
-// label the user typed, since an id alone tells the model nothing.
+// paper instead of dumping raw JSON. tagNames resolves a paper's tag ids to the
+// labels the user typed, since an id alone tells the model nothing.
 func researchEnvelope(papers []domain.ResearchPaper, tagNames map[string]string, now time.Time) string {
 	var builder strings.Builder
 	builder.WriteString("<research-papers>\n")
@@ -1091,11 +1091,19 @@ func researchPaperBlock(paper domain.ResearchPaper, tagNames map[string]string, 
 		builder.WriteString("<keywords>" + keywords + "</keywords>\n")
 	}
 	for _, field := range []struct{ label, value string }{
-		{"status", paper.Status}, {"tag", tagNames[paper.TagID]},
+		{"status", paper.Status},
 		{"target-journal", paper.TargetJournal}, {"current-journal", paper.CurrentJournal},
 	} {
 		if trimmed := strings.TrimSpace(field.value); trimmed != "" {
 			builder.WriteString("<" + field.label + ">" + trimmed + "</" + field.label + ">\n")
+		}
+	}
+	// One element per label: a paper can wear several, and joining them into one
+	// string would read as a single tag with a comma in its name. Unknown ids
+	// stay silent, the same way the palette renders them as nothing.
+	for _, tagID := range paper.TagIDs {
+		if name := strings.TrimSpace(tagNames[tagID]); name != "" {
+			builder.WriteString("<tag>" + name + "</tag>\n")
 		}
 	}
 	if done, total, pending := summarizeResearchStages(paper.Stages); total > 0 {

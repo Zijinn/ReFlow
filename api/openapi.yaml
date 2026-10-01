@@ -1517,7 +1517,9 @@ paths:
       tags: [research]
       responses:
         "200":
-          description: A single research workspace paper.
+          description: >
+            A single research workspace paper. Its tag_ids are every label
+            assigned to it, in assignment order, and never null.
         "404":
           $ref: "#/components/responses/Problem"
     patch:
@@ -1531,9 +1533,9 @@ paths:
               type: object
               description: >
                 Partial update. Text fields accept at most 500 characters
-                (notes and abstract at most 2000) and submission_count must
-                not be negative; violations return 400 with code
-                invalid_research_paper.
+                (notes and abstract at most 2000), submission_count must not
+                be negative, and a paper wears at most 12 tags; violations
+                return 400 with code invalid_research_paper.
               properties:
                 title: { type: string, maxLength: 500 }
                 authors: { type: array, items: { type: string, maxLength: 500 } }
@@ -1543,13 +1545,17 @@ paths:
                 notes: { type: string, maxLength: 2000 }
                 research_area: { type: string, maxLength: 500 }
                 status: { type: string, maxLength: 500 }
-                tag_id:
-                  type: string
-                  maxLength: 500
+                tag_ids:
+                  type: array
+                  maxItems: 12
+                  items: { type: string, maxLength: 500 }
                   description: >
-                    Id of a tag from /api/v1/research/tags. An empty string
-                    leaves the paper untagged; unknown ids are accepted and
-                    simply render as untagged until the palette is reloaded.
+                    Ids of tags from /api/v1/research/tags. A paper wears them
+                    all at once, and the array order is the order the user
+                    assigned them in, not the palette order. Repeats collapse,
+                    an empty array clears every label, and omitting the field
+                    leaves the assignment untouched. Unknown ids are accepted
+                    and simply render as nothing until the palette is reloaded.
                 target_journal: { type: string, maxLength: 500 }
                 stages:
                   type: array
@@ -1661,7 +1667,8 @@ paths:
       tags: [research]
       description: >
         The profile's tag palette in priority order. The three legacy priority
-        labels are seeded by migration 0016 at positions 0, 1 and 2.
+        labels are seeded by migration 0016 at positions 0, 1 and 2. Drag the
+        palette into a new order with POST /api/v1/research/tags/reorder.
       responses:
         "200":
           description: Tags ordered by position.
@@ -1688,6 +1695,31 @@ paths:
           $ref: "#/components/responses/Problem"
         "409":
           $ref: "#/components/responses/Problem"
+  /api/v1/research/tags/reorder:
+    post:
+      operationId: reorderResearchTags
+      tags: [research]
+      description: >
+        Rewrites the palette to the given order so the settings list can be
+        dragged. Ids outside the profile are ignored, and a paper's own tag_ids
+        keep their assignment order across a palette reorder.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tag_ids]
+              properties:
+                tag_ids:
+                  type: array
+                  maxItems: 500
+                  items: { type: string }
+      responses:
+        "204":
+          description: Palette order updated.
+        "400":
+          $ref: "#/components/responses/Problem"
   /api/v1/research/tags/{tagId}:
     parameters:
       - name: tagId
@@ -1699,7 +1731,7 @@ paths:
       operationId: renameResearchTag
       tags: [research]
       description: >
-        Renames a tag. Papers reference tags by id, so their tag_id is
+        Renames a tag. Papers reference tags by id, so their tag_ids are
         unchanged.
       requestBody:
         required: true
@@ -1725,10 +1757,12 @@ paths:
     delete:
       operationId: deleteResearchTag
       tags: [research]
-      description: Deletes a tag and clears it from every paper carrying it.
+      description: >
+        Deletes a tag and lifts just that label from every paper wearing it;
+        the other labels a paper wears keep their order.
       responses:
         "204":
-          description: Tag deleted and papers untagged.
+          description: Tag deleted and removed from every paper.
         "404":
           $ref: "#/components/responses/Problem"
 components:

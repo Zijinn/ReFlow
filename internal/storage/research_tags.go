@@ -158,19 +158,17 @@ func GetResearchTag(ctx context.Context, db *sql.DB, profileID, id string) (doma
 	return tag, nil
 }
 
-// DeleteResearchTag removes a label and untags every paper carrying it; an
-// orphaned tag id on a paper would render as a pill nobody can manage.
+// DeleteResearchTag removes a label and untags every paper wearing it; an
+// orphaned association would render as a pill nobody can manage.
 func DeleteResearchTag(ctx context.Context, db *sql.DB, profileID, id string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin research tag delete: %w", err)
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx,
-		"UPDATE research_papers SET tag_id = '', updated_at = ? WHERE profile_id = ? AND tag_id = ?",
-		formatTime(time.Now().UTC()), profileID, id); err != nil {
-		return fmt.Errorf("untag research papers: %w", err)
-	}
+	// The label goes first: a delete that matched no row of this profile's
+	// palette must leave every paper's assignments untouched, and the deferred
+	// rollback undoes it.
 	result, err := tx.ExecContext(ctx,
 		"DELETE FROM research_tags WHERE profile_id = ? AND id = ?", profileID, id)
 	if err != nil {
@@ -183,8 +181,35 @@ func DeleteResearchTag(ctx context.Context, db *sql.DB, profileID, id string) er
 	if affected == 0 {
 		return ErrNotFound
 	}
+	if _, err := tx.ExecContext(ctx,
+		"DELETE FROM research_paper_tags WHERE tag_id = ?", id); err != nil {
+		return fmt.Errorf("untag research papers: %w", err)
+	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit research tag delete: %w", err)
 	}
 	return nil
+}
+
+// ReorderResearchTags rewrites the position of every listed tag to match
+// orderedIDs, which is how the settings palette drags into a priority order.
+// Ids not belonging to the profile are ignored.
+func ReorderResearchTags(ctx context.Context, db *sql.DB, profileID string, orderedIDs []string) error {
+	if len(orderedIDs) > researchReorderLimit {
+		return &ResearchTagValidationError{Reason: fmt.Sprintf("reorder accepts at most %d tag ids", researchReorderLimit)}
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin research tag reorder: %w", err)
+	}
+	defer tx.Rollback()
+	now := formatTime(time.Now().UTC())
+	for position, id := range orderedIDs {
+		if _, err := tx.ExecContext(ctx,
+			"UPDATE research_tags SET position = ?, updated_at = ? WHERE profile_id = ? AND id = ?",
+			position, now, profileID, id); err != nil {
+			return fmt.Errorf("reorder research tag: %w", err)
+		}
+	}
+	return tx.Commit()
 }

@@ -1,0 +1,180 @@
+/* 在投「截止日期」的月历浮层（DatePickerCell）。 SubmittedPage 引入它，模块图里排在
+   main.tsx 那一串 styles.css / phase*.css 之后，同特异度靠文件顺序取胜。
+   浮层本体带着 .wb-menu-pop，材质/圆角/阴影/上翻右对齐/减透明与减动效那几档全部
+   从那里继承——日历格和状态下拉是同一类控件，不该有第二套玻璃。这里只补月历自己的
+   几何与三档状态：深度靠材质与白色 alpha 叠加，不铺灰底，也不新写颜色字面量。 */
+
+/* 格子原本是 .wb-menu 的 inline-flex，而它下面还挂着紧急度那一行：不收成块级，
+   提示就会被拽到日期同一排（原本 .wb-table .wb-editable 是 display:block）。 */
+.wb-date-cell {
+  display: block;
+}
+
+/* 静置的触发键读起来就是那一格的正文：无边、无底，靠悬停淡底和 ▾ 说"可以点"。
+   几何与 .wb-editable 同一档（含负 margin 抵掉左衬），列宽才不会因为换成按钮而跳。 */
+.wb-date-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: 100%;
+  min-height: var(--wb-field-h);
+  padding: var(--space-1) var(--space-3);
+  margin-left: calc(var(--space-3) * -1);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  /* 表格里那颗格子跟着正文 13 这一档，不另写字级（见 styles.css 的日期列注释）。 */
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.wb-date-btn:hover {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+/* 格子里不缩放：按压缩放会带着整行抖（同一行里的状态药丸也已经取消缩放）。 */
+.wb-date-btn:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+.wb-date-btn:focus-visible {
+  outline: none;
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+  box-shadow: var(--focus-ring);
+}
+.wb-date-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-date-chevron {
+  margin-left: auto;
+  flex: none;
+}
+
+/* 浮层比菜单宽：一列 7 格要装下两位数字加内衬。 */
+.wb-date-pop {
+  width: 262px;
+  max-width: calc(100vw - var(--space-8));
+}
+
+.wb-date-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.wb-date-month {
+  flex: 1;
+  color: var(--text);
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+}
+
+.wb-date-grid {
+  margin-top: var(--space-2);
+}
+.wb-date-weekdays,
+.wb-date-week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+.wb-date-week {
+  margin-top: var(--space-1);
+}
+/* 星期表头只靠字色分层，不做灰底条（同日历页那一档写法）。 */
+.wb-date-weekday {
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  text-align: center;
+}
+
+.wb-date-day {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 高度走图标控件那一档：粗指针下自己升到 32，热区再由 ::after 向外借 2px，
+     不必为触摸把整张月历撑出浮层。 */
+  min-height: var(--wb-icon-h);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.wb-date-day::after {
+  content: "";
+  position: absolute;
+  inset: calc(var(--space-1) * -1);
+}
+/* 邻月的日子不是"没有数据"，降一档墨就够了，不铺 --wb-recede 那种沉底：
+   浮层里的 6 周窗口本就紧贴着月份，铺底会读成一片灰块。 */
+.wb-date-day--other {
+  color: var(--text-secondary);
+}
+.wb-date-day:hover {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.wb-date-day:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* 当天是主色鬓发圈（还没选它），已选是实心主色面：沿用月历里当天圆点那对
+   --accent-solid / --accent-solid-ink，深浅两档自己换墨，两态也永远分得开。 */
+.wb-date-day--today {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-strong);
+}
+.wb-date-day--today:hover {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.wb-date-day--selected,
+.wb-date-day--selected:hover {
+  background-color: var(--accent-solid);
+  color: var(--accent-solid-ink);
+  font-weight: var(--fw-semibold);
+}
+/* 已选与当天重合时，焦点/鬓发圈都不再叠在实心面上：一层就够读。 */
+.wb-date-day--selected.wb-date-day--today {
+  box-shadow: none;
+}
+.wb-date-day--selected:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.wb-date-foot {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+/* 凸面材质由 styles.css 末尾那组 .wb-btn 玻璃规则给；这里只把它收进浮层的窄排：
+   表外按钮本来的 --wb-band-h 38 太高，改用表内控件同一档 32。 */
+.wb-date-foot .wb-btn {
+  flex: 1;
+  min-height: var(--wb-field-h);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-date-btn,
+  .wb-date-day {
+    transition: none;
+  }
+}

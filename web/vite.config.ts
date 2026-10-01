@@ -19,8 +19,11 @@ export default defineConfig(({ mode }) => {
           order: "post",
           handler(html) {
             // WKWebView does not request Vite's module entry over the wails://
-            // scheme. The bundled entry has no external ESM imports, so load it
-            // as a deferred classic script in production builds.
+            // scheme, so the desktop bundle (format iife, no ESM syntax) loads
+            // as a deferred classic script. The default build stays ESM:
+            // stripping type="module" there makes the entry throw as a classic
+            // script, and reflow-server's static web/dist renders nothing.
+            if (!desktopBuild) return html
             return html
               .replace(/<script type="module" crossorigin([^>]*)>/g, "<script defer$1>")
               .replace(/<link rel="stylesheet" crossorigin([^>]*)>/g, '<link rel="stylesheet"$1>')

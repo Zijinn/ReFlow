@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -24,6 +25,14 @@ const (
 	researchLongTextLimit = 2000
 	researchReorderLimit  = 500
 )
+
+// researchPaperTagLimit is how many labels one paper may wear at once: the
+// tag column only has room for a few pills before the row stops reading.
+const researchPaperTagLimit = 12
+
+// researchTagQueryChunk keeps the bulk association lookup under SQLite's
+// ceiling on host parameters, however long the paper list grows.
+const researchTagQueryChunk = 100
 
 // ResearchValidationError reports a client-fixable research paper problem so
 // the API layer can answer 400 instead of 500.
@@ -53,6 +62,34 @@ func checkResearchStrings(name string, values []string) error {
 		}
 	}
 	return nil
+}
+
+// checkResearchTagIDs bounds one paper's label list. Tag ids are not resolved
+// against the palette on purpose: an id the user assigned before a palette
+// reload is still their assignment, and rejecting it would turn a race into a
+// failed save.
+func checkResearchTagIDs(values []string) error {
+	if err := checkResearchStrings("tag_ids", values); err != nil {
+		return err
+	}
+	if count := len(uniqueResearchTagIDs(values)); count > researchPaperTagLimit {
+		return &ResearchValidationError{Reason: fmt.Sprintf("a paper accepts at most %d tags, got %d", researchPaperTagLimit, count)}
+	}
+	return nil
+}
+
+// uniqueResearchTagIDs drops repeats while keeping the caller's order.
+func uniqueResearchTagIDs(values []string) []string {
+	seen := make(map[string]struct{}, len(values))
+	unique := make([]string, 0, len(values))
+	for _, value := range values {
+		if _, duplicate := seen[value]; duplicate {
+			continue
+		}
+		seen[value] = struct{}{}
+		unique = append(unique, value)
+	}
+	return unique
 }
 
 func checkResearchStages(stages []domain.ResearchStage) error {
@@ -92,7 +129,6 @@ func validateResearchPaper(paper domain.ResearchPaper) error {
 		{"notes", paper.Notes, researchLongTextLimit},
 		{"research_area", paper.ResearchArea, researchTextLimit},
 		{"status", paper.Status, researchTextLimit},
-		{"tag_id", paper.TagID, researchTextLimit},
 		{"target_journal", paper.TargetJournal, researchTextLimit},
 		{"current_journal", paper.CurrentJournal, researchTextLimit},
 		{"submission_date", paper.SubmissionDate, researchTextLimit},
@@ -119,6 +155,9 @@ func validateResearchPaper(paper domain.ResearchPaper) error {
 	if err := checkResearchStrings("keywords", paper.Keywords); err != nil {
 		return err
 	}
+	if err := checkResearchTagIDs(paper.TagIDs); err != nil {
+		return err
+	}
 	if err := checkResearchStages(paper.Stages); err != nil {
 		return err
 	}
@@ -129,7 +168,7 @@ func validateResearchPatch(patch domain.ResearchPaperPatch) error {
 	if patch.SubmissionCount != nil && *patch.SubmissionCount < 0 {
 		return &ResearchValidationError{Reason: "submission_count must not be negative"}
 	}
-	fields := make([]researchField, 0, 23)
+	fields := make([]researchField, 0, 22)
 	add := func(name string, value *string, limit int) {
 		if value != nil {
 			fields = append(fields, researchField{name, *value, limit})
@@ -141,7 +180,6 @@ func validateResearchPatch(patch domain.ResearchPaperPatch) error {
 	add("notes", patch.Notes, researchLongTextLimit)
 	add("research_area", patch.ResearchArea, researchTextLimit)
 	add("status", patch.Status, researchTextLimit)
-	add("tag_id", patch.TagID, researchTextLimit)
 	add("target_journal", patch.TargetJournal, researchTextLimit)
 	add("current_journal", patch.CurrentJournal, researchTextLimit)
 	add("submission_date", patch.SubmissionDate, researchTextLimit)
@@ -171,6 +209,11 @@ func validateResearchPatch(patch domain.ResearchPaperPatch) error {
 			return err
 		}
 	}
+	if patch.TagIDs != nil {
+		if err := checkResearchTagIDs(*patch.TagIDs); err != nil {
+			return err
+		}
+	}
 	if patch.Stages != nil {
 		if err := checkResearchStages(*patch.Stages); err != nil {
 			return err
@@ -191,7 +234,7 @@ func IsResearchKind(kind string) bool {
 }
 
 const researchColumns = `id, kind, position, title, authors_json, keywords_json, file_path,
-	next_action, notes, research_area, status, tag_id, target_journal, stages_json,
+	next_action, notes, research_area, status, target_journal, stages_json,
 	current_journal, submission_date, manuscript_id, submission_count, target_level, editor,
 	deadline, history_json, abstract, journal, language, year, volume, issue, pages, doi,
 	citations, citation_source, citation_updated_at, last_updated, created_at, updated_at`
@@ -208,7 +251,7 @@ func scanResearchPaper(scanner interface {
 	if err := scanner.Scan(
 		&paper.ID, &paper.Kind, &paper.Position, &paper.Title, &authorsJSON, &keywordsJSON,
 		&paper.FilePath, &paper.NextAction, &paper.Notes, &paper.ResearchArea, &paper.Status,
-		&paper.TagID, &paper.TargetJournal, &stagesJSON, &paper.CurrentJournal,
+		&paper.TargetJournal, &stagesJSON, &paper.CurrentJournal,
 		&paper.SubmissionDate, &paper.ManuscriptID, &paper.SubmissionCount, &paper.TargetLevel,
 		&paper.Editor, &paper.Deadline, &historyJSON, &paper.Abstract, &paper.Journal, &paper.Language,
 		&paper.Year, &paper.Volume, &paper.Issue, &paper.Pages, &paper.DOI, &citations,
@@ -226,6 +269,10 @@ func scanResearchPaper(scanner interface {
 		return domain.ResearchPaper{}, err
 	}
 	paper.Keywords = keywords
+	// Labels live in their own table, so a scanned paper starts with an empty
+	// list rather than nil: an unlabelled paper must answer [] like authors and
+	// keywords do, and attachResearchPaperTags only fills rows it finds.
+	paper.TagIDs = make([]string, 0)
 	stages, err := decodeStages(stagesJSON)
 	if err != nil {
 		return domain.ResearchPaper{}, err
@@ -262,7 +309,65 @@ func ListResearchPapers(ctx context.Context, db *sql.DB, profileID, kind string)
 		}
 		items = append(items, paper)
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("list research papers: %w", err)
+	}
+	// Labels come from a second query, so the paper cursor goes first instead of
+	// holding a connection and a read snapshot across it.
+	rows.Close()
+	if err := attachResearchPaperTags(ctx, db, items); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// attachResearchPaperTags fills each paper's TagIDs with the labels assigned
+// to it, in the order the user assigned them. One query covers the whole page
+// instead of one per paper, and it is chunked so the paper ids never outrun
+// SQLite's host-parameter ceiling.
+func attachResearchPaperTags(ctx context.Context, db *sql.DB, items []domain.ResearchPaper) error {
+	for start := 0; start < len(items); start += researchTagQueryChunk {
+		chunk := items[start:min(start+researchTagQueryChunk, len(items))]
+		placeholders := make([]string, len(chunk))
+		args := make([]any, 0, len(chunk))
+		for index := range chunk {
+			placeholders[index] = "?"
+			args = append(args, chunk[index].ID)
+		}
+		rows, err := db.QueryContext(ctx,
+			`SELECT paper_id, tag_id FROM research_paper_tags
+			 WHERE paper_id IN (`+strings.Join(placeholders, ",")+") ORDER BY position, tag_id",
+			args...)
+		if err != nil {
+			return fmt.Errorf("list research paper tags: %w", err)
+		}
+		grouped, err := groupResearchPaperTags(rows)
+		rows.Close()
+		if err != nil {
+			return err
+		}
+		for index := range chunk {
+			if assigned := grouped[chunk[index].ID]; len(assigned) > 0 {
+				chunk[index].TagIDs = assigned
+			}
+		}
+	}
+	return nil
+}
+
+func groupResearchPaperTags(rows *sql.Rows) (map[string][]string, error) {
+	grouped := make(map[string][]string)
+	for rows.Next() {
+		var paperID, tagID string
+		if err := rows.Scan(&paperID, &tagID); err != nil {
+			return nil, fmt.Errorf("read research paper tags: %w", err)
+		}
+		grouped[paperID] = append(grouped[paperID], tagID)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read research paper tags: %w", err)
+	}
+	return grouped, nil
 }
 
 // GetResearchPaper returns one paper by id.
@@ -275,7 +380,11 @@ func GetResearchPaper(ctx context.Context, db *sql.DB, profileID, id string) (do
 	if err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("get research paper: %w", err)
 	}
-	return paper, nil
+	items := []domain.ResearchPaper{paper}
+	if err := attachResearchPaperTags(ctx, db, items); err != nil {
+		return domain.ResearchPaper{}, err
+	}
+	return items[0], nil
 }
 
 // CreateResearchPaper inserts a new paper at the top of its kind list: the
@@ -308,20 +417,23 @@ func CreateResearchPaper(ctx context.Context, db *sql.DB, profileID string, pape
 	paper.Position = position
 	if _, err := tx.ExecContext(ctx, `INSERT INTO research_papers (
 		id, profile_id, kind, position, title, authors_json, keywords_json, file_path,
-		next_action, notes, research_area, status, tag_id, target_journal, stages_json,
+		next_action, notes, research_area, status, target_journal, stages_json,
 		current_journal, submission_date, manuscript_id, submission_count, target_level, editor,
 		deadline, history_json, abstract, journal, language, year, volume, issue, pages, doi,
 		citations, citation_source, citation_updated_at, last_updated, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		paper.ID, profileID, paper.Kind, paper.Position, paper.Title, encodeStringSlice(paper.Authors),
 		encodeStringSlice(paper.Keywords), paper.FilePath, paper.NextAction, paper.Notes,
-		paper.ResearchArea, paper.Status, paper.TagID, paper.TargetJournal, encodeStages(paper.Stages),
+		paper.ResearchArea, paper.Status, paper.TargetJournal, encodeStages(paper.Stages),
 		paper.CurrentJournal, paper.SubmissionDate, paper.ManuscriptID, paper.SubmissionCount,
 		paper.TargetLevel, paper.Editor, paper.Deadline, encodeHistory(paper.History), paper.Abstract,
 		paper.Journal, paper.Language, paper.Year, paper.Volume, paper.Issue, paper.Pages, paper.DOI,
 		nullableIntValue(paper.Citations), paper.CitationSource, paper.CitationUpdatedAt,
 		paper.LastUpdated, formatTime(now), formatTime(now)); err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("create research paper: %w", err)
+	}
+	if err := replaceResearchPaperTags(ctx, tx, paper.ID, paper.TagIDs); err != nil {
+		return domain.ResearchPaper{}, err
 	}
 	if err := tx.Commit(); err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("commit research create: %w", err)
@@ -364,9 +476,6 @@ func UpdateResearchPaper(ctx context.Context, db *sql.DB, profileID, id string, 
 	}
 	if patch.Status != nil {
 		add("status", *patch.Status)
-	}
-	if patch.TagID != nil {
-		add("tag_id", *patch.TagID)
 	}
 	if patch.TargetJournal != nil {
 		add("target_journal", *patch.TargetJournal)
@@ -431,7 +540,12 @@ func UpdateResearchPaper(ctx context.Context, db *sql.DB, profileID, id string, 
 	}
 
 	args = append(args, profileID, id)
-	result, err := db.ExecContext(ctx,
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.ResearchPaper{}, fmt.Errorf("begin research update: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx,
 		"UPDATE research_papers SET "+joinComma(sets)+" WHERE profile_id = ? AND id = ?", args...)
 	if err != nil {
 		return domain.ResearchPaper{}, fmt.Errorf("update research paper: %w", err)
@@ -439,19 +553,59 @@ func UpdateResearchPaper(ctx context.Context, db *sql.DB, profileID, id string, 
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return domain.ResearchPaper{}, ErrNotFound
 	}
+	// The labels live beside the row, so they only move when the request said
+	// something about them: nil leaves the assignment alone, an empty slice
+	// clears it.
+	if patch.TagIDs != nil {
+		if err := replaceResearchPaperTags(ctx, tx, id, *patch.TagIDs); err != nil {
+			return domain.ResearchPaper{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.ResearchPaper{}, fmt.Errorf("commit research update: %w", err)
+	}
 	return GetResearchPaper(ctx, db, profileID, id)
 }
 
-// DeleteResearchPaper removes one paper.
+// replaceResearchPaperTags rewrites one paper's label assignments to tagIDs,
+// keeping the caller's order as the stored position. Repeats collapse because
+// the association key is (paper_id, tag_id); unknown tag ids are stored as
+// given, so a palette that arrives later still finds the assignment the user
+// made.
+func replaceResearchPaperTags(ctx context.Context, tx *sql.Tx, paperID string, tagIDs []string) error {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM research_paper_tags WHERE paper_id = ?", paperID); err != nil {
+		return fmt.Errorf("clear research paper tags: %w", err)
+	}
+	for position, tagID := range uniqueResearchTagIDs(tagIDs) {
+		if _, err := tx.ExecContext(ctx,
+			"INSERT INTO research_paper_tags (paper_id, tag_id, position) VALUES (?, ?, ?)",
+			paperID, tagID, position); err != nil {
+			return fmt.Errorf("assign research paper tag: %w", err)
+		}
+	}
+	return nil
+}
+
+// DeleteResearchPaper removes one paper and the label assignments that only
+// meant something to it; a leftover association would travel through every
+// later snapshot of the library.
 func DeleteResearchPaper(ctx context.Context, db *sql.DB, profileID, id string) error {
-	result, err := db.ExecContext(ctx, "DELETE FROM research_papers WHERE profile_id = ? AND id = ?", profileID, id)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin research delete: %w", err)
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(ctx, "DELETE FROM research_papers WHERE profile_id = ? AND id = ?", profileID, id)
 	if err != nil {
 		return fmt.Errorf("delete research paper: %w", err)
 	}
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return ErrNotFound
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, "DELETE FROM research_paper_tags WHERE paper_id = ?", id); err != nil {
+		return fmt.Errorf("delete research paper tags: %w", err)
+	}
+	return tx.Commit()
 }
 
 // ReorderResearchPapers rewrites the position of every listed paper of a kind

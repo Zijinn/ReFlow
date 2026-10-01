@@ -477,10 +477,26 @@ export async function updateResearchTag(tagID: string, name: string): Promise<Re
   return response.tag
 }
 
-/** Papers carrying the tag fall back to `tag_id: ""`. */
+/** Deleting a tag only unlinks it from every paper; the papers survive. */
 export function deleteResearchTag(tagID: string): Promise<void> {
   return request<void>(`/api/v1/research/tags/${encodeURIComponent(tagID)}`, {
     method: "DELETE",
+  })
+}
+
+/**
+ * Palette order IS priority order, so the whole palette goes up every time: the
+ * server assigns `position` from the array index and skips unknown ids while
+ * still counting their slot. 204 with an empty body; more than 500 ids is a 400.
+ */
+export function reorderResearchTags(
+  tagIDs: string[],
+  signal?: AbortSignal,
+): Promise<void> {
+  return request<void>("/api/v1/research/tags/reorder", {
+    method: "POST",
+    body: JSON.stringify({ tag_ids: tagIDs }),
+    signal,
   })
 }
 

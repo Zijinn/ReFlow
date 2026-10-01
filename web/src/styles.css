@@ -78,8 +78,8 @@
   --canvas-photo-veil: 91%;
   --canvas-veil-tint: var(--surface-raised);
   /* 地板 = 拉轴下限，等于不设地板；变量必须留着，因为"减少透明度"那一档要把它顶到
-     96%。max() 也留着：它是 CSS 侧唯一的兜底，防止有人手改内联样式写出 0%。 */
-  --canvas-photo-veil-floor: 60%;
+     96%。max() 也留着：它是 CSS 侧唯一的兜底，防止有人手改内联样式写出比下限还低的值。 */
+  --canvas-photo-veil-floor: 0%;
   --canvas-photo-veil-strength: max(var(--canvas-photo-veil), var(--canvas-photo-veil-floor));
   --canvas-photo-veil-color: color-mix(
     in srgb,
@@ -119,16 +119,22 @@
      灰阶填充永远只是"多蒙了一层灰"，压在任意静置底色上都能显形。 */
   --fill-hover: rgb(120 120 128 / 0.09);
   --fill-pressed: rgb(120 120 128 / 0.17);
-  /* 滚动条滑块。静止档根本不上色（各处写的是 scrollbar-color: transparent transparent），
-     只有滚动那一刻由 [data-scrolling="true"] 换成这一档——状态由 lib/scroll-reveal.ts 写，
-     停手 700ms 后摘掉，机制见 .sr-only 之后"滚动条：空闲隐藏"那一节。所以它不必像常驻
+  /* 滚动条滑块。静止档根本不上色（内嵌那一族靠 ::-webkit-scrollbar-thumb 的透明底，
+     只走标准属性的容器靠 scrollbar-color: transparent transparent），只有滚动那一刻由
+     [data-scrolling="true"] 换成这一档——状态由 lib/scroll-reveal.ts 写，停手 700ms 后
+     摘掉，机制见 .sr-only 之后"滚动条：内嵌外观 + 空闲隐藏"那一节。所以它不必像常驻
      控件那样压够对比度：旧写法是常驻的 --text-faint 45%（白底上合成 #c2c4c7，1.75:1），
      现在改成瞬时反馈，30% 合成 #d7d7da（1.43:1），浅 21 级，读起来是一道浅灰而不是一根
      脏条；hover/拖动再提到 40%（#c9cacd），仍然比旧的常驻值浅。
-     scrollbar-color 是继承属性，所以写在滚动容器上的透明档也会传给它的后代
-     （工作台表格里的笔记格就是这么继承到"看不见"的）。 */
+     scrollbar-color 是继承属性，所以挂在 .wb-content 上的透明档会传给工作台子树里那些
+     自己没写滚动条的容器（弹层菜单就是这么继承到"看不见"的）；笔记格不走这条路，它是
+     自己声明 scrollbar-width: none 把整条槽撤掉的，不依赖祖先。 */
   --scroll-thumb: color-mix(in srgb, var(--text-faint) 30%, transparent);
   --scroll-thumb-strong: color-mix(in srgb, var(--text-faint) 40%, transparent);
+  /* 内嵌档的两个几何量：10px 的槽里只画 4px 的胶囊，两侧各让出 3px 透明描边。
+     它们是尺寸不是配色，所以只有 :root 一档，深浅两档要分开的是上面那两枚颜色。 */
+  --scroll-slot: 10px;
+  --scroll-inset: 3px;
   /* 键盘焦点环：全站只此一处配方。收敛前有三层纯淡底（3px/20%、3.5px/28%、2.5px/45%），
      把合成后的环与它所在背景的非文字对比实测了一遍（336 个样本：浅色/深色 × 六套强调色
      × 按钮/侧栏项/图标按钮/可编辑格/统计卡/搜索框/药丸），最坏只有 1.38:1——WCAG 1.4.11
@@ -404,7 +410,7 @@
      rgb(43)，三级墨 4.6:1；87% 只剩 4.46:1）。和浅档一样，这条线现在只是面板上的
      提示阈值，不再顶住拉轴。 */
   --canvas-veil-tint: var(--canvas);
-  --canvas-photo-veil-floor: 60%;
+  --canvas-photo-veil-floor: 0%;
   --sheet-glass: rgb(255 255 255 / 0.06);
   --sheet-edge: rgb(255 255 255 / 0.1);
   --card-glass: rgb(255 255 255 / 0.075);
@@ -574,46 +580,89 @@ button:disabled {
   border: 0;
 }
 
-/* ── 滚动条：空闲隐藏，滚动才显形 ────────────────────────────────────────────
-   全站可滚容器的静止档写的都是 scrollbar-color: transparent transparent——槽还在、
-   宽度不变，只是滑块透明，所以显隐之间不会有任何抖动。滚起来才由这一节换成
-   --scroll-thumb（浅色档，见 :root 那两枚令牌）。
-   "在滚"由 lib/scroll-reveal.ts 表达：它在 window 上开一个捕获阶段的 scroll 监听，
-   滚到谁就给谁写 data-scrolling="true"，停手 700ms 后摘掉。CSS 只认这个属性，
-   JS 不直接改样式，也不用知道页面上有哪些滚动容器；新增一个时把选择器补进下面三组。
-   属性选择器把权重抬到 (0,2,0)（笔记格那条 (0,3,0)），稳压各组件自己 (0,1,0) 的静止档，
-   所以这一节放在文件前部也不会被后面的规则盖回去。
-   故意整条藏起来的容器（.wb-nav、.sidebar .subscription-scroll、
-   .app-shell--reader-open .timeline-scroll）走的是另一条属性 scrollbar-width: none 加
-   ::-webkit-scrollbar { display: none }：槽根本不存在，给滑块上色复活不了它，
-   而它们那几条类选择器规则的权重也仍然压得住这里的伪元素规则。
-   颜色不加 transition：WebKit 的 ::-webkit-scrollbar-* 对过渡支持不可靠，硬切一次到位，
-   密集表格里也正好符合"不抖动"那条要求。
-   两组列表不等长是有意的：伪元素那一档只给本来就写了 ::-webkit-scrollbar 尺寸的容器，
-   凭空给别的容器加一条 ::-webkit-scrollbar-thumb 会让 WebKit 把它切成自定义滚动条、
-   从此常驻占掉一条槽；那些容器走 scrollbar-color 就够了。 */
-.subscription-scroll[data-scrolling="true"],
-.timeline-scroll[data-scrolling="true"],
-.reader-scroll[data-scrolling="true"],
-.auto-tag-scope-list[data-scrolling="true"],
-.wb-main[data-scrolling="true"],
-.wb-content[data-scrolling="true"],
-.wb-table .wb-notes-input[data-scrolling="true"] {
-  scrollbar-color: var(--scroll-thumb) transparent;
+/* ── 滚动条：内嵌外观 + 空闲隐藏，滚动才显形 ──────────────────────────────────
+   10px 的槽里只画 4px 的圆角胶囊：3px 透明描边配 background-clip: padding-box 把滑块从
+   两边各让开 3px，轨道再保持透明，于是它读起来是浮在内容之上的一枚控件，而不是把内容
+   挤窄、顶到窗口右缘的那条硬边；::-webkit-scrollbar-button 一并撤掉，上下箭头那两段方块
+   是"违和"的另一半。槽位始终保留（不用已废弃的 overflow: overlay，也不动 scrollbar-gutter），
+   显隐之间只有颜色在变，table-layout: fixed 的列宽量不到任何抖动。
+   "在滚"由 lib/scroll-reveal.ts 表达：它在 window 上开一个捕获阶段的 scroll 监听，滚到谁
+   就给谁写 data-scrolling="true"，停手 700ms 后摘掉。CSS 只认这个属性，JS 不直接改样式、
+   也不用知道页面上有哪些滚动容器；新增一个时把选择器补进下面几组。属性选择器把权重抬到
+   (0,2,0)，稳压各组件自己 (0,1,0) 的静止档，所以这一节放在文件前部也不会被后面的规则盖
+   回去。颜色不加 transition：WebKit 的 ::-webkit-scrollbar-* 对过渡支持不可靠，
+   scrollbar-color 本身又根本不可动画，硬切一次到位，密集表格里也正好符合"不抖动"那条要求。
+   两套写法不能同时落在同一个滚动容器上：scrollbar-width / scrollbar-color 只要计算值不是
+   auto，引擎就把整族 ::-webkit-scrollbar 作废（WebKit 26.2 的发布说明直接写着"该弃用它们
+   了"）。Safari 26.0–26.1 是最坏的一档——它认 scrollbar-width（伪元素就此作废）却还没有
+   scrollbar-color（没有替代的隐藏手段），于是得到一条永远藏不住、又方又顶边的灰杠，正是
+   用户圈出来的那一条。所以内嵌档只写伪元素，标准属性关进下面的 @supports 只给 Gecko：
+   伪元素族不支持的引擎拿到的仍然是细、静止透明、滚才显形的槽，只是没有圆角。
+   只有本来就常驻一条槽的容器才进内嵌档（.wb-main / .reader-scroll /
+   .subscription-scroll）：凭空给别的容器补一条 ::-webkit-scrollbar-thumb 会把它从 overlay
+   切成自定义滚动条、从此常驻占掉一条槽。没进这一族的（.timeline-scroll、
+   .auto-tag-scope-list）继续只吃 scrollbar-color，静止档写在各组件自己身上。故意整条藏
+   起来的（.wb-nav、.wb-table .wb-notes-input、.sidebar .subscription-scroll、
+   .app-shell--reader-open .timeline-scroll）走的是 scrollbar-width: none 加
+   ::-webkit-scrollbar { display: none }：槽根本不存在，给滑块上色复活不了它，而它们的
+   选择器权重也仍然压得住这里的伪元素规则。 */
+.wb-main::-webkit-scrollbar,
+.reader-scroll::-webkit-scrollbar,
+.subscription-scroll::-webkit-scrollbar {
+  width: var(--scroll-slot);
+  height: var(--scroll-slot);
 }
-.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
-.reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.wb-main::-webkit-scrollbar-thumb,
+.reader-scroll::-webkit-scrollbar-thumb,
+.subscription-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border: var(--scroll-inset) solid transparent;
+  border-radius: var(--radius-full);
+  background-clip: padding-box;
+}
+.wb-main::-webkit-scrollbar-track,
+.reader-scroll::-webkit-scrollbar-track,
+.subscription-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.wb-main::-webkit-scrollbar-button,
+.reader-scroll::-webkit-scrollbar-button,
+.subscription-scroll::-webkit-scrollbar-button {
+  display: none;
+}
+
 .wb-main[data-scrolling="true"]::-webkit-scrollbar-thumb,
-.wb-content[data-scrolling="true"]::-webkit-scrollbar-thumb,
-.wb-table .wb-notes-input[data-scrolling="true"]::-webkit-scrollbar-thumb {
+.reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb {
   background-color: var(--scroll-thumb);
 }
-.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
-.reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
 .wb-main[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
-.wb-content[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
-.wb-table .wb-notes-input[data-scrolling="true"]::-webkit-scrollbar-thumb:hover {
+.reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover {
   background-color: var(--scroll-thumb-strong);
+}
+
+/* 没有这一族伪元素的引擎（Gecko）只能走标准属性；包进 @supports 是为了不让它在
+   Blink/WebKit 上把上面那族废掉，理由见本节开头。 */
+@supports not selector(::-webkit-scrollbar) {
+  .wb-main,
+  .reader-scroll,
+  .subscription-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+  .wb-main[data-scrolling="true"],
+  .reader-scroll[data-scrolling="true"],
+  .subscription-scroll[data-scrolling="true"] {
+    scrollbar-color: var(--scroll-thumb) transparent;
+  }
+}
+
+/* 只走标准属性那一档的容器：静止档写在它们自己的组件规则里（.timeline-scroll、
+   .auto-tag-scope-list），这里只补显形档。 */
+.timeline-scroll[data-scrolling="true"],
+.auto-tag-scope-list[data-scrolling="true"] {
+  scrollbar-color: var(--scroll-thumb) transparent;
 }
 
 .app-shell {
@@ -1009,21 +1058,10 @@ button:disabled {
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
 }
-.subscription-scroll::-webkit-scrollbar {
-  width: 8px;
-}
-.subscription-scroll::-webkit-scrollbar-thumb {
-  background: transparent;
-  border: 2px solid transparent;
-  border-radius: var(--radius-md);
-  background-clip: padding-box;
-}
-.subscription-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* 外观归文件前部"滚动条：内嵌外观 + 空闲隐藏"那一节，这里不再自带一份 8px/2px 的局部
+   配方：同一列在侧栏里被 .sidebar .subscription-scroll 整条藏掉，两套数值只会让"藏"与
+   "露"两种状态下的槽宽对不上。 */
 .library-group {
   padding-bottom: var(--space-4);
   margin-bottom: var(--space-4);
@@ -1645,13 +1683,13 @@ button:disabled {
   line-height: var(--leading-prose);
   white-space: pre-wrap;
 }
+/* 滚动条外观（含静止档）统一在文件前部那一节；这里不能再留 scrollbar-width /
+   scrollbar-color，否则那一族的 ::-webkit-scrollbar 会被引擎作废。 */
 .reader-scroll {
   min-height: 0;
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
 }
 .article-header,
 .article-content,
@@ -4680,6 +4718,97 @@ button:disabled {
   padding: var(--space-6) var(--space-3);
 }
 
+/* ── 设置 · 标签（研究调色板）─────────────────────────────────────────────
+   这一栏的顺序就是优先级，所以除了改名删除还得能重排。列表不自己开滚动容器：
+   对话框的 .preferences-scroll 是这一屏唯一的滚动槽，再套一层就是两条互相打架的
+   滚动条。色点用工作台那一套 .wb-dot--*，两屏看到的是同一个颜色。 */
+.preference-section--tags {
+  display: grid;
+  gap: var(--space-7);
+}
+.pref-tag-create {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.pref-tag-create .text-input {
+  min-width: 0;
+  flex: 1;
+}
+.pref-tag-list {
+  display: grid;
+  gap: var(--space-1);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.pref-tag-row {
+  display: grid;
+  min-height: 38px;
+  grid-template-columns: 16px 12px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+.pref-tag-row:hover {
+  background: var(--fill-hover);
+}
+/* 落点提示只有主线，不涂底：整行泛灰会读成"这行被禁用了"。 */
+.pref-tag-row--drop-top {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.pref-tag-row--drop-bottom {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.pref-tag-grip {
+  color: var(--text-faint);
+  font-size: var(--text-md);
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+}
+.pref-tag-grip:active {
+  cursor: grabbing;
+}
+/* 双击改名的格子：光标先读成"这是文字"，悬停用主色淡底——和工作台 .wb-editable 同一
+   个语汇，不是灰底。 */
+.pref-tag-name {
+  min-width: 0;
+  padding: var(--space-1) var(--space-3);
+  margin-left: calc(var(--space-3) * -1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: var(--radius-xs);
+  cursor: text;
+}
+.pref-tag-name:hover,
+.pref-tag-name:focus-visible {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.pref-tag-name:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring-inset);
+}
+.pref-tag-name-input {
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  font-size: var(--text-sm);
+}
+.pref-tag-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.pref-tag-delete:hover:not(:disabled) {
+  color: var(--danger);
+}
+
 @media (max-width: 760px) {
   .auto-tag-scope-grid {
     grid-template-columns: 1fr;
@@ -7414,6 +7543,92 @@ button:disabled {
   --wb-badge-ink: var(--wb-hue-gray-ink);
 }
 
+/* ── 标签格：一篇挂了不止一个标签时的收起态 ──────────────────────────────
+   调色板的管理搬进了设置，这一格只剩指派。挂了两个以上时触发键不再自己染一种
+   色相——一串不同色的药丸压在单一色相的淡底上会互相打脸，改成中性描边的容器，
+   颜色全交给里面的药丸（各自继承 .wb-badge--* 的色相令牌）。
+   选择器多带一层 .wb-tag-cell：phase3-research.css 排在本文之后，同名规则的悬停
+   加深会盖过来，这里要靠层级赢回来而不是靠挪文件。 */
+.wb-tag-cell .wb-tag-pill--list,
+.wb-tag-cell .wb-tag-pill--list:hover:not(:disabled),
+.wb-tag-cell .wb-tag-pill--list:active:not(:disabled) {
+  background: transparent;
+  border-color: var(--border);
+  box-shadow: var(--ring-hairline);
+}
+.wb-tag-cell .wb-tag-pill--list:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.wb-tag-list {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  overflow: hidden;
+}
+.wb-tag-chip {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-full);
+  background: color-mix(
+    in srgb,
+    var(--wb-badge-hue, var(--text-tertiary)) var(--wb-badge-tint, 12%),
+    transparent
+  );
+  color: var(--wb-badge-ink, var(--text-secondary));
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1.7;
+  white-space: nowrap;
+}
+.wb-tag-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 格子里的色点收小一档：8px 的点在三枚并排时把名字挤没了。 */
+.wb-tag-chip .wb-dot {
+  width: 5px;
+  height: 5px;
+}
+.wb-tag-more {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+}
+/* 离屏测量层：收起态塞得下几枚得按真实字形宽度算，格子里那一枚已经被 flex 截窄了。
+   自身收成 0×0 再裁掉——visibility:hidden 保留布局盒（display:none 量不出宽度），
+   但一个 -9999px 的宽盒子会把整张表顶出横向滚动条。 */
+.wb-tag-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.wb-tag-measure .wb-tag-chip {
+  max-width: none;
+}
+/* 弹层里的勾选位：没勾上也占一格，切换时整行不跳。 */
+.wb-tag-check {
+  flex: none;
+  width: 14px;
+  color: var(--accent);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
 /* progress */
 .wb-progress-row {
   display: flex;
@@ -7721,56 +7936,31 @@ button:disabled {
   border-color: var(--border-strong);
 }
 
-/* 工作台真正滚动的是 .wb-main（.wb-content 现在 overflow: visible，不滚），但两条都要写：
-   scrollbar-color 是继承属性，表格里那些自动增高的笔记格继承的正是这一条，所以静止档
-   必须在这里就落到透明，否则每个 .wb-notes-input 都会继承出一条常驻的灰滑块。 */
-.wb-main,
-.wb-content,
-.reader-scroll {
+/* .wb-main 的内嵌外观与显隐机制都在文件前部那一节，这里只剩一条继承档：
+   scrollbar-color 是继承属性，工作台子树里那些自己没写滚动条的滚动容器（弹层菜单
+   .wb-menu-pop 最典型）都从这一条拿到"静止不可见"。它必须挂在 .wb-content 而不是
+   .wb-main——.wb-main 是真正滚的那一层，它自己的计算值一旦不是 auto，前面那一族
+   ::-webkit-scrollbar 就会被引擎作废，内嵌外观连同闲时隐藏一起失效。 */
+.wb-content {
   scrollbar-color: transparent transparent;
   scrollbar-width: thin;
 }
 
-.wb-main::-webkit-scrollbar,
-.wb-content::-webkit-scrollbar,
-.reader-scroll::-webkit-scrollbar {
-  width: 10px;
-}
-
-.wb-main::-webkit-scrollbar-thumb,
-.wb-content::-webkit-scrollbar-thumb,
-.reader-scroll::-webkit-scrollbar-thumb {
-  background: transparent;
-  border: 3px solid transparent;
-  background-clip: content-box;
-  border-radius: var(--radius-full);
-}
-
-.wb-main::-webkit-scrollbar-track,
-.wb-content::-webkit-scrollbar-track,
-.reader-scroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-/* 表格里的自动增高笔记格。基础外观归 phase3-research.css，滚动条这一族集中在本文件
-   （同一套令牌、同一个 data-scrolling 显隐机制），所以这几条也写在这里：它本来是靠
-   继承 .wb-content 才拿到滚动条颜色的，那条改成透明之后，这里显式补上自己的静止档，
-   不再依赖祖先。槽宽顺带从 auto 的 15px 收到 thin 的 11px，窄列多出 4px 给正文。 */
+/* 表格里的自动增高笔记格：整条滚轴撤掉，滚轮与触控照旧能滚。基础外观归
+   phase3-research.css，这里只管滚动条。空内容也冒杠的根因不是内容而是尺寸口径：
+   JS 把 height 写成 scrollHeight，而 scrollHeight 不含上下各 1px 描边，box-sizing:
+   border-box 于是让 padding box 永远短这 2px，一格空的 textarea 也"溢出"2px。这 2px
+   该由 JS 补回 height 上；CSS 侧唯一的等价写法是改 box-sizing，而那会连带改掉
+   width: 100% 的溢出行为，为一颗描边不值得。槽位画在格内、不参与表格几何（列宽走
+   --wb-col-w，容器查询量的是 .wb-table-wrap），撤掉它反而把 thin 那 11px 还给正文。 */
 .wb-table .wb-notes-input {
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .wb-table .wb-notes-input::-webkit-scrollbar {
-  width: 8px;
-}
-.wb-table .wb-notes-input::-webkit-scrollbar-thumb {
-  background: transparent;
-  border: 2px solid transparent;
-  background-clip: content-box;
-  border-radius: var(--radius-full);
-}
-.wb-table .wb-notes-input::-webkit-scrollbar-track {
-  background: transparent;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 /* Inline "add submission record" form (SubmittedPage, replaces window.prompt).
@@ -9812,31 +10002,39 @@ button:disabled {
    右列百分比占 32、栅格间距 4，留给轨道 98；11 段之间 10 条 2px 缝，每段 7px。
    窄档另有一套（见下面 ≤640 档：收掉阶段名与尖角、缝降到 1px）。 */
 .wb-col-stage {
-  width: 168px;
+  width: var(--wb-col-w, 168px);
+  --wb-col-min: 116px;
 }
 .wb-col-priority {
-  width: 118px;
+  width: var(--wb-col-w, 118px);
+  --wb-col-min: 108px;
 }
 .wb-col-status {
-  width: 124px;
+  width: var(--wb-col-w, 124px);
+  --wb-col-min: 112px;
 }
 /* 日期按 13px 等宽数字实测：`2026-09-30` 排 77 ＋ 左右 10 衬 ＝ 97 → 98。
    以前是 84，格子装不下，尾字溢出 3px 压进备注列的衬里——两个表头明明隔着
    35px，正文却几乎贴在一起，看着就是"没对齐"。 */
 .wb-col-date {
-  width: 98px;
+  width: var(--wb-col-w, 98px);
+  --wb-col-min: 84px;
 }
 .wb-col-count {
-  width: 58px;
+  width: var(--wb-col-w, 58px);
+  --wb-col-min: 56px;
 }
 .wb-col-year {
-  width: 76px;
+  width: var(--wb-col-w, 76px);
+  --wb-col-min: 64px;
 }
 .wb-col-vol {
-  width: 124px;
+  width: var(--wb-col-w, 124px);
+  --wb-col-min: 96px;
 }
 .wb-col-citations {
-  width: 176px;
+  width: var(--wb-col-w, 176px);
+  --wb-col-min: 136px;
 }
 /* 操作列：三张表各写各的宽度，因为控件串不一样。宽度＝左右 10px 衬 ＋ 控件 ＋
    每处 6px 间隔（.wb-col-actions > * + *），按实测内容右边缘取整再留 1px：
@@ -9878,10 +10076,71 @@ button:disabled {
    是这排里唯一"藏字"的列——同一段文字在标题列换行显示，在 DOI 列被截成"10.13502/j…"，
    同一个字段在展开详情里又是完整可编辑的。现在它和别的文本列一样换行。 */
 .wb-col-text {
-  width: 168px;
+  width: var(--wb-col-w, 168px);
+  --wb-col-min: 96px;
 }
 .wb-col-doi {
-  width: 180px;
+  width: var(--wb-col-w, 180px);
+  --wb-col-min: 96px;
+}
+/* ── 列宽可调：表头右缘那一条把手 ───────────────────────────────────────
+   固定列宽是这张表不抖的原因，但"调不了"正是它的代价：备注想多看两个字只能等
+   窗口更宽。所以每格内容列的右缘给一条把手（.wb-col-resizer，由 ColumnHead 渲染），
+   拖它改的是 th 上的 --wb-col-w，上面那批 `width: var(--wb-col-w, 默认)` 跟着走。
+   把手只给内容列：拖拽柄列没有宽度语义，标题列是唯一的弹性列（它吸收所有余量，
+   只能被别列挤窄、不该自己去挤别人），操作列的宽度由格子里的控件实测决定，拽窄
+   就是切按钮。
+   --wb-col-min 不是样式值，是写给 JS 读的每列下限：就是上面注释里实测出来的控件
+   宽（药丸 108、阶段轨 116），再窄就截字。放在这里而不是写死在组件里，是为了让它
+   和默认宽度一起改、一起被同一档容器查询看见。 */
+.wb-table thead th {
+  position: relative;
+}
+.wb-col-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* 压在列边界的正中：左右各借 5px，两边格子的 10px 内衬都还剩 5px，
+     既盖不到邻居格子里的控件，也不用为了把手从列宽里让出一像素。 */
+  right: -5px;
+  z-index: var(--z-raised);
+  width: 11px;
+  padding: 0;
+  background: none;
+  border: 0;
+  cursor: col-resize;
+  touch-action: none;
+}
+/* 闲时完全隐形：表头下沿已经有 0.5px 分隔线，再来一条常驻竖线就是噪点。
+   悬停 / 聚焦 / 拖拽中才浮出 1px 竖线，配色走 --border-strong 那一族，
+   与侧栏的 .pane-divider、AI 面板的 .ai-workbench__resize 同一套语言。 */
+.wb-col-resizer::after {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  left: 5px;
+  width: 1px;
+  content: "";
+  background: var(--border-strong);
+  opacity: 0;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+.wb-col-resizer:hover::after,
+.wb-col-resizer--active::after {
+  opacity: 1;
+}
+/* 拖拽中指针常常已经滑出这 11px，:hover 会断；组件在拖拽期间挂 --active 兜住。 */
+.wb-col-resizer--active::after {
+  width: 2px;
+  background: var(--accent);
+}
+.wb-col-resizer:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
 }
 /* 表内控件比页面别处更紧凑，给文本列让出宽度 */
 .wb-table .wb-menu-btn {
@@ -10012,7 +10271,7 @@ button:disabled {
     width: 58px;
   }
   .wb-col-stage {
-    width: 116px;
+    width: var(--wb-col-w, 116px);
   }
   /* 窄档只留"轨道 + 百分比"：当前阶段名在这一档只剩三四个字、尖角也只占一格，
      两样都收掉，把宽度还给轨道和标题（116＋114 比原来的 92＋148 还省 10px）。
@@ -10024,7 +10283,7 @@ button:disabled {
     display: none;
   }
   .wb-col-status {
-    width: 112px;
+    width: var(--wb-col-w, 112px);
   }
   /* 窄档衬宽从 10px 降到 6px（上面第一条），三张表的操作列各减 8px：
      在研 101＋12＝113→114，在投 210＋12＝221→232，已发表 62＋12＝74→76。 */

@@ -6,7 +6,7 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "prebuild": "node scripts/generate-icons.mjs",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && node scripts/check-web-html.mjs",
     "build:desktop": "node scripts/generate-icons.mjs && tsc -b && vite build --mode desktop && node scripts/check-desktop-html.mjs",
     "dev": "vite",
     "format": "prettier --write .",

@@ -319,8 +319,9 @@ export interface SubmissionRecord {
 
 /**
  * Research-workbench tag palette entry. Distinct from the library `Tag`:
- * these live under `/research/tags` and papers reference one by `tag_id`.
- * The list endpoint returns them ordered by `position` ascending.
+ * these live under `/research/tags`; a paper wears several of them at once.
+ * The list endpoint returns them ordered by `position` ascending, which is the
+ * user's own priority order (drag/edit happens in the preferences "tags" pane).
  */
 export interface ResearchTag {
   id: string
@@ -340,7 +341,8 @@ export interface ResearchPaper {
   notes: string
   research_area: string
   status: string
-  tag_id: string
+  // 指派顺序（不是调色板顺序），无标签恒为 []。
+  tag_ids: string[]
   target_journal: string
   stages: ResearchStage[]
   current_journal: string
@@ -376,7 +378,8 @@ export interface ResearchPaperPatch {
   notes?: string
   research_area?: string
   status?: string
-  tag_id?: string
+  // 缺省＝不碰标签，[]＝清空；未知 id 服务端照收，前端只负责把它们渲染成占位。
+  tag_ids?: string[]
   target_journal?: string
   stages?: ResearchStage[]
   current_journal?: string

@@ -70,7 +70,7 @@ func (s *Server) updateResearchPaper(w http.ResponseWriter, r *http.Request) {
 		Notes           *string                    `json:"notes"`
 		ResearchArea    *string                    `json:"research_area"`
 		Status          *string                    `json:"status"`
-		TagID           *string                    `json:"tag_id"`
+		TagIDs          *[]string                  `json:"tag_ids"`
 		TargetJournal   *string                    `json:"target_journal"`
 		Stages          *[]domain.ResearchStage    `json:"stages"`
 		CurrentJournal  *string                    `json:"current_journal"`
@@ -99,7 +99,7 @@ func (s *Server) updateResearchPaper(w http.ResponseWriter, r *http.Request) {
 	patch := domain.ResearchPaperPatch{
 		Title: request.Title, Authors: request.Authors, Keywords: request.Keywords,
 		FilePath: request.FilePath, NextAction: request.NextAction, Notes: request.Notes,
-		ResearchArea: request.ResearchArea, Status: request.Status, TagID: request.TagID,
+		ResearchArea: request.ResearchArea, Status: request.Status, TagIDs: request.TagIDs,
 		TargetJournal: request.TargetJournal, Stages: request.Stages,
 		CurrentJournal: request.CurrentJournal, SubmissionDate: request.SubmissionDate,
 		ManuscriptID: request.ManuscriptID, SubmissionCount: request.SubmissionCount,
@@ -252,5 +252,21 @@ func (s *Server) deleteResearchTag(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.events.Publish("research.updated", map[string]string{"tag_id": r.PathValue("tagID")})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (s *Server) reorderResearchTags(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		TagIDs []string `json:"tag_ids"`
+	}
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	if err := storage.ReorderResearchTags(r.Context(), s.db, domain.DefaultProfileID, request.TagIDs); err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.events.Publish("research.updated", map[string]string{"tags_reordered": "true"})
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -52,7 +52,7 @@ export function Dashboard(props: {
       undefined,
     )
     if (!top) return []
-    return research.filter((paper) => paper.tag_id === top.id)
+    return research.filter((paper) => paper.tag_ids.includes(top.id))
   }, [props.tags, research])
 
   // The digest covers the papers that actually have a next step or a deadline.

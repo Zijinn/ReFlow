@@ -16,7 +16,16 @@ import {
 } from "../../lib/research"
 import { downloadPublicationsExport } from "../../lib/researchExport"
 import { toast } from "../../store/toast"
-import { ChipEditor, DragHandle, EmptyState, ExpandToggle, InlineText, MenuSelect, Row } from "./shared"
+import {
+  ChipEditor,
+  ColumnHead,
+  DragHandle,
+  EmptyState,
+  ExpandToggle,
+  InlineText,
+  MenuSelect,
+  Row,
+} from "./shared"
 import { displayID, matchesPaperQuery, reorderList } from "./utils"
 
 const SORT_OPTIONS: Array<{ value: ReferenceSort; key: string }> = [
@@ -545,13 +554,21 @@ export function PublishedPage(props: {
               <tr>
                 <th className="wb-col-grip" aria-label={t("colCode")} />
                 <th className="wb-col-title">{t("colTitle")}</th>
-                <th className="wb-col-year">{t("yearLabel")}</th>
-                <th className="wb-col-text">{t("journalLabel")}</th>
-                <th className="wb-col-vol">
-                  {t("volumeIssueLabel")} / {t("pagesLabel")}
-                </th>
-                <th className="wb-col-doi">{t("doiLabel")}</th>
-                <th className="wb-col-citations">{t("citationsLabel")}</th>
+                <ColumnHead table="published" column="year" className="wb-col-year">
+                  {t("yearLabel")}
+                </ColumnHead>
+                <ColumnHead table="published" column="journal" className="wb-col-text">
+                  {t("journalLabel")}
+                </ColumnHead>
+                <ColumnHead table="published" column="vol" className="wb-col-vol">
+                  {`${t("volumeIssueLabel")} / ${t("pagesLabel")}`}
+                </ColumnHead>
+                <ColumnHead table="published" column="doi" className="wb-col-doi">
+                  {t("doiLabel")}
+                </ColumnHead>
+                <ColumnHead table="published" column="citations" className="wb-col-citations">
+                  {t("citationsLabel")}
+                </ColumnHead>
                 <th className="wb-col-actions">{t("colActions")}</th>
               </tr>
             </thead>

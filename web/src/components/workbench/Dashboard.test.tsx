@@ -22,7 +22,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "",
     status: "",
-    tag_id: "t-high",
+    tag_ids: ["t-high"],
     target_journal: "经济研究",
     stages: [
       { name: "Done", done: true, children: [] },
@@ -81,7 +81,7 @@ describe("Dashboard", () => {
     ]
     render(
       <Dashboard
-        research={[paper(), paper({ id: "p-2", title: "Low prio", tag_id: "t-average" })]}
+        research={[paper(), paper({ id: "p-2", title: "Low prio", tag_ids: ["t-average"] })]}
         submitted={[]}
         published={[]}
         tags={tags}
@@ -92,6 +92,24 @@ describe("Dashboard", () => {
     expect(compactCards).toHaveLength(1)
     expect(compactCards[0]).toHaveTextContent("A Working Paper")
     expect(compactCards[0]!.textContent).toContain("RESEARCH PROJECT")
+  })
+
+  it("still lists a paper that wears the top tag next to others", () => {
+    // 多选之后这一栏的判据是 includes 而不是相等：同时挂着别的标签也得进来。
+    const tags = [
+      { id: "t-field", name: "Fieldwork", position: 0 },
+      { id: "t-high", name: "High", position: 1 },
+    ]
+    render(
+      <Dashboard
+        research={[paper({ id: "p-9", title: "Both tags", tag_ids: ["t-high", "t-field"] })]}
+        submitted={[]}
+        published={[]}
+        tags={tags}
+        onNavigate={() => {}}
+      />,
+    )
+    expect(document.querySelectorAll(".wb-card--compact")).toHaveLength(1)
   })
 
   it("navigates to the matching page when a stat card is activated", () => {

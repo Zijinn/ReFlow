@@ -347,7 +347,7 @@ type ResearchPaper struct {
 	// research
 	ResearchArea  string          `json:"research_area"`
 	Status        string          `json:"status"`
-	TagID         string          `json:"tag_id"`
+	TagIDs        []string        `json:"tag_ids"`
 	TargetJournal string          `json:"target_journal"`
 	Stages        []ResearchStage `json:"stages"`
 
@@ -398,7 +398,7 @@ type ResearchPaperPatch struct {
 	Notes           *string
 	ResearchArea    *string
 	Status          *string
-	TagID           *string
+	TagIDs          *[]string
 	TargetJournal   *string
 	Stages          *[]ResearchStage
 	CurrentJournal  *string

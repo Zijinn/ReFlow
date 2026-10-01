@@ -32,7 +32,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "Development economics",
     status: "",
-    tag_id: "t-high",
+    tag_ids: ["t-high"],
     target_journal: "经济研究",
     stages: [
       { name: "Intro", done: true, children: [] },
@@ -244,10 +244,10 @@ describe("ResearchPage", () => {
     render(
       <ResearchPage
         papers={[
-          paper({ id: "r-1", title: "Manual First", tag_id: "t-medium", last_updated: "2026-09-01" }),
-          paper({ id: "r-2", title: "Newest Second", tag_id: "t-high", last_updated: "2026-09-10" }),
-          paper({ id: "r-3", title: "Untagged Third", tag_id: "", last_updated: "" }),
-          paper({ id: "r-4", title: "Tagged Fourth", tag_id: "t-field", last_updated: "2026-09-05" }),
+          paper({ id: "r-1", title: "Manual First", tag_ids: ["t-medium"], last_updated: "2026-09-01" }),
+          paper({ id: "r-2", title: "Newest Second", tag_ids: ["t-high"], last_updated: "2026-09-10" }),
+          paper({ id: "r-3", title: "Untagged Third", tag_ids: [], last_updated: "" }),
+          paper({ id: "r-4", title: "Tagged Fourth", tag_ids: ["t-field"], last_updated: "2026-09-05" }),
         ]}
         {...props()}
       />,
@@ -272,11 +272,30 @@ describe("ResearchPage", () => {
     expect(rowTitles()).toEqual(["Manual First", "Newest Second", "Untagged Third", "Tagged Fourth"])
   })
 
+  it("sorts a multi-tagged paper by its best-ranked tag", () => {
+    // 一篇挂好几个标签时按调色板里最靠前的那个比：Fieldwork(3)+High(0) 走在
+    // Medium(1) 前面；不在调色板里的 id 没有档位，和未挂标签一起垫底。
+    render(
+      <ResearchPage
+        papers={[
+          paper({ id: "r-1", title: "Both", tag_ids: ["t-field", "t-high"] }),
+          paper({ id: "r-2", title: "Medium only", tag_ids: ["t-medium"] }),
+          paper({ id: "r-3", title: "Ghost only", tag_ids: ["t-ghost"] }),
+          paper({ id: "r-4", title: "Untagged", tag_ids: [] }),
+        ]}
+        {...props()}
+      />,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Sort" }))
+    fireEvent.click(screen.getByRole("option", { name: "Tag order" }))
+    expect(rowTitles()).toEqual(["Both", "Medium only", "Ghost only", "Untagged"])
+  })
+
   it("disables row dragging while a non-manual sort is active", () => {
     const handlers = props()
     render(
       <ResearchPage
-        papers={[paper({ tag_id: "t-high" }), paper({ id: "r-2", title: "Second", tag_id: "t-average" })]}
+        papers={[paper({ tag_ids: ["t-high"] }), paper({ id: "r-2", title: "Second", tag_ids: ["t-average"] })]}
         {...handlers}
       />,
     )
@@ -297,68 +316,118 @@ describe("ResearchPage", () => {
     expect(document.querySelectorAll(".wb-drag-handle")).toHaveLength(2)
   })
 
-  it("renders the paper's tag as a pill and localizes the seeded legacy names", () => {
+  it("renders one chip per assigned tag and localizes the seeded legacy names", () => {
     // 迁移播种的 High/Medium/Average 走既有 i18n 键（zh 下是"高优先级"…），
-    // 自定义名字原样渲染。
+    // 自定义名字原样渲染。中文列用"、"拼接完整名单交给 aria-label。
     useReaderStore.setState({ locale: "zh-CN" })
     render(
       <ResearchPage
-        papers={[paper({ tag_id: "t-high" }), paper({ id: "r-2", title: "Second", tag_id: "t-field" })]}
+        papers={[
+          paper({ tag_ids: ["t-high", "t-field"] }),
+          paper({ id: "r-2", title: "Second", tag_ids: ["t-average"] }),
+        ]}
         {...props()}
       />,
     )
-    expect(screen.getByRole("button", { name: "标签: 高优先级" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "标签: Fieldwork" })).toBeInTheDocument()
-    const tinted = document.querySelector(".wb-tag-pill.wb-badge--red")
-    expect(tinted).not.toBeNull()
-    // 第四档起循环其余既有 wb-badge 淡底（下标 3 → green）。
-    expect(document.querySelector(".wb-tag-pill.wb-badge--green")).not.toBeNull()
+    expect(screen.getByRole("button", { name: "标签: 高优先级、Fieldwork" })).toBeInTheDocument()
+    const chips = Array.from(
+      screen.getByRole("button", { name: "标签: 高优先级、Fieldwork" }).querySelectorAll(
+        ".wb-tag-list .wb-tag-chip-label",
+      ),
+    ).map((node) => node.textContent)
+    expect(chips).toEqual(["高优先级", "Fieldwork"])
+    // 色阶跟着调色板下标，落在每一枚药丸自己身上（多选后触发键不再整体着色）：
+    // 0 → red，3 → green。
+    expect(document.querySelector(".wb-tag-chip.wb-badge--red")).not.toBeNull()
+    expect(document.querySelector(".wb-tag-chip.wb-badge--green")).not.toBeNull()
+  })
+
+  it("labels an id whose tag was deleted from the palette", () => {
+    // 标签在偏好设置里被删掉后，论文的 tag_ids 里可能还残留它的 id：
+    // 这一枚走中性灰 + 「标签已删除」，不能崩成 undefined 名字。
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-ghost"] })]} {...props()} />)
+    const pill = screen.getByRole("button", { name: "Tag: Tag removed" })
+    expect(pill.querySelector(".wb-tag-list .wb-badge--gray")).not.toBeNull()
+    expect(pill.querySelector(".wb-tag-list .wb-tag-chip-label")!.textContent).toBe("Tag removed")
   })
 
   it("shows a quiet placeholder pill for an untagged paper", () => {
-    render(<ResearchPage papers={[paper({ tag_id: "" })]} {...props()} />)
+    render(<ResearchPage papers={[paper({ tag_ids: [] })]} {...props()} />)
     const pill = screen.getByRole("button", { name: "Tag: No tag" })
     expect(pill).toHaveClass("wb-tag-pill--empty")
     expect(pill).toHaveTextContent("No tag")
   })
 
-  it("assigns a tag from the pill menu via onUpdate tag_id", () => {
+  it("appends a toggled tag after the assigned ones and keeps the menu open", () => {
     const handlers = props()
-    render(<ResearchPage papers={[paper({ tag_id: "" })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: No tag" }))
-    // 菜单：无标签 + 调色板顺序的每个标签 + 新建入口。
-    expect(screen.getByRole("menuitem", { name: /No tag/ })).toBeInTheDocument()
-    const items = screen.getAllByRole("menuitem").map((node) => node.textContent)
-    expect(items).toEqual(["No tag✓", "High", "Medium", "Average", "Fieldwork", "＋New tag"])
-    fireEvent.click(screen.getByRole("menuitem", { name: "Fieldwork" }))
-    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_id: "t-field" })
-  })
-
-  it("clears the tag by picking the untagged entry", () => {
-    const handlers = props()
-    render(<ResearchPage papers={[paper({ tag_id: "t-high" })]} {...handlers} />)
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-high"] })]} {...handlers} />)
     fireEvent.click(screen.getByRole("button", { name: "Tag: High" }))
-    fireEvent.click(screen.getByRole("menuitem", { name: "No tag" }))
-    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_id: "" })
+    // 菜单：清空全部(1 个 menuitem) + 调色板顺序的每个标签(menuitemcheckbox) + 新建入口。
+    expect(screen.getByRole("menuitem", { name: /Clear all tags/ })).toBeInTheDocument()
+    expect(screen.getAllByRole("menuitemcheckbox").map((node) => node.textContent)).toEqual([
+      "High✓",
+      "Medium",
+      "Average",
+      "Fieldwork",
+    ])
+    expect(screen.getByRole("menuitem", { name: /New tag/ })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Fieldwork" }))
+    // 指派顺序就是 tag_ids 顺序：新勾选的追加到末尾，已有的不动。
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: ["t-high", "t-field"] })
+    // 点选不关浮层——多选要能连着点。
+    expect(screen.getByRole("menu")).toBeInTheDocument()
   })
 
-  it("creates a tag inline then assigns it to the paper", async () => {
+  it("untoggles only the picked tag", () => {
     const handlers = props()
-    render(<ResearchPage papers={[paper({ tag_id: "" })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: No tag" }))
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-high", "t-field"] })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Tag: High, Fieldwork" }))
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Fieldwork" }),
+    ).toHaveAttribute("aria-checked", "true")
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Fieldwork" }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: ["t-high"] })
+  })
+
+  it("clears every tag at once", () => {
+    const handlers = props()
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-high", "t-medium"] })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Tag: High, Medium" }))
+    fireEvent.click(screen.getByRole("menuitem", { name: /Clear all tags/ }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: [] })
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+  })
+
+  it("toggles a tag from the keyboard", () => {
+    const handlers = props()
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-high"] })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Tag: High" }))
+    // 打开时高亮落在第一个已勾选的标签上，ArrowDown 一档到 Medium，Enter 提交。
+    const menu = screen.getByRole("menu")
+    fireEvent.keyDown(menu, { key: "ArrowDown" })
+    fireEvent.keyDown(menu, { key: "Enter" })
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: ["t-high", "t-medium"] })
+  })
+
+  it("creates a tag inline then appends it to the paper", async () => {
+    const handlers = props()
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-high"] })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Tag: High" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
     const input = screen.getByRole("textbox", { name: "New tag" })
     fireEvent.change(input, { target: { value: "Placebo" } })
     fireEvent.keyDown(input, { key: "Enter" })
     await waitFor(() => expect(handlers.onCreateTag).toHaveBeenCalledWith("Placebo"))
     await waitFor(() =>
-      expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_id: "t-new-Placebo" }),
+      expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", {
+        tag_ids: ["t-high", "t-new-Placebo"],
+      }),
     )
   })
 
   it("cancels the inline tag creation on Escape without assigning", () => {
     const handlers = props()
-    render(<ResearchPage papers={[paper({ tag_id: "" })]} {...handlers} />)
+    render(<ResearchPage papers={[paper({ tag_ids: [] })]} {...handlers} />)
     fireEvent.click(screen.getByRole("button", { name: "Tag: No tag" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
     const input = screen.getByRole("textbox", { name: "New tag" })
@@ -371,13 +440,33 @@ describe("ResearchPage", () => {
     expect(handlers.onUpdate).not.toHaveBeenCalled()
   })
 
-  it("narrows the table by tag through the toolbar filter", () => {
+  it("hides the tags that do not fit behind a +N chip", () => {
+    // jsdom 量不到真实字形宽度（格宽减去内衬是负数），fitCount 保底两枚，
+    // 其余收进「+N」；完整名单仍交给 title/aria-label。
+    render(
+      <ResearchPage
+        papers={[paper({ tag_ids: ["t-high", "t-medium", "t-average", "t-field"] })]}
+        {...props()}
+      />,
+    )
+    const pill = screen.getByRole("button", {
+      name: "Tag: High, Medium, Average, Fieldwork",
+    })
+    expect(
+      Array.from(pill.querySelectorAll(".wb-tag-list .wb-tag-chip-label")).map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(["High", "Medium"])
+    expect(pill.querySelector(".wb-tag-more")!.textContent).toBe("+2")
+  })
+
+  it("narrows the table by any one of a paper's tags", () => {
     render(
       <ResearchPage
         papers={[
-          paper({ id: "r-1", title: "Field Study" , tag_id: "t-field" }),
-          paper({ id: "r-2", title: "High Study", tag_id: "t-high" }),
-          paper({ id: "r-3", title: "Untagged Study", tag_id: "" }),
+          paper({ id: "r-1", title: "Field Study", tag_ids: ["t-field", "t-high"] }),
+          paper({ id: "r-2", title: "High Study", tag_ids: ["t-high"] }),
+          paper({ id: "r-3", title: "Untagged Study", tag_ids: [] }),
         ]}
         {...props()}
       />,
@@ -388,6 +477,7 @@ describe("ResearchPage", () => {
     expect(rowTitles()).toEqual(["Field Study", "High Study", "Untagged Study"])
     fireEvent.click(filter)
     fireEvent.click(screen.getByRole("option", { name: "Fieldwork" }))
+    // 挂了多个标签的论文只要命中其中之一就留下。
     expect(rowTitles()).toEqual(["Field Study"])
     expect(screen.getByText("1/3 results")).toBeInTheDocument()
   })

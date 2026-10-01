@@ -241,14 +241,17 @@ func TestResearchEnvelopeSummarizesStagesAndDeadlines(t *testing.T) {
 	envelope := researchEnvelope([]domain.ResearchPaper{{
 		ID: "paper-1", Kind: domain.ResearchKindSubmitted, Title: "Network Centrality and Trade",
 		Deadline: "2026-10-10", Notes: "revise the identification section", Stages: stages,
-		TagID: "tag-1",
-	}}, map[string]string{"tag-1": "急件"}, now)
+		TagIDs: []string{"tag-2", "tag-1", "tag-ghost"},
+	}}, map[string]string{"tag-1": "急件", "tag-2": "在改"}, now)
 	for _, want := range []string{"<title>Network Centrality and Trade</title>", "<pending>Revise</pending>",
 		"stages done=\"1\" total=\"3\"", "due in 10 days", "(none recorded)", "revise the identification section",
-		"<tag>急件</tag>"} {
+		"<tag>在改</tag>\n<tag>急件</tag>"} {
 		if !strings.Contains(envelope, want) {
 			t.Fatalf("envelope missing %q:\n%s", want, envelope)
 		}
+	}
+	if strings.Contains(envelope, "tag-ghost") {
+		t.Fatalf("envelope leaked an unresolved tag id:\n%s", envelope)
 	}
 }
 

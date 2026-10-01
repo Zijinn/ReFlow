@@ -7,13 +7,11 @@ export function isCanvasTheme(value: unknown): value is CanvasTheme {
   return (canvasThemes as readonly unknown[]).includes(value)
 }
 
-// 蒙纱是一根连续拉轴，不再是三档。上限 96% 是"几乎看不见图"，下限 60% 是用户要的
-// "认得出这张图"。87% 这条线还在，但它只是面板上的提示阈值，不再由 CSS 的 max() 顶住：
-// 它是量出来的——浅档白纱压到 87% 时最坏情形（照片里一处纯黑）画布落在 rgb(222)，11px
-// 三级墨 4.58:1 刚过 AA，只压 70% 掉到 2.98，压到 60% 只剩 2.21。低于 safe 档界面会
-// 明说代价；一个拖到某处就不反应的滑块比任何提示都更让人困惑（旧版三档 88/91/95 全排在
-// 地板之上，所以用户怎么调都只会得到"图片还是不够清晰"）。
-export const canvasPhotoVeilMin = 60
+// 蒙纱是一根连续拉轴，不再是三档。上限 96% 是"几乎看不见图"；下限放开到 0（完全没有纱）：
+// 用户明确要求能一路调到最低，代价由面板上那行安全线警告就地写明，而不是由代码替他挡在某个
+// 地板之上。87 这条线还在，但它只剩提示阈值——它是量出来的：浅档白纱压到 87% 时最坏情形
+// （照片里一处纯黑）画布落在 rgb(222)，11px 三级墨 4.58:1 刚过 AA，再低就破线。
+export const canvasPhotoVeilMin = 0
 export const canvasPhotoVeilMax = 96
 export const canvasPhotoVeilSafe = 87
 

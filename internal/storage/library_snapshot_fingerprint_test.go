@@ -184,4 +184,32 @@ func TestSnapshotFingerprintTracksResearchChanges(t *testing.T) {
 	if changed := fingerprint(); changed == afterEdit {
 		t.Fatal("fingerprint ignored a research tag rename")
 	}
+
+	// A paper's labels live in their own table, so that table has to be part of
+	// the fingerprinted payload or a device would sync as unchanged while the
+	// assignments differ.
+	beforeAssignment := fingerprint()
+	if _, err := UpdateResearchPaper(ctx, db, domain.DefaultProfileID, created.ID,
+		domain.ResearchPaperPatch{TagIDs: &[]string{tag.ID}}); err != nil {
+		t.Fatal(err)
+	}
+	if changed := fingerprint(); changed == beforeAssignment {
+		t.Fatal("fingerprint ignored a research paper tag assignment")
+	}
+	document, err := ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rows := snapshotTableRowCount(document, "research_paper_tags"); rows != 1 {
+		t.Fatalf("expected the tag association in the snapshot, got %d rows", rows)
+	}
+}
+
+func snapshotTableRowCount(document BackupDocument, name string) int {
+	for _, table := range document.Tables {
+		if table.Name == name {
+			return len(table.Rows)
+		}
+	}
+	return -1
 }

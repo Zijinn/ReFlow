@@ -5,6 +5,7 @@ import (
 	"context"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -55,6 +56,72 @@ func TestBackupRestoreRoundTrip(t *testing.T) {
 	page, err := ListEntries(ctx, db, domain.EntryFilter{ProfileID: domain.DefaultProfileID, Query: "needle", Limit: 10})
 	if err != nil || len(page.Items) != 1 {
 		t.Fatalf("restored FTS failed: %+v, %v", page, err)
+	}
+}
+
+// The palette and its per-paper associations are separate tables now, so a
+// backup that skips them restores every paper with its labels silently stripped.
+func TestBackupRestoreRoundTripPreservesResearchTags(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	urgent, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
+	if err != nil {
+		t.Fatal(err)
+	}
+	revised, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "修改中")
+	if err != nil {
+		t.Fatal(err)
+	}
+	paper, err := CreateResearchPaper(ctx, db, domain.DefaultProfileID, domain.ResearchPaper{
+		Kind: domain.ResearchKindResearch, Title: "Tagged paper",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UpdateResearchPaper(ctx, db, domain.DefaultProfileID, paper.ID,
+		domain.ResearchPaperPatch{TagIDs: &[]string{revised.ID, urgent.ID}}); err != nil {
+		t.Fatal(err)
+	}
+
+	document, err := ExportBackup(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	empty := []string{}
+	if _, err := UpdateResearchPaper(ctx, db, domain.DefaultProfileID, paper.ID,
+		domain.ResearchPaperPatch{TagIDs: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteResearchTag(ctx, db, domain.DefaultProfileID, urgent.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteResearchTag(ctx, db, domain.DefaultProfileID, revised.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RestoreBackup(ctx, db, document); err != nil {
+		t.Fatal(err)
+	}
+
+	tags, err := ListResearchTags(ctx, db, domain.DefaultProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tags) != 2 || tags[0].Name != "急件" || tags[1].Name != "修改中" {
+		t.Fatalf("restored palette: %+v", tags)
+	}
+	restored, err := GetResearchPaper(ctx, db, domain.DefaultProfileID, paper.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(restored.TagIDs, []string{revised.ID, urgent.ID}) {
+		t.Fatalf("restored tag order: %+v", restored.TagIDs)
 	}
 }
 

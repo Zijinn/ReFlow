@@ -47,6 +47,10 @@ export const defaultReaderAppearance: ReaderAppearance = {
 
 export const defaultPaneLayout: PaneLayout = { sidebarWidth: 232, timelineWidth: 376 }
 
+export interface WorkbenchColumnWidths {
+  [table: string]: { [column: string]: number }
+}
+
 interface ReaderStore {
   scope: LibraryScope
   readerReturnScope: LibraryScope | null
@@ -73,6 +77,7 @@ interface ReaderStore {
   autoAcademicTagFeedIDs: string[]
   sseState: SSEState
   appView: AppView
+  workbenchColumnWidths: WorkbenchColumnWidths
   setAppView: (appView: AppView) => void
   setScope: (scope: LibraryScope) => void
   selectEntry: (entryID: string | null) => void
@@ -100,6 +105,8 @@ interface ReaderStore {
   setAutoAcademicTagFolderIDs: (folderIDs: string[]) => void
   setAutoAcademicTagFeedIDs: (feedIDs: string[]) => void
   setSSEState: (sseState: SSEState) => void
+  setWorkbenchColumnWidth: (table: string, column: string, width: number) => void
+  clearWorkbenchColumnWidth: (table: string, column: string) => void
 }
 
 export const useReaderStore = create<ReaderStore>()(
@@ -131,6 +138,9 @@ export const useReaderStore = create<ReaderStore>()(
       autoAcademicTagFeedIDs: [],
       sseState: "live",
       appView: "reader",
+      // 只存用户拖过的列：没落键的列在 CSS 里退回 width: var(--wb-col-w, 默认)，
+      // 默认宽度因此仍归样式表管，加一档列不用动这里。
+      workbenchColumnWidths: {},
       setAppView: (appView) => set({ appView }),
       setScope: (scope) =>
         set({ scope, readerReturnScope: null, selectedEntryID: null, mobileReaderOpen: false }),
@@ -182,6 +192,22 @@ export const useReaderStore = create<ReaderStore>()(
       setAutoAcademicTagFeedIDs: (autoAcademicTagFeedIDs) =>
         set({ autoAcademicTagFeedIDs: Array.from(new Set(autoAcademicTagFeedIDs)) }),
       setSSEState: (sseState) => set({ sseState }),
+      setWorkbenchColumnWidth: (table, column, width) =>
+        set((state) => ({
+          workbenchColumnWidths: {
+            ...state.workbenchColumnWidths,
+            [table]: { ...state.workbenchColumnWidths[table], [column]: width },
+          },
+        })),
+      clearWorkbenchColumnWidth: (table, column) =>
+        set((state) => {
+          const columns = { ...state.workbenchColumnWidths[table] }
+          if (!(column in columns)) return state
+          delete columns[column]
+          return {
+            workbenchColumnWidths: { ...state.workbenchColumnWidths, [table]: columns },
+          }
+        }),
     }),
     {
       name: "reflow-reader-preferences",
@@ -205,6 +231,7 @@ export const useReaderStore = create<ReaderStore>()(
         autoAcademicTagFolderIDs: state.autoAcademicTagFolderIDs,
         autoAcademicTagFeedIDs: state.autoAcademicTagFeedIDs,
         appView: state.appView,
+        workbenchColumnWidths: state.workbenchColumnWidths,
       }),
     },
   ),

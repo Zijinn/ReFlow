@@ -2,7 +2,9 @@ import * as Dialog from "@radix-ui/react-dialog"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   ArrowCounterClockwise,
+  ArrowDown,
   ArrowsClockwise,
+  ArrowUp,
   AppleLogo,
   Books,
   Brain,
@@ -18,17 +20,27 @@ import {
   Palette,
   PencilSimple,
   Plus,
+  Tag,
   Trash,
   UploadSimple,
   X,
 } from "@phosphor-icons/react"
-import { type KeyboardEvent, useRef, useState } from "react"
+import {
+  type DragEvent,
+  type KeyboardEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
 
 import type {
   AIProfile,
   AIUsage,
   Device,
   Folder,
+  ResearchTag,
   ServerStatus,
   Subscription,
   SyncAccount,
@@ -36,10 +48,21 @@ import type {
   ViewMode,
 } from "../api/types"
 import { useTranslation, type Locale, type Translator } from "../lib/i18n"
-import { listPreferences, putPreference } from "../api/client"
+import {
+  APIError,
+  createResearchTag,
+  deleteResearchTag,
+  listPreferences,
+  listResearchTags,
+  putPreference,
+  reorderResearchTags,
+  updateResearchTag,
+} from "../api/client"
 import { canvasPhotoVeilMax, canvasPhotoVeilMin, canvasPhotoVeilSafe } from "../lib/canvas"
 import { CanvasPhotoError, readCanvasPhoto } from "../lib/canvas-photo"
 import { displayShortcut, keyboardChord } from "../lib/shortcuts"
+import { reorderList, tagDotClass } from "./workbench/utils"
+import { toast } from "../store/toast"
 import { ConfirmDialog } from "./ConfirmDialog"
 import {
   defaultShortcuts,
@@ -81,7 +104,7 @@ interface PreferencesDialogProps {
   onDeleteAIProfile: (profileID: string) => void
 }
 
-type PreferenceTab = "interface" | "ai" | "sync" | "library" | "devices"
+type PreferenceTab = "interface" | "tags" | "ai" | "sync" | "library" | "devices"
 
 const tabs: Array<{
   id: PreferenceTab
@@ -94,6 +117,15 @@ const tabs: Array<{
     labelKey: "interface",
     descriptionKey: "interfaceSettingsDescription",
     icon: Palette,
+  },
+  // 工作台标签排在界面之后、AI 之前：它是用户每天要进出调整的清单，而 interface 是
+  // 默认档，紧随其后是最短路径；它管的也不是资料库那套 `Tag`（另一个端点、另一个
+  // 实体），放进 library 反而会被当成订阅标签。
+  {
+    id: "tags",
+    labelKey: "researchTags",
+    descriptionKey: "tagsSettingsDescription",
+    icon: Tag,
   },
   { id: "ai", labelKey: "aiAndLanguage", descriptionKey: "aiSettingsDescription", icon: Brain },
   { id: "sync", labelKey: "sync", descriptionKey: "syncSettingsDescription", icon: Cloud },
@@ -184,6 +216,14 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
   const [canvasPhotoError, setCanvasPhotoError] = useState("")
   const restoreInput = useRef<HTMLInputElement>(null)
   const canvasPhotoInput = useRef<HTMLInputElement>(null)
+  // 标签改名格进入编辑时置真：Radix 的 Escape 监听挂在 document 的**捕获**阶段
+  // （dismissable-layer 里 addEventListener(..., {capture:true})），事件还没走到
+  // React 的合成处理器就已经判定要关对话框了，所以格子里 stopPropagation 拦不住，
+  // 只能走 Content 自己的 onEscapeKeyDown 放行。
+  const renameGuard = useRef(false)
+  const setRenaming = useCallback((active: boolean) => {
+    renameGuard.current = active
+  }, [])
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]!
   const serviceAccounts = props.syncAccounts.filter(
     (account) => account.provider !== "webdav" && account.provider !== "icloud",
@@ -281,6 +321,9 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
           <Dialog.Content
             className="dialog-content preferences-dialog"
             aria-describedby={undefined}
+            onEscapeKeyDown={(event) => {
+              if (renameGuard.current) event.preventDefault()
+            }}
           >
             <div className="preferences-layout">
               <aside className="preferences-nav">
@@ -556,6 +599,14 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                         )}
                       </section>
                     </>
+                  )}
+
+                  {activeTab === "tags" && (
+                    <TagsSection
+                      t={t}
+                      onRenaming={setRenaming}
+                      onConfirm={(message, action) => setPendingConfirmation({ message, action })}
+                    />
                   )}
 
                   {activeTab === "ai" && (
@@ -1239,5 +1290,330 @@ function CloudProviderGrid(props: {
         })}
       </div>
     </section>
+  )
+}
+
+// 标签分区：调色板的唯一管理入口（工作台表格里只留指派和就地新建）。
+// 顺序就是优先级——服务端按数组下标写 position，未知 id 被忽略但下标照样占一格，
+// 所以每次都提交完整顺序，绝不提交局部片段。
+interface TagsResponse {
+  tags: ResearchTag[]
+}
+
+function TagsSection(props: {
+  t: Translator
+  onRenaming: (active: boolean) => void
+  onConfirm: (message: string, action: () => void) => void
+}) {
+  const queryClient = useQueryClient()
+  const [name, setName] = useState("")
+  const tagsQuery = useQuery({
+    queryKey: ["research-tags"],
+    queryFn: ({ signal }: { signal: AbortSignal }) => listResearchTags(signal),
+  })
+  const listed = tagsQuery.data?.tags
+  const tags = useMemo(() => listed ?? [], [listed])
+
+  // 增删改都会动到论文的 tag_ids（删除会顺带把所有论文上的这个标签摘掉），所以
+  // 除了调色板还要刷 ["research"]——它是工作台三种 kind 查询的公共前缀。
+  const invalidateAll = () => {
+    void queryClient.invalidateQueries({ queryKey: ["research-tags"] })
+    void queryClient.invalidateQueries({ queryKey: ["research"] })
+  }
+  // 重名 409 单独说一句：只报"创建失败"用户会以为是网络问题，然后一直重试。
+  const failure = (error: Error, fallback: string) =>
+    error instanceof APIError && error.status === 409 ? props.t("tagNameTaken") : fallback
+
+  const createMutation = useMutation({
+    mutationFn: (tagName: string) => createResearchTag(tagName),
+    onSuccess: () => {
+      setName("")
+      invalidateAll()
+      toast(props.t("tagCreated"))
+    },
+    onError: (error) => toast(failure(error, props.t("tagCreateFailed"))),
+  })
+  const renameMutation = useMutation({
+    mutationFn: ({ tagID, tagName }: { tagID: string; tagName: string }) =>
+      updateResearchTag(tagID, tagName),
+    onSuccess: () => invalidateAll(),
+    onError: (error) => toast(failure(error, props.t("tagRenameFailed"))),
+  })
+  const deleteMutation = useMutation({
+    mutationFn: (tagID: string) => deleteResearchTag(tagID),
+    onSuccess: () => {
+      invalidateAll()
+      toast(props.t("tagDeleted"))
+    },
+    onError: (error) => toast(failure(error, props.t("tagDeleteFailed"))),
+  })
+  // 排序只动 position，不碰论文上的关联，所以只刷调色板。缓存先改写：拖完立刻
+  // 是新顺序，失败再回滚，沿用工作台论文重排的乐观更新套路。
+  const reorderMutation = useMutation({
+    mutationFn: (tagIDs: string[]) => reorderResearchTags(tagIDs),
+    onMutate: async (tagIDs) => {
+      await queryClient.cancelQueries({ queryKey: ["research-tags"] })
+      const prev = queryClient.getQueryData<TagsResponse>(["research-tags"])
+      queryClient.setQueryData<TagsResponse>(["research-tags"], (old) =>
+        old
+          ? {
+              ...old,
+              tags: tagIDs
+                .map((id) => old.tags.find((tag) => tag.id === id))
+                .filter((tag): tag is ResearchTag => tag !== undefined)
+                .map((tag, index) => ({ ...tag, position: index })),
+            }
+          : old,
+      )
+      return { prev }
+    },
+    onError: (error, _tagIDs, context) => {
+      if (context?.prev) queryClient.setQueryData(["research-tags"], context.prev)
+      toast(failure(error, props.t("tagReorderFailed")))
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["research-tags"] })
+    },
+  })
+
+  const dragFrom = useRef<string | null>(null)
+  const [armed, setArmed] = useState<string | null>(null)
+  const [dropHint, setDropHint] = useState<{ id: string; before: boolean } | null>(null)
+
+  const submitCreate = () => {
+    const trimmed = name.trim()
+    if (!trimmed || createMutation.isPending) return
+    createMutation.mutate(trimmed)
+  }
+  const commit = (next: ResearchTag[]) => reorderMutation.mutate(next.map((tag) => tag.id))
+  const move = (index: number, delta: number) => {
+    const target = index + delta
+    if (target < 0 || target >= tags.length) return
+    const next = tags.slice()
+    const [node] = next.splice(index, 1)
+    next.splice(target, 0, node!)
+    commit(next)
+  }
+  const drop = (event: DragEvent<HTMLLIElement>, toID: string) => {
+    event.preventDefault()
+    const fromID = dragFrom.current
+    dragFrom.current = null
+    setArmed(null)
+    setDropHint(null)
+    if (!fromID || fromID === toID) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    commit(reorderList(tags, fromID, toID, event.clientY < rect.top + rect.height / 2))
+  }
+
+  return (
+    <section className="preference-section preference-section--flush preference-section--tags">
+      <div className="pref-tag-create">
+        <input
+          className="text-input"
+          type="text"
+          value={name}
+          maxLength={40}
+          disabled={createMutation.isPending}
+          placeholder={props.t("newTagPlaceholder")}
+          aria-label={props.t("newTag")}
+          onChange={(event) => setName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault()
+              submitCreate()
+            }
+          }}
+        />
+        <button
+          className="button button--secondary"
+          type="button"
+          disabled={!name.trim() || createMutation.isPending}
+          onClick={submitCreate}
+        >
+          {createMutation.isPending ? <CircleNotch className="spin" /> : <Plus />}
+          {props.t("newTag")}
+        </button>
+      </div>
+      {tagsQuery.isPending ? (
+        <p className="preference-empty">{props.t("loading")}</p>
+      ) : tags.length === 0 ? (
+        <p className="preference-empty">{props.t("noTagsYet")}</p>
+      ) : (
+        <ul className="pref-tag-list">
+          {tags.map((tag, index) => {
+            const hint = dropHint?.id === tag.id ? (dropHint.before ? "top" : "bottom") : null
+            return (
+              <li
+                key={tag.id}
+                className={`pref-tag-row${hint ? ` pref-tag-row--drop-${hint}` : ""}`}
+                // 只有按住把手才给这一行上 draggable：WKWebView 会把整行的
+                // mousedown 当拖拽，吞掉改名和按钮的点击（同 shared.tsx 的 Row）。
+                draggable={armed === tag.id}
+                onPointerDown={(event) =>
+                  setArmed(
+                    (event.target as HTMLElement).closest(".pref-tag-grip") ? tag.id : null,
+                  )
+                }
+                onDragStart={(event) => {
+                  if (armed !== tag.id) {
+                    event.preventDefault()
+                    return
+                  }
+                  dragFrom.current = tag.id
+                  event.dataTransfer.effectAllowed = "move"
+                  event.dataTransfer.setData("text/pref-tag", tag.id)
+                }}
+                onDragEnd={() => {
+                  dragFrom.current = null
+                  setArmed(null)
+                  setDropHint(null)
+                }}
+                onDragOver={(event) => {
+                  if (!event.dataTransfer.types.includes("text/pref-tag")) return
+                  event.preventDefault()
+                  const rect = event.currentTarget.getBoundingClientRect()
+                  setDropHint({ id: tag.id, before: event.clientY < rect.top + rect.height / 2 })
+                }}
+                onDragLeave={() => setDropHint(null)}
+                onDrop={(event) => drop(event, tag.id)}
+              >
+                <span className="pref-tag-grip" aria-hidden="true">
+                  ⠿
+                </span>
+                {/* 色点与工作台同一套：调色板下标取模，两边看到的永远是同一个颜色。 */}
+                <i className={`wb-dot ${tagDotClass(index)}`} aria-hidden="true" />
+                {/* 显示的是存进库的那个名字（不是工作台对旧优先级名的本地化显示），
+                    因为这一格要写的就是它。 */}
+                <TagNameField
+                  value={tag.name}
+                  t={props.t}
+                  onRenaming={props.onRenaming}
+                  onCommit={(tagName) => renameMutation.mutate({ tagID: tag.id, tagName })}
+                />
+                <span className="pref-tag-actions">
+                  <button
+                    className="icon-button icon-button--small"
+                    type="button"
+                    aria-label={`${props.t("moveUp")} ${tag.name}`}
+                    title={props.t("moveUp")}
+                    disabled={index === 0 || reorderMutation.isPending}
+                    onClick={() => move(index, -1)}
+                  >
+                    <ArrowUp />
+                  </button>
+                  <button
+                    className="icon-button icon-button--small"
+                    type="button"
+                    aria-label={`${props.t("moveDown")} ${tag.name}`}
+                    title={props.t("moveDown")}
+                    disabled={index === tags.length - 1 || reorderMutation.isPending}
+                    onClick={() => move(index, 1)}
+                  >
+                    <ArrowDown />
+                  </button>
+                  <button
+                    className="icon-button icon-button--small pref-tag-delete"
+                    type="button"
+                    aria-label={`${props.t("delete")} ${tag.name}`}
+                    title={props.t("delete")}
+                    onClick={() =>
+                      props.onConfirm(
+                        props.t("deleteTagConfirm").replace("{name}", tag.name),
+                        () => deleteMutation.mutate(tag.id),
+                      )
+                    }
+                  >
+                    <Trash />
+                  </button>
+                </span>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
+  )
+}
+
+// 改名沿用工作台 InlineText 的提交语义（Enter/失焦写回，Esc 放弃），但进编辑是
+// 单击：这一格不在可拖拽的表体里，没有"单击被行选中抢走"的顾虑，双击才能改在这份
+// 清单里只是个隐藏手势。样式用偏好面板自己的类名（工作台那份带表格格的负 margin）。
+// onRenaming 是这格存在的全部理由：Esc 在偏好面板里意味着"关掉整页设置"，而 Radix
+// 的判定发生在 document 的捕获阶段，所以只能由对话框的 onEscapeKeyDown 放行，
+// 在这里 stopPropagation 是拦不住的。
+function TagNameField(props: {
+  value: string
+  t: Translator
+  onRenaming: (active: boolean) => void
+  onCommit: (name: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(props.value)
+  const inputRef = useRef<HTMLInputElement | null>(null)
+
+  // 编辑中途整栏被换掉（切标签页、列表重取）时不能把闸门留在开启状态，
+  // 否则偏好面板就再也按不动 Esc 了。
+  const { onRenaming } = props
+  useEffect(() => {
+    onRenaming(editing)
+    return () => onRenaming(false)
+  }, [editing, onRenaming])
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const start = () => {
+    setDraft(props.value)
+    setEditing(true)
+  }
+  const commit = () => {
+    setEditing(false)
+    const next = draft.trim()
+    if (next !== props.value) props.onCommit(next)
+  }
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        className="text-input pref-tag-name-input"
+        type="text"
+        value={draft}
+        maxLength={40}
+        aria-label={props.value}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault()
+            commit()
+          } else if (event.key === "Escape") {
+            setDraft(props.value)
+            setEditing(false)
+          }
+        }}
+      />
+    )
+  }
+  return (
+    <span
+      className="pref-tag-name"
+      role="button"
+      tabIndex={0}
+      title={props.t("editHintClick")}
+      onClick={start}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault()
+          start()
+        }
+      }}
+    >
+      {props.value}
+    </span>
   )
 }

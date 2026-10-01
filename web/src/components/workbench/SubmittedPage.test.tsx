@@ -1,9 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResearchPaper, SubmissionRecord } from "../../api/types"
 import { useReaderStore } from "../../store/reader"
 import { SubmittedPage } from "./SubmittedPage"
+import { formatDeadline } from "./utils"
 
 beforeEach(() => {
   useReaderStore.setState({ locale: "en-US" })
@@ -22,7 +23,7 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     notes: "",
     research_area: "",
     status: "under_review",
-    tag_id: "",
+    tag_ids: [],
     target_journal: "",
     stages: [],
     current_journal: "Journal of Development Economics",
@@ -124,20 +125,62 @@ describe("SubmittedPage", () => {
     expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", { history: [] })
   })
 
-  it("normalizes a deadline entry and flags how urgent it is", () => {
+  it("picks the deadline from a calendar cell and still flags how urgent it is", () => {
     const handlers = props()
     const soon = new Date()
     soon.setDate(soon.getDate() + 3)
-    const soonISO = soon.toISOString().slice(0, 10)
+    const soonISO = formatDeadline(soon)
+    const todayISO = formatDeadline(new Date())
     render(<SubmittedPage papers={[paper({ deadline: soonISO })]} {...handlers} />)
     expect(document.querySelector(".wb-deadline--soon")).not.toBeNull()
-    expect(screen.getByText(soonISO)).toBeInTheDocument()
 
-    fireEvent.doubleClick(screen.getByText(soonISO))
-    const input = screen.getByDisplayValue(soonISO)
-    fireEvent.change(input, { target: { value: "2026/12/31" } })
-    fireEvent.keyDown(input, { key: "Enter" })
-    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", { deadline: "2026-12-31" })
+    // 手打日期的 input 已经换成整颗日历按钮。
+    const trigger = screen.getByRole("button", { name: "Deadline" })
+    expect(trigger).toHaveTextContent(soonISO)
+    expect(document.querySelector(".wb-col-date input")).toBeNull()
+
+    // 静置时浮层不在表格里：它是点开才长出来的。
+    expect(screen.queryByRole("dialog")).toBeNull()
+    fireEvent.click(trigger)
+    const dialog = screen.getByRole("dialog", { name: "Choose a date" })
+    fireEvent.click(within(dialog).getByRole("gridcell", { name: todayISO }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", { deadline: todayISO })
+  })
+
+  it("clears a deadline from the calendar popover", () => {
+    const handlers = props()
+    render(<SubmittedPage papers={[paper({ deadline: "2026-12-31" })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Deadline" }))
+    fireEvent.click(screen.getByRole("button", { name: "Clear date" }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", { deadline: "" })
+  })
+
+  it("chooses the submission count from a dropdown instead of typing it", () => {
+    const handlers = props()
+    render(<SubmittedPage papers={[paper({ submission_count: 1 })]} {...handlers} />)
+    const trigger = screen.getByRole("button", { name: "Submission count" })
+    expect(trigger).toHaveTextContent("1")
+    expect(document.querySelector(".wb-col-count input")).toBeNull()
+    fireEvent.click(trigger)
+    fireEvent.click(screen.getByRole("option", { name: "4" }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", { submission_count: 4 })
+  })
+
+  it("reads an unset count as not filled and never offers a negative one", () => {
+    const handlers = props()
+    render(<SubmittedPage papers={[paper({ submission_count: 3 })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Submission count" }))
+    const options = screen.getAllByRole("option")
+    // 后端对负数报 400：能选出来的只有"未填"和 0…12，手打那条路已经没了。
+    expect(options[0]).toHaveTextContent("Not filled")
+    expect(options.some((option) => Number(option.textContent) < 0)).toBe(false)
+    fireEvent.click(screen.getByRole("option", { name: "Not filled" }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("s-1", { submission_count: 0 })
+  })
+
+  it("labels an unset count with the not-filled option", () => {
+    render(<SubmittedPage papers={[paper({ submission_count: 0 })]} {...props()} />)
+    expect(screen.getByRole("button", { name: "Submission count" })).toHaveTextContent("Not filled")
   })
 
   it("opens and highlights the row the calendar jumped to", () => {
