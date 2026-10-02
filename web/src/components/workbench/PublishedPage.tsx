@@ -553,7 +553,9 @@ export function PublishedPage(props: {
             <thead>
               <tr>
                 <th className="wb-col-grip" aria-label={t("colCode")} />
-                <th className="wb-col-title">{t("colTitle")}</th>
+                <ColumnHead table="published" column="title" className="wb-col-title">
+                  {t("colTitle")}
+                </ColumnHead>
                 <ColumnHead table="published" column="year" className="wb-col-year">
                   {t("yearLabel")}
                 </ColumnHead>
@@ -569,7 +571,9 @@ export function PublishedPage(props: {
                 <ColumnHead table="published" column="citations" className="wb-col-citations">
                   {t("citationsLabel")}
                 </ColumnHead>
-                <th className="wb-col-actions">{t("colActions")}</th>
+                <ColumnHead table="published" column="actions" className="wb-col-actions">
+                  {t("colActions")}
+                </ColumnHead>
               </tr>
             </thead>
             <tbody>

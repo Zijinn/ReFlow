@@ -373,7 +373,7 @@ describe("Workbench paper move", () => {
 })
 
 describe("Workbench research tags", () => {
-  it("loads the tag palette and renders the paper's tag as a pill", async () => {
+  it("loads the tag palette and renders the paper's tag as a chip", async () => {
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
         { id: "t-high", name: "High", position: 0 },
@@ -384,7 +384,8 @@ describe("Workbench research tags", () => {
     renderWorkbench()
     goToTab(/Working papers/)
     // 迁移播种的旧名走既有 i18n 键（en: High → High），自定义名原样渲染。
-    expect(await screen.findByRole("button", { name: "Tag: Fieldwork" })).toBeInTheDocument()
+    // 药丸自己带 ✕，读屏从「移除该标签: …」就能确认它挂在行上。
+    expect(await screen.findByRole("button", { name: "Remove this tag: Fieldwork" })).toBeInTheDocument()
   })
 
   it("creates a tag through the API and assigns it to the paper", async () => {
@@ -396,7 +397,7 @@ describe("Workbench research tags", () => {
     })
     renderWorkbench()
     goToTab(/Working papers/)
-    fireEvent.click(await screen.findByRole("button", { name: "Tag: No tag" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Add tag" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
     const input = screen.getByRole("textbox", { name: "New tag" })
     fireEvent.change(input, { target: { value: "Placebo" } })
@@ -426,8 +427,7 @@ describe("Workbench research tags", () => {
     })
     renderWorkbench()
     goToTab(/Working papers/)
-    const pill = await screen.findByRole("button", { name: "Tag: Fieldwork" })
-    fireEvent.click(pill)
+    fireEvent.click(await screen.findByRole("button", { name: "Add tag" }))
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "High" }))
     await waitFor(() =>
       expect(api.updateResearchPaper).toHaveBeenCalledWith("r-1", {
@@ -440,8 +440,12 @@ describe("Workbench research tags", () => {
       "aria-checked",
       "true",
     )
-    // 写回落进列表后，收起态那颗药丸的完整名单也要跟着变（aria-label 是读屏的唯一入口）。
-    expect(await screen.findByRole("button", { name: "Tag: Fieldwork, High" })).toBeInTheDocument()
+    // 写回落进列表后，格子里堆叠的药丸也要跟着多出一枚，顺序仍是 tag_ids 顺序。
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll(".wb-tag-chip-label")).map((node) => node.textContent),
+      ).toEqual(["Fieldwork", "High"]),
+    )
   })
 
   it("toasts and keeps the draft when the tag name is rejected", async () => {
@@ -449,7 +453,7 @@ describe("Workbench research tags", () => {
     vi.mocked(api.createResearchTag).mockRejectedValue(new api.APIError(409, "duplicate tag"))
     renderWorkbench()
     goToTab(/Working papers/)
-    fireEvent.click(await screen.findByRole("button", { name: "Tag: No tag" }))
+    fireEvent.click(await screen.findByRole("button", { name: "Add tag" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
     const input = screen.getByRole("textbox", { name: "New tag" })
     fireEvent.change(input, { target: { value: "Duplicate" } })

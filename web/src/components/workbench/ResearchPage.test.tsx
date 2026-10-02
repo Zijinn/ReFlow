@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ResearchPaper, ResearchTag } from "../../api/types"
@@ -82,6 +82,22 @@ function props() {
 
 function rowTitles(): (string | null)[] {
   return Array.from(document.querySelectorAll("tbody tr .wb-cell-title .wb-editable")).map(
+    (node) => node.textContent,
+  )
+}
+
+// 标签格不再有整体触发键（每枚药丸自带 ✕，新增走「＋」），所以按行取格子、
+// 再用 within 在格子内部找控件——多行渲染时「添加标签」同名。
+function tagCell(title: string): HTMLElement {
+  const row = Array.from(document.querySelectorAll("tbody tr.wb-row")).find((node) =>
+    node.querySelector(".wb-cell-title")?.textContent?.includes(title),
+  )
+  if (!row) throw new Error(`no row for ${title}`)
+  return row.querySelector<HTMLElement>(".wb-tag-cell")!
+}
+
+function chipLabels(cell: HTMLElement): (string | null)[] {
+  return Array.from(cell.querySelectorAll(".wb-tag-list .wb-tag-chip-label")).map(
     (node) => node.textContent,
   )
 }
@@ -318,7 +334,7 @@ describe("ResearchPage", () => {
 
   it("renders one chip per assigned tag and localizes the seeded legacy names", () => {
     // 迁移播种的 High/Medium/Average 走既有 i18n 键（zh 下是"高优先级"…），
-    // 自定义名字原样渲染。中文列用"、"拼接完整名单交给 aria-label。
+    // 自定义名字原样渲染。每枚药丸都是独立控件，移除键的 aria-label 自带名字。
     useReaderStore.setState({ locale: "zh-CN" })
     render(
       <ResearchPage
@@ -329,39 +345,41 @@ describe("ResearchPage", () => {
         {...props()}
       />,
     )
-    expect(screen.getByRole("button", { name: "标签: 高优先级、Fieldwork" })).toBeInTheDocument()
-    const chips = Array.from(
-      screen.getByRole("button", { name: "标签: 高优先级、Fieldwork" }).querySelectorAll(
-        ".wb-tag-list .wb-tag-chip-label",
-      ),
-    ).map((node) => node.textContent)
-    expect(chips).toEqual(["高优先级", "Fieldwork"])
-    // 色阶跟着调色板下标，落在每一枚药丸自己身上（多选后触发键不再整体着色）：
-    // 0 → red，3 → green。
-    expect(document.querySelector(".wb-tag-chip.wb-badge--red")).not.toBeNull()
-    expect(document.querySelector(".wb-tag-chip.wb-badge--green")).not.toBeNull()
+    const cell = tagCell("Working Paper One")
+    expect(chipLabels(cell)).toEqual(["高优先级", "Fieldwork"])
+    expect(within(cell).getByRole("button", { name: "移除该标签: 高优先级" })).toBeInTheDocument()
+    expect(within(cell).getByRole("button", { name: "移除该标签: Fieldwork" })).toBeInTheDocument()
+    // 第二行独立成格：堆叠是每行自己的事，不共享状态。
+    expect(chipLabels(tagCell("Second"))).toEqual(["低优先级"])
+    // 色阶跟着调色板下标，落在每一枚药丸自己身上：0 → red，3 → green。
+    expect(cell.querySelector(".wb-tag-chip.wb-badge--red")).not.toBeNull()
+    expect(cell.querySelector(".wb-tag-chip.wb-badge--green")).not.toBeNull()
   })
 
   it("labels an id whose tag was deleted from the palette", () => {
     // 标签在偏好设置里被删掉后，论文的 tag_ids 里可能还残留它的 id：
     // 这一枚走中性灰 + 「标签已删除」，不能崩成 undefined 名字。
     render(<ResearchPage papers={[paper({ tag_ids: ["t-ghost"] })]} {...props()} />)
-    const pill = screen.getByRole("button", { name: "Tag: Tag removed" })
-    expect(pill.querySelector(".wb-tag-list .wb-badge--gray")).not.toBeNull()
-    expect(pill.querySelector(".wb-tag-list .wb-tag-chip-label")!.textContent).toBe("Tag removed")
+    const cell = tagCell("Working Paper One")
+    const chip = cell.querySelector(".wb-tag-chip")!
+    expect(chip).toHaveClass("wb-badge--gray")
+    expect(chip.querySelector(".wb-tag-chip-label")!.textContent).toBe("Tag removed")
+    expect(within(cell).getByRole("button", { name: "Remove this tag: Tag removed" })).toBeInTheDocument()
   })
 
-  it("shows a quiet placeholder pill for an untagged paper", () => {
+  it("shows a quiet placeholder for an untagged paper", () => {
     render(<ResearchPage papers={[paper({ tag_ids: [] })]} {...props()} />)
-    const pill = screen.getByRole("button", { name: "Tag: No tag" })
-    expect(pill).toHaveClass("wb-tag-pill--empty")
-    expect(pill).toHaveTextContent("No tag")
+    const cell = tagCell("Working Paper One")
+    expect(cell.querySelector(".wb-tag-blank")!.textContent).toBe("No tag")
+    // 空态没有药丸，也就没有 ✕；剩下的只有那枚常显的「＋」。
+    expect(cell.querySelectorAll(".wb-tag-chip")).toHaveLength(0)
+    expect(within(cell).getByRole("button", { name: "Add tag" })).toBeInTheDocument()
   })
 
   it("appends a toggled tag after the assigned ones and keeps the menu open", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ tag_ids: ["t-high"] })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: High" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }))
     // 菜单：清空全部(1 个 menuitem) + 调色板顺序的每个标签(menuitemcheckbox) + 新建入口。
     expect(screen.getByRole("menuitem", { name: /Clear all tags/ })).toBeInTheDocument()
     expect(screen.getAllByRole("menuitemcheckbox").map((node) => node.textContent)).toEqual([
@@ -381,7 +399,7 @@ describe("ResearchPage", () => {
   it("untoggles only the picked tag", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ tag_ids: ["t-high", "t-field"] })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: High, Fieldwork" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }))
     expect(
       screen.getByRole("menuitemcheckbox", { name: "Fieldwork" }),
     ).toHaveAttribute("aria-checked", "true")
@@ -389,10 +407,18 @@ describe("ResearchPage", () => {
     expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: ["t-high"] })
   })
 
+  it("removes one tag through its own chip", () => {
+    // ✕ 直接长在药丸上：不用开菜单就能摘掉单独一枚，其余顺序不动。
+    const handlers = props()
+    render(<ResearchPage papers={[paper({ tag_ids: ["t-high", "t-field"] })]} {...handlers} />)
+    fireEvent.click(screen.getByRole("button", { name: "Remove this tag: Fieldwork" }))
+    expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: ["t-high"] })
+  })
+
   it("clears every tag at once", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ tag_ids: ["t-high", "t-medium"] })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: High, Medium" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /Clear all tags/ }))
     expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { tag_ids: [] })
     expect(screen.queryByRole("menu")).not.toBeInTheDocument()
@@ -401,7 +427,7 @@ describe("ResearchPage", () => {
   it("toggles a tag from the keyboard", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ tag_ids: ["t-high"] })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: High" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }))
     // 打开时高亮落在第一个已勾选的标签上，ArrowDown 一档到 Medium，Enter 提交。
     const menu = screen.getByRole("menu")
     fireEvent.keyDown(menu, { key: "ArrowDown" })
@@ -412,7 +438,7 @@ describe("ResearchPage", () => {
   it("creates a tag inline then appends it to the paper", async () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ tag_ids: ["t-high"] })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: High" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
     const input = screen.getByRole("textbox", { name: "New tag" })
     fireEvent.change(input, { target: { value: "Placebo" } })
@@ -428,7 +454,7 @@ describe("ResearchPage", () => {
   it("cancels the inline tag creation on Escape without assigning", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ tag_ids: [] })]} {...handlers} />)
-    fireEvent.click(screen.getByRole("button", { name: "Tag: No tag" }))
+    fireEvent.click(screen.getByRole("button", { name: "Add tag" }))
     fireEvent.click(screen.getByRole("menuitem", { name: /New tag/ }))
     const input = screen.getByRole("textbox", { name: "New tag" })
     fireEvent.change(input, { target: { value: "Abandoned" } })
@@ -440,24 +466,24 @@ describe("ResearchPage", () => {
     expect(handlers.onUpdate).not.toHaveBeenCalled()
   })
 
-  it("hides the tags that do not fit behind a +N chip", () => {
-    // jsdom 量不到真实字形宽度（格宽减去内衬是负数），fitCount 保底两枚，
-    // 其余收进「+N」；完整名单仍交给 title/aria-label。
+  it("renders every assigned tag instead of collapsing the overflow", () => {
+    // 旧的「＋N」折叠整条删掉了：挂几枚就渲染几枚，行高由堆叠的 chip 自己撑开
+    // （.wb-tag-cell 换行 + 表格默认行高），所以也不再需要量宽。
     render(
       <ResearchPage
         papers={[paper({ tag_ids: ["t-high", "t-medium", "t-average", "t-field"] })]}
         {...props()}
       />,
     )
-    const pill = screen.getByRole("button", {
-      name: "Tag: High, Medium, Average, Fieldwork",
-    })
+    const cell = tagCell("Working Paper One")
+    expect(chipLabels(cell)).toEqual(["High", "Medium", "Average", "Fieldwork"])
+    expect(cell.querySelectorAll(".wb-tag-chip")).toHaveLength(4)
+    expect(document.querySelector(".wb-tag-more")).toBeNull()
+    expect(document.querySelector(".wb-tag-measure")).toBeNull()
+    // 每枚都可单独移除，完整名单不再只活在 title 里。
     expect(
-      Array.from(pill.querySelectorAll(".wb-tag-list .wb-tag-chip-label")).map(
-        (node) => node.textContent,
-      ),
-    ).toEqual(["High", "Medium"])
-    expect(pill.querySelector(".wb-tag-more")!.textContent).toBe("+2")
+      within(cell).getAllByRole("button", { name: /^Remove this tag:/ }),
+    ).toHaveLength(4)
   })
 
   it("narrows the table by any one of a paper's tags", () => {
@@ -480,6 +506,21 @@ describe("ResearchPage", () => {
     // 挂了多个标签的论文只要命中其中之一就留下。
     expect(rowTitles()).toEqual(["Field Study"])
     expect(screen.getByText("1/3 results")).toBeInTheDocument()
+  })
+
+  it("gives every named column header a width handle", () => {
+    // 标题和操作列原本被排除在拖宽之外（弹性列 / 宽度由格子里的控件实测决定），
+    // 现在也给了把手：唯一还没有把手的是拖拽柄列，它本身没有宽度语义。
+    render(<ResearchPage papers={[paper()]} {...props()} />)
+    const heads = Array.from(document.querySelectorAll("thead tr > th"))
+    expect(heads).toHaveLength(9)
+    expect(
+      heads.filter((th) => !th.querySelector(".wb-col-resizer")).map((th) => th.className),
+    ).toEqual(["wb-col-grip"])
+    expect(screen.getByRole("separator", { name: "Drag to resize, double-click to reset: Title" })).toBeInTheDocument()
+    expect(
+      screen.getByRole("separator", { name: "Drag to resize, double-click to reset: Actions" }),
+    ).toBeInTheDocument()
   })
 })
 

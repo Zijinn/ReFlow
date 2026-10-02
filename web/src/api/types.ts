@@ -115,6 +115,9 @@ export interface AIChatMessage {
   id: string
   role: "user" | "assistant"
   content: string
+  /** Only an assistant row carries these (`internal/storage/ai.go`
+   *  SaveAIChatAssistantAndUsage); every other row is stored as `{}`. */
+  metadata?: { provider?: string; model?: string }
   status: "pending" | "streaming" | "completed" | "failed"
   usage: Partial<AIUsage>
   created_at: string

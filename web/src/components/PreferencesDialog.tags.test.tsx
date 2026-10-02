@@ -68,6 +68,7 @@ function Harness() {
       onDeleteSyncAccount={vi.fn()}
       onOrganizeLibrary={vi.fn()}
       onAddAIProfile={vi.fn()}
+      onEditAIProfile={vi.fn()}
       onToggleAIProfile={vi.fn()}
       onDefaultAIProfile={vi.fn()}
       onDeleteAIProfile={vi.fn()}

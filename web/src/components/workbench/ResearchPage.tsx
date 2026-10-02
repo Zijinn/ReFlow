@@ -1,6 +1,5 @@
 import {
   Fragment,
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -43,42 +42,12 @@ import { StageTree } from "./StageTree"
 // 排序——只改渲染顺序，不写回后端、不碰手工顺序，且把手隐藏。
 type SortMode = "manual" | "updated_desc" | "updated_asc" | "tag"
 
-// 收起态能显示几枚药丸由格宽决定：格宽用 ResizeObserver 量（这一列本来就能拖宽），
-// 药丸宽度从离屏测量层量真实字形，不拿被 flex 截窄过的那一枚。保底两枚——列收窄时
-// 交给 CSS 截断，而不是把第二个标签整枚藏掉；行高也不会因为换行被顶起来。
-const CELL_CHROME = 26 // 触发键的左右内衬 + 箭头
-const MORE_RESERVE = 24 // 「+N」徽标
-const CHIP_GAP = 4
-const MIN_VISIBLE = 2
-
-function fitCount(widths: number[], avail: number): number {
-  const greedy = (budget: number) => {
-    let used = 0
-    let taken = 0
-    for (const width of widths) {
-      const need = width + (taken ? CHIP_GAP : 0)
-      if (used + need > budget) break
-      used += need
-      taken += 1
-    }
-    return taken
-  }
-  const shown = greedy(avail)
-  if (shown >= widths.length) return widths.length
-  return Math.max(Math.min(MIN_VISIBLE, widths.length), greedy(avail - MORE_RESERVE))
-}
-
-function sameWidths(left: number[], right: number[]): boolean {
-  return (
-    left.length === right.length && left.every((value, index) => value === right[index])
-  )
-}
-
-// 标签格：一篇论文可以同时挂多个标签。弹层里每个标签是一行可勾选的项
-// （menuitemcheckbox + aria-checked），点一下只切换它、不关浮层，多选才连得下去；
-// 只有 Esc 或点到格子弹层之外才收。收起态把挂上的标签都渲染成小药丸，装不下的进
-// 「+N」，完整名单交给 title/aria-label。
-// 「无标签」那一行改成「清空全部」：它是整串清空，不是取消某一个勾选。
+// 标签格：一篇论文可以同时挂多个标签，挂上的都平铺成小药丸（与在投页的作者/关键词
+// 同一套语汇：药丸 + 每颗自带的 ✕ + 末尾一颗 ＋），列宽不够就换行、行高自己长，
+// 不再做「+N」折叠——那一列本来就能拖宽，折叠只是把用户挂上去的东西藏起来。
+// ✕ 就地摘掉这一个标签；＋ 打开弹层菜单，每个标签是一行可勾选的项
+// （menuitemcheckbox + aria-checked），点一下只切换它、不关浮层，多选才连得下去，
+// 只有 Esc 或点到格子弹层之外才收。菜单里保留「清空全部」这一整串清空。
 // 新建走行内输入（window.prompt 在桌面 WKWebView 里永远不渲染）：Enter 经
 // onCreateTag POST 成功后追加到这篇论文的 tag_ids，Esc 退回菜单。输入框自己处理
 // 键盘并 stopPropagation，菜单的方向键/Enter 逻辑不会截走它，也不存在可提交
@@ -90,25 +59,17 @@ function TagCell(props: {
   onChangeTags: (tagIDs: string[]) => void
   onCreateTag: (name: string) => Promise<ResearchTag | null>
 }) {
-  const { t, locale } = useTranslation()
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState("")
   const [activeIndex, setActiveIndex] = useState(-1)
   const [placement, setPlacement] = useState({ up: false, right: false, maxHeight: 0 })
-  const [cellWidth, setCellWidth] = useState(0)
-  // 量到的药丸宽度要连同"是哪份名单量出来的"一起存：改名、换标签都会改变字形宽度，
-  // 只比长度会把上一轮的宽度当成新的。
-  const [measured, setMeasured] = useState<{ key: string; widths: number[] }>({
-    key: "",
-    widths: [],
-  })
   const rootRef = useRef<HTMLDivElement | null>(null)
   const buttonRef = useRef<HTMLButtonElement | null>(null)
   const popRef = useRef<HTMLDivElement | null>(null)
   const inputRef = useRef<HTMLInputElement | null>(null)
-  const measureRef = useRef<HTMLSpanElement | null>(null)
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
 
   const tagIDs = props.paper.tag_ids
@@ -133,18 +94,6 @@ function TagCell(props: {
       }),
     [paletteIndex, props.tags, tagIDs, t],
   )
-  const joiner = locale === "zh-CN" ? "、" : ", "
-  const fullLabel = entries.length
-    ? entries.map((entry) => entry.label).join(joiner)
-    : t("untaggedLabel")
-
-  const shown = useMemo(() => {
-    if (measured.key !== fullLabel || measured.widths.length !== entries.length)
-      return Math.min(MIN_VISIBLE, entries.length)
-    return fitCount(measured.widths, cellWidth - CELL_CHROME)
-  }, [cellWidth, entries.length, fullLabel, measured])
-  const hidden = Math.max(0, entries.length - shown)
-
   // 菜单行：清空全部(0) + 调色板顺序的每个标签(1..n) + 新建标签(n+1)。
   const itemCount = props.tags.length + 2
 
@@ -160,31 +109,6 @@ function TagCell(props: {
     setCreating(false)
     setOpen(true)
   }
-
-  const measure = useCallback(() => {
-    const root = rootRef.current
-    const layer = measureRef.current
-    if (!root || !layer) return
-    const width = root.getBoundingClientRect().width
-    const widths = Array.from(layer.children, (node) => node.getBoundingClientRect().width)
-    // 两个 setter 都带值守卫：测量写在 layout effect 里，无条件 setState 会把自己
-    // 的重渲染循环下去。
-    setCellWidth((prev) => (prev === width ? prev : width))
-    setMeasured((prev) =>
-      prev.key === fullLabel && sameWidths(prev.widths, widths) ? prev : { key: fullLabel, widths },
-    )
-  }, [fullLabel])
-
-  useLayoutEffect(measure, [measure])
-
-  useEffect(() => {
-    const root = rootRef.current
-    // jsdom 没有 ResizeObserver：量不到就退回保底两枚，不是失败。
-    if (!root || typeof ResizeObserver === "undefined") return
-    const observer = new ResizeObserver(measure)
-    observer.observe(root)
-    return () => observer.disconnect()
-  }, [measure])
 
   // 与 MenuSelect 同一套锚定：格子弹层可能被视口下缘/右缘切掉，开一次量一次，
   // 空间不够就向上翻、向右收。
@@ -314,16 +238,32 @@ function TagCell(props: {
 
   return (
     <div ref={rootRef} className="wb-menu wb-tag-cell">
+      <span className="wb-tag-list">
+        {entries.map((entry) => (
+          <span key={entry.key} className={`wb-tag-chip ${tagBadgeClass(entry.index)}`}>
+            <i className={`wb-dot ${tagDotClass(entry.index)}`} aria-hidden="true" />
+            <span className="wb-tag-chip-label">{entry.label}</span>
+            <button
+              type="button"
+              className="wb-chip-del wb-tag-chip-del"
+              title={t("detachTag")}
+              aria-label={`${t("detachTag")}: ${entry.label}`}
+              onClick={() => toggle(entry.id)}
+            >
+              ✕
+            </button>
+          </span>
+        ))}
+        {entries.length === 0 && <span className="wb-tag-blank">{t("untaggedLabel")}</span>}
+      </span>
       <button
         ref={buttonRef}
         type="button"
-        className={`wb-menu-btn wb-tag-pill ${
-          entries.length ? "wb-tag-pill--list" : "wb-tag-pill--empty"
-        }`}
+        className="wb-chip-add wb-tag-add"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`${t("colTag")}: ${fullLabel}`}
-        title={fullLabel}
+        aria-label={t("assignTag")}
+        title={t("assignTag")}
         onClick={() => (open ? close() : openMenu())}
         onKeyDown={(e) => {
           if (e.key === "ArrowDown" && !open) {
@@ -332,39 +272,8 @@ function TagCell(props: {
           }
         }}
       >
-        {entries.length === 0 ? (
-          <span className="wb-menu-label">{t("untaggedLabel")}</span>
-        ) : (
-          <span className="wb-tag-list">
-            {entries.slice(0, shown).map((entry) => (
-              <span key={entry.key} className={`wb-tag-chip ${tagBadgeClass(entry.index)}`}>
-                <i className={`wb-dot ${tagDotClass(entry.index)}`} aria-hidden="true" />
-                <span className="wb-tag-chip-label">{entry.label}</span>
-              </span>
-            ))}
-            {hidden > 0 && (
-              <span className="wb-tag-more" aria-hidden="true">
-                +{hidden}
-              </span>
-            )}
-          </span>
-        )}
-        <span
-          className={`wb-menu-chevron ${open ? "wb-menu-chevron--open" : ""}`}
-          aria-hidden="true"
-        >
-          ▾
-        </span>
+        ＋
       </button>
-      {/* 离屏测量层：药丸得按真实字形宽度量，收起态里那一枚已经被 flex 截窄。 */}
-      <span ref={measureRef} className="wb-tag-measure" aria-hidden="true">
-        {entries.map((entry) => (
-          <span key={entry.key} className="wb-tag-chip">
-            <i className="wb-dot wb-dot--gray" aria-hidden="true" />
-            <span className="wb-tag-chip-label">{entry.label}</span>
-          </span>
-        ))}
-      </span>
       {open && (
         <div
           ref={popRef}
@@ -604,7 +513,9 @@ export function ResearchPage(props: {
           <thead>
             <tr>
               <th className="wb-col-grip" aria-label={t("colCode")} />
-              <th className="wb-col-title">{t("colTitle")}</th>
+              <ColumnHead table="research" column="title" className="wb-col-title">
+                {t("colTitle")}
+              </ColumnHead>
               <ColumnHead table="research" column="stage" className="wb-col-stage">
                 {t("colStage")}
               </ColumnHead>
@@ -625,7 +536,9 @@ export function ResearchPage(props: {
               <ColumnHead table="research" column="notes" className="wb-col-notes">
                 {t("colNotes")}
               </ColumnHead>
-              <th className="wb-col-actions">{t("colActions")}</th>
+              <ColumnHead table="research" column="actions" className="wb-col-actions">
+                {t("colActions")}
+              </ColumnHead>
             </tr>
           </thead>
           <tbody>

@@ -449,6 +449,18 @@ describe("ColumnHead", () => {
     expect(useReaderStore.getState().workbenchColumnWidths.submitted?.notes).toBe(412)
   })
 
+  it("keeps a column already wider than the cap from snapping back", () => {
+    // 标题列也能拖以后，它的现宽就是吸收完整张表余量的结果，可以远超 COLUMN_MAX。
+    // 闸必须至少放到现宽，否则每拖一次都先把这一列弹回 640 再往前走。
+    useReaderStore.setState({ workbenchColumnWidths: { submitted: { notes: 900 } } })
+    renderHead()
+    const handle = screen.getByRole("separator", { name: /Notes/ })
+    fireEvent.pointerDown(handle, { clientX: 500, pointerId: 1 })
+    fireEvent.pointerMove(handle, { clientX: 700, pointerId: 1 })
+    fireEvent.pointerUp(handle, { clientX: 700, pointerId: 1 })
+    expect(useReaderStore.getState().workbenchColumnWidths.submitted?.notes).toBe(900)
+  })
+
   it("nudges with the arrow keys", () => {
     renderHead()
     const handle = screen.getByRole("separator", { name: /Notes/ })

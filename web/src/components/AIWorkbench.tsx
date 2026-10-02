@@ -10,7 +10,11 @@ import {
   Translate,
   X,
 } from "@phosphor-icons/react"
-import { type FormEvent, type PointerEvent, useEffect, useState } from "react"
+import { type FormEvent, type PointerEvent, useEffect, useRef, useState } from "react"
+
+// 对话区的样式单独一份，走本模块引入：模块图里 main.tsx 那串 styles.css /
+// phase*.css 都先于本模块求值，所以它仍排在最后，同特异度靠文件顺序取胜。
+import "./ai-chat.css"
 
 import {
   cancelJob,
@@ -22,7 +26,14 @@ import {
   startAILibraryChat,
   startAIPaperChat,
 } from "../api/client"
-import type { AIChatSession, AIOperation, AIProfile, AIResult, ListResponse } from "../api/types"
+import type {
+  AIChatMessage,
+  AIChatSession,
+  AIOperation,
+  AIProfile,
+  AIResult,
+  ListResponse,
+} from "../api/types"
 import { formatAIResult } from "../lib/ai"
 import { useTranslation } from "../lib/i18n"
 import { AIIcon } from "./AIIcon"
@@ -52,6 +63,59 @@ const operations: Array<{ id: AIOperation; labelKey: string; icon: typeof Brain 
   { id: "academic_tags", labelKey: "automaticTags", icon: Tag },
 ]
 
+/**
+ * Openers the paper endpoint can actually answer: `/ai/paper-chat` receives one
+ * block per paper with title, authors, keywords, status, journals, tags, stage
+ * completion, deadline + proximity, next action, notes, submission count and
+ * idle days — never the PDF text and no change log. Every prompt below is
+ * answerable from that envelope alone and promises no per-paper action.
+ */
+const paperOpeners = [
+  { labelKey: "aiChatAskPush", promptKey: "aiChatAskPushPrompt" },
+  { labelKey: "aiChatAskDeadlines", promptKey: "aiChatAskDeadlinesPrompt" },
+  { labelKey: "aiChatAskIdle", promptKey: "aiChatAskIdlePrompt" },
+]
+
+const libraryOpeners = [
+  { labelKey: "summarizeLatest", promptKey: "summarizeLatestPrompt" },
+  { labelKey: "politicalBrief", promptKey: "politicalBriefPrompt" },
+]
+
+// The provider answers in one shot, so a run is polled rather than streamed;
+// 1.2s is fast enough to feel live without a second request per second.
+const CHAT_POLL_MS = 1200
+
+/**
+ * The backend writes no pending or failed assistant row — every assistant
+ * message it stores is already `completed`
+ * (internal/storage/ai.go:SaveAIChatAssistantAndUsage), so the answer's cost
+ * comes from `usage` and its model from the message metadata.
+ */
+function answerModel(item: AIChatMessage): string {
+  return item.metadata?.model ?? ""
+}
+
+/**
+ * Seconds between the question this answers and the answer itself. Both
+ * timestamps are the server's, so the number survives a reload instead of
+ * being guessed from the client clock; a session with no question before the
+ * answer (the daily digest) and any nonsense gap return nothing at all.
+ */
+function answerDurationSeconds(messages: AIChatMessage[], index: number): number | null {
+  const answer = messages[index]
+  if (!answer || answer.role !== "assistant") return null
+  for (let prior = index - 1; prior >= 0; prior -= 1) {
+    const question = messages[prior]
+    if (!question || question.role !== "user") continue
+    const started = Date.parse(question.created_at)
+    const finished = Date.parse(answer.created_at)
+    if (Number.isNaN(started) || Number.isNaN(finished)) return null
+    const seconds = Math.round((finished - started) / 1000)
+    return seconds >= 0 && seconds < 3_600 ? seconds : null
+  }
+  return null
+}
+
 export function AIWorkbench(props: AIWorkbenchProps) {
   const { locale, t } = useTranslation()
   const queryClient = useQueryClient()
@@ -75,6 +139,12 @@ export function AIWorkbench(props: AIWorkbenchProps) {
   const [jobFailure, setJobFailure] = useState<string | null>(null)
   const [sessionID, setSessionID] = useState("")
   const [message, setMessage] = useState("")
+  // Wall clock of the chat turn in flight. The backend never stores a pending
+  // assistant row, so the in-flight line is measured here, from the click — the
+  // only elapsed value that exists while the answer is still coming.
+  const [chatRunStart, setChatRunStart] = useState<number | null>(null)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const threadRef = useRef<HTMLDivElement>(null)
   const activeProfile =
     props.profiles.find((profile) => profile.id === profileID && profile.enabled) ??
     props.profiles.find((profile) => profile.is_default && profile.enabled) ??
@@ -98,7 +168,22 @@ export function AIWorkbench(props: AIWorkbenchProps) {
     queryKey: ["ai-chat", sessionID],
     queryFn: ({ signal }) => getAIChat(sessionID, signal),
     enabled: sessionID !== "",
+    // The answer lands in the session, not in the job response, so the thread
+    // is only worth polling while that job is still running: the panel polls the
+    // session it already has and stops the moment the job settles.
+    refetchInterval: () => (jobActive ? CHAT_POLL_MS : false),
   })
+  const messages = chat.data?.messages ?? []
+  const chatVisible = mode === "chat" || !articleMode
+  const noConversation = messages.length === 0
+  // A failed answer has no assistant row to carry it, so the job's own error is
+  // the only copy of what went wrong: it belongs in the thread, next to the
+  // question it failed to answer, not in a footnote under the composer.
+  const answerFailure = chatVisible && !jobActive ? jobFailure : null
+  // Docked = the thread owns the vertical space, so the composer sits at the
+  // bottom of the panel and never moves when an answer arrives. Only the chat
+  // panel docks; the article-mode operation results keep the scrolling body.
+  const docked = chatVisible && Boolean(activeProfile)
 
   useEffect(() => {
     if (!pendingJobID || !job.data || jobActive) return
@@ -129,6 +214,7 @@ export function AIWorkbench(props: AIWorkbenchProps) {
       // query unmounts and a later run starts from a clean slate.
       setPendingJobID("")
       setPendingOperation(null)
+      setChatRunStart(null)
     })()
   }, [
     job.data,
@@ -140,6 +226,27 @@ export function AIWorkbench(props: AIWorkbenchProps) {
     sessionID,
     t,
   ])
+
+  // The one liveness signal while a turn is in flight: a seconds counter. It
+  // ticks from the click, not from the job's own timestamps, because the queue
+  // stamp and this clock are not the same machine's guarantee.
+  useEffect(() => {
+    if (chatRunStart === null) return
+    const tick = () => setElapsedSeconds(Math.max(0, Math.round((Date.now() - chatRunStart) / 1000)))
+    tick()
+    const timer = window.setInterval(tick, 1000)
+    return () => window.clearInterval(timer)
+  }, [chatRunStart])
+
+  // Text arrives by the poll, so the thread follows it downward — but only while
+  // a run is in flight, so scrolling back to read an older answer is never
+  // yanked forward by the next tick.
+  const runInFlight = chatRunStart !== null
+  useEffect(() => {
+    if (!runInFlight) return
+    const thread = threadRef.current
+    if (thread) thread.scrollTop = thread.scrollHeight
+  }, [runInFlight, messages.length, elapsedSeconds])
 
   const operationMutation = useMutation({
     mutationFn: ({
@@ -193,6 +300,9 @@ export function AIWorkbench(props: AIWorkbenchProps) {
       setMessage("")
       queryClient.setQueryData<AIChatSession>(["ai-chat", response.session.id], response.session)
     },
+    // A turn that never reached the queue has no job to settle, so the in-flight
+    // line has to be taken down here or it would keep counting forever.
+    onError: () => setChatRunStart(null),
   })
   const cancelMutation = useMutation({ mutationFn: cancelJob, onSuccess: () => void job.refetch() })
   const latestResult = results.data?.items.find((item) => item.operation === mode)
@@ -200,13 +310,42 @@ export function AIWorkbench(props: AIWorkbenchProps) {
     operationMutation.error ??
     chatMutation.error ??
     cancelMutation.error ??
-    (jobFailure ? new Error(jobFailure) : null)
+    // In the thread the failure is an answer-shaped row of its own; the note
+    // below the composer only speaks for the modes that have no thread.
+    (!chatVisible && jobFailure ? new Error(jobFailure) : null)
 
   const askLabel = paperMode
     ? t("askAboutPapers")
     : articleMode
       ? t("askAboutArticle")
       : t("askAboutLatest")
+  const openers = paperMode ? paperOpeners : articleMode ? [] : libraryOpeners
+  const emptyLeadKey = paperMode
+    ? "aiChatEmptyPapers"
+    : articleMode
+      ? "aiChatEmptyArticle"
+      : "aiChatEmptyLibrary"
+  const emptyScopeKey = paperMode
+    ? "aiChatEmptyPapersCount"
+    : articleMode
+      ? ""
+      : "aiChatEmptyLibraryCount"
+  // The receipt of one answer: what it cost, how long it took, which model
+  // wrote it. Anything the backend did not record is left out rather than
+  // estimated, so a session that returns no usage prints nothing at all.
+  const answerReceipt = (index: number): string => {
+    const item = messages[index]
+    if (!item || item.role !== "assistant") return ""
+    const segments: string[] = []
+    const tokens = item.usage.total_tokens ?? 0
+    if (tokens > 0)
+      segments.push(`${new Intl.NumberFormat(locale).format(tokens)} ${t("tokens")}`)
+    const seconds = answerDurationSeconds(messages, index)
+    if (seconds !== null) segments.push(`${seconds} ${t("aiElapsedSeconds")}`)
+    const model = answerModel(item)
+    if (model) segments.push(model)
+    return segments.join(" · ")
+  }
 
   const startOperation = (operation: AIOperation) => {
     if (!activeProfileID) {
@@ -224,6 +363,7 @@ export function AIWorkbench(props: AIWorkbenchProps) {
     }
     if (!message.trim() || jobActive || contextCount === 0) return
     setJobFailure(null)
+    setChatRunStart(Date.now())
     chatMutation.mutate({ profile: activeProfileID, text: message.trim() })
   }
   const startResize = (event: PointerEvent<HTMLButtonElement>) => {
@@ -245,10 +385,14 @@ export function AIWorkbench(props: AIWorkbenchProps) {
 
   return (
     <aside
-      className="ai-workbench ai-workbench--open"
+      className={
+        docked
+          ? "ai-workbench ai-workbench--open ai-workbench--dock"
+          : "ai-workbench ai-workbench--open"
+      }
       style={{ width: props.width }}
       aria-label={t("aiAssistant")}
-      aria-busy={jobActive}
+      aria-busy={jobActive || runInFlight}
     >
       <button
         className="ai-workbench__resize"
@@ -354,58 +498,114 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                 </button>
               </div>
             )}
-            {mode === "chat" || !articleMode ? (
-              <div className="ai-chat" id="ai-tool-panel" role="tabpanel">
-                {!articleMode && !paperMode && !chat.data && (
-                  <div className="ai-chat__suggestions">
-                    <button type="button" onClick={() => setMessage(t("summarizeLatestPrompt"))}>
-                      {t("summarizeLatest")}
-                    </button>
-                    <button type="button" onClick={() => setMessage(t("politicalBriefPrompt"))}>
-                      {t("politicalBrief")}
-                    </button>
+            {chatVisible ? (
+              <div
+                className={noConversation ? "ai-chat ai-chat--empty" : "ai-chat"}
+                id="ai-tool-panel"
+                role="tabpanel"
+              >
+                {noConversation && !runInFlight && (
+                  <div className="ai-chat__empty">
+                    {contextCount > 1 && emptyScopeKey && (
+                      <p className="ai-chat__empty-scope">
+                        <strong>{contextCount}</strong>
+                        <span>{t(emptyScopeKey)}</span>
+                      </p>
+                    )}
+                    <p className="ai-chat__empty-lead">{t(emptyLeadKey)}</p>
+                    {openers.length > 0 && (
+                      <>
+                        <p className="ai-chat__openers-label">{t("aiChatSuggestionLead")}</p>
+                        <div className="ai-chat__suggestions">
+                          {openers.map((opener) => (
+                            <button
+                              type="button"
+                              key={opener.labelKey}
+                              onClick={() => setMessage(t(opener.promptKey))}
+                            >
+                              {t(opener.labelKey)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
-                {paperMode && !chat.data && (
-                  <p className="ai-chat__context-note">{props.contextLabel}</p>
-                )}
-                <div className="ai-chat__messages" aria-live="polite">
-                  {chat.data?.messages.map((item) => (
-                    <div
-                      className={`ai-chat__message ai-chat__message--${item.role}`}
-                      key={item.id}
-                    >
-                      <strong>{item.role === "user" ? t("you") : activeProfile.name}</strong>
-                      <p>{item.content}</p>
+                <div className="ai-chat__messages" aria-live="polite" ref={threadRef}>
+                  {messages.map((item, index) => {
+                    const receipt = answerReceipt(index)
+                    return (
+                      <div
+                        className={`ai-chat__message ai-chat__message--${item.role}`}
+                        key={item.id}
+                      >
+                        <strong>{item.role === "user" ? t("you") : activeProfile.name}</strong>
+                        <p>{item.content}</p>
+                        {receipt && <p className="ai-chat__receipt">{receipt}</p>}
+                      </div>
+                    )
+                  })}
+                  {runInFlight && (
+                    <div className="ai-chat__message ai-chat__message--assistant ai-chat__message--pending">
+                      <strong>{activeProfile.name}</strong>
+                      {/* One liveness signal: the dot and the clock. The count is
+                          aria-hidden so a polite region does not read a number out
+                          every second; the line under it says it once. */}
+                      <p className="ai-chat__live" aria-hidden="true">
+                        <i className="ai-chat__pulse" />
+                        <span className="ai-chat__elapsed">
+                          {elapsedSeconds} {t("aiElapsedSeconds")}
+                        </span>
+                      </p>
+                      <span className="sr-only">{t("aiChatGenerating")}</span>
                     </div>
-                  ))}
+                  )}
+                  {answerFailure && (
+                    <div
+                      className="ai-chat__message ai-chat__message--assistant ai-chat__message--failed"
+                      role="alert"
+                    >
+                      <strong>{t("aiTaskFailed")}</strong>
+                      <p>{answerFailure}</p>
+                    </div>
+                  )}
                 </div>
-                <form className="ai-chat__form" onSubmit={submitChat}>
+                <form className="ai-chat__form ai-chat__composer" onSubmit={submitChat}>
                   <textarea
-                    className="text-input"
+                    className="text-input ai-chat__input"
                     aria-label={askLabel}
                     placeholder={askLabel}
                     maxLength={4000}
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}
                   />
-                  <button
-                    className="button button--primary"
-                    type="submit"
-                    disabled={
-                      !message.trim() ||
-                      jobActive ||
-                      chatMutation.isPending ||
-                      contextCount === 0
-                    }
-                  >
-                    {chatMutation.isPending || jobActive ? (
-                      <CircleNotch className="spin" />
-                    ) : (
+                  {/* row-reverse on purpose: the send button is the first stop for
+                      the keyboard and the last one on screen, so `stop` never moves
+                      out of the slot to its left. */}
+                  <div className="ai-chat__actions">
+                    <button
+                      className="button button--primary ai-chat__send"
+                      type="submit"
+                      disabled={
+                        !message.trim() ||
+                        jobActive ||
+                        chatMutation.isPending ||
+                        contextCount === 0
+                      }
+                    >
                       <ChatCircle />
-                    )}
-                    {t("ask")}
-                  </button>
+                      {t("ask")}
+                    </button>
+                    <button
+                      className="button button--quiet ai-stop-control"
+                      type="button"
+                      disabled={!jobActive || cancelMutation.isPending}
+                      onClick={() => cancelMutation.mutate(pendingJobID)}
+                    >
+                      <Stop />
+                      {t("cancel")}
+                    </button>
+                  </div>
                 </form>
               </div>
             ) : (
@@ -423,6 +623,15 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                   )}
                   {t("run")} {t(operations.find((item) => item.id === mode)?.labelKey ?? "summary")}
                 </button>
+                <button
+                  className="button button--quiet ai-stop-control"
+                  type="button"
+                  disabled={!jobActive || cancelMutation.isPending}
+                  onClick={() => cancelMutation.mutate(pendingJobID)}
+                >
+                  <Stop />
+                  {t("cancel")}
+                </button>
                 {latestResult && (
                   <div className="ai-result" aria-live="polite">
                     <p>{formatAIResult(latestResult)}</p>
@@ -433,17 +642,6 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                   </div>
                 )}
               </div>
-            )}
-            {jobActive && (
-              <button
-                className="button button--quiet ai-cancel"
-                type="button"
-                disabled={cancelMutation.isPending}
-                onClick={() => cancelMutation.mutate(pendingJobID)}
-              >
-                <Stop />
-                {t("cancel")}
-              </button>
             )}
             {error && (
               <p className="form-error" role="alert">

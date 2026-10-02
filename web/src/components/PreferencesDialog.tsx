@@ -99,6 +99,7 @@ interface PreferencesDialogProps {
   onDeleteSyncAccount: (accountID: string) => void
   onOrganizeLibrary: () => void
   onAddAIProfile: () => void
+  onEditAIProfile: (profile: AIProfile) => void
   onToggleAIProfile: (profileID: string, enabled: boolean) => void
   onDefaultAIProfile: (profileID: string) => void
   onDeleteAIProfile: (profileID: string) => void
@@ -855,6 +856,15 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                                 </small>
                               </span>
                               <span className="sync-account-actions">
+                                <button
+                                  className="icon-button"
+                                  type="button"
+                                  aria-label={`${t("edit")} ${profile.name}`}
+                                  title={t("editAIProvider")}
+                                  onClick={() => props.onEditAIProfile(profile)}
+                                >
+                                  <PencilSimple />
+                                </button>
                                 <button
                                   className={
                                     profile.is_default

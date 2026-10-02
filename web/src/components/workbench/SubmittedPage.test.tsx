@@ -249,6 +249,22 @@ describe("SubmittedPage", () => {
       notes: "R&R resubmission window closes 2026-10-12",
     })
   })
+
+  it("gives every named column header a width handle", () => {
+    // 标题和操作列原本没有把手，现在也能拖；只有拖拽柄列还不行（无宽度语义）。
+    render(<SubmittedPage papers={[paper()]} {...props()} />)
+    const heads = Array.from(document.querySelectorAll("thead tr > th"))
+    expect(heads).toHaveLength(9)
+    expect(
+      heads.filter((th) => !th.querySelector(".wb-col-resizer")).map((th) => th.className),
+    ).toEqual(["wb-col-grip"])
+    expect(
+      screen.getByRole("separator", { name: "Drag to resize, double-click to reset: Title" }),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("separator", { name: "Drag to resize, double-click to reset: Actions" }),
+    ).toBeInTheDocument()
+  })
 })
 
 afterEach(() => cleanup())

@@ -1975,9 +1975,6 @@ button:disabled {
 .ai-chat__form .button {
   height: 40px;
 }
-.ai-cancel {
-  margin-top: var(--space-5);
-}
 
 .offline-banner {
   position: fixed;
@@ -7242,7 +7239,11 @@ button:disabled {
   flex: 1;
   min-width: 0;
   overflow-y: auto;
-  padding: var(--space-11) var(--space-13) var(--space-15);
+  /* 顶端内距刻意留给 .wb-nav 的 margin-top，而不是写在这里：滚动容器自己的
+     padding-top 会把 sticky 的停靠线推到 padding-top 处（实测：去掉它，导航条
+     从 y=28 变成 y=0），于是滚到底时总有一条行被切在那 28px 的缝里露在吸顶层
+     上面——正是"菜单栏重复了一次"的观感。margin 不参与这条停靠线的计算。 */
+  padding: 0 var(--space-13) var(--space-15);
 }
 .wb-header {
   display: flex;
@@ -7543,37 +7544,39 @@ button:disabled {
   --wb-badge-ink: var(--wb-hue-gray-ink);
 }
 
-/* ── 标签格：一篇挂了不止一个标签时的收起态 ──────────────────────────────
-   调色板的管理搬进了设置，这一格只剩指派。挂了两个以上时触发键不再自己染一种
-   色相——一串不同色的药丸压在单一色相的淡底上会互相打脸，改成中性描边的容器，
-   颜色全交给里面的药丸（各自继承 .wb-badge--* 的色相令牌）。
-   选择器多带一层 .wb-tag-cell：phase3-research.css 排在本文之后，同名规则的悬停
-   加深会盖过来，这里要靠层级赢回来而不是靠挪文件。 */
-.wb-tag-cell .wb-tag-pill--list,
-.wb-tag-cell .wb-tag-pill--list:hover:not(:disabled),
-.wb-tag-cell .wb-tag-pill--list:active:not(:disabled) {
-  background: transparent;
-  border-color: var(--border);
-  box-shadow: var(--ring-hairline);
-}
-.wb-tag-cell .wb-tag-pill--list:hover:not(:disabled) {
-  border-color: var(--accent);
+/* ── 标签格：一篇挂了不止一个标签时的平铺态 ──────────────────────────────
+   调色板的管理搬进了设置，这一格只剩指派。语汇与在投页的作者/关键词
+   （.wb-chip-editor）同一套：每颗药丸自带 ✕ 就地摘掉，末尾一颗 ＋ 打开勾选菜单。
+   一串不同色的药丸不再压在单一色相的淡底容器里——容器不涂色，颜色全交给里面的
+   药丸（各自继承 .wb-badge--* 的色相令牌）。
+   列宽不够就换行、行高跟着长：这一列本来就能拖宽，「+N」折叠只是把用户挂上去的
+   标签藏起来，而它藏起来的那几个恰恰是他要找的。 */
+.wb-tag-cell {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
 }
 .wb-tag-list {
   display: flex;
   min-width: 0;
+  flex: 1 1 auto;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  overflow: hidden;
 }
 .wb-tag-chip {
+  /* 这对 padding 令牌是 .wb-chip-del 的尺子（见本文的 .wb-chip）：✕ 用等量负
+     margin 抵掉药丸内衬，才能把热区和反馈底纹一起铺满整颗药丸。 */
+  --wb-chip-pad-y: var(--space-1);
+  --wb-chip-pad-end: var(--space-2);
   display: inline-flex;
   min-width: 0;
   max-width: 100%;
   flex: none;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-5);
+  padding: var(--wb-chip-pad-y) var(--wb-chip-pad-end) var(--wb-chip-pad-y) var(--space-5);
   border-radius: var(--radius-full);
   background: color-mix(
     in srgb,
@@ -7596,29 +7599,12 @@ button:disabled {
   width: 5px;
   height: 5px;
 }
-.wb-tag-more {
-  flex: none;
+/* 一颗都没挂的占位：一句三级墨的「无标签」，不涂色相、不做成假药丸——真正的入口
+   是它右边那颗 ＋。 */
+.wb-tag-blank {
   color: var(--text-tertiary);
   font-size: var(--text-2xs);
-  font-weight: var(--fw-semibold);
-}
-/* 离屏测量层：收起态塞得下几枚得按真实字形宽度算，格子里那一枚已经被 flex 截窄了。
-   自身收成 0×0 再裁掉——visibility:hidden 保留布局盒（display:none 量不出宽度），
-   但一个 -9999px 的宽盒子会把整张表顶出横向滚动条。 */
-.wb-tag-measure {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: flex;
-  width: 0;
-  height: 0;
-  overflow: hidden;
-  visibility: hidden;
-  pointer-events: none;
-  white-space: nowrap;
-}
-.wb-tag-measure .wb-tag-chip {
-  max-width: none;
+  font-weight: var(--fw-medium);
 }
 /* 弹层里的勾选位：没勾上也占一格，切换时整行不跳。 */
 .wb-tag-check {
@@ -9005,6 +8991,7 @@ button:disabled {
      表体玻璃同一条竖边；content-box 仍是 276→1221，五个分段项一格没动（实测逐项对齐）。
      三条带原来各宽各的——导航 272、工具栏 264、表体 272——那 8px 的错台就是"割裂"本身。 */
   padding: 0 calc(var(--space-2) + var(--space-4));
+  margin-top: var(--space-11);
   margin-inline: calc(var(--space-4) * -1);
   margin-bottom: 20px;
   border: 0;
@@ -9992,10 +9979,14 @@ button:disabled {
 /* 标题是这张表里唯一的弹性列：其余列都给确定宽度，窗口变宽时长出来的余量
    全部归主字段。实测修复前标题用百分比（22%/20%）被钉死，"研究领域"这类
    次要列反而用 width:auto 吃余量——容器 1800px 时次要列胀到 442-454px、
-   标题只有 396px，主字段比次要字段还窄，行还要多绕一圈。 */
+   标题只有 396px，主字段比次要字段还窄，行还要多绕一圈。
+   现在它也带把手（--wb-col-w）：没拖过 → 仍然 auto、仍然吃满余量、其余各列像素
+   精确如前；拖过 → 变成确定宽度，多出来的余量由 fixed 布局按现宽比例摊给各列。
+   下限 96px 同时是 JS 读的 --wb-col-min：它还能让出多少，决定别的列能拖多宽。 */
 .wb-col-title {
-  width: auto;
-  min-width: 96px;
+  width: var(--wb-col-w, auto);
+  --wb-col-min: 96px;
+  min-width: var(--wb-col-min);
 }
 /* 研究阶段是一枚按键（点它展开详情行），不再是"一根条 + 一个数字"：
    列宽按 11 段进度轨实测——168 减左右衬 20、按键内衬 12 与描边 2 ＝ 134，
@@ -10005,9 +9996,13 @@ button:disabled {
   width: var(--wb-col-w, 168px);
   --wb-col-min: 116px;
 }
+/* 类名沿用 wb-col-priority（在研的这一列已经从单一优先级换成了多标签），几何重测：
+   药丸现在换行堆叠、行高跟着长，宽度决定的是"一行放得下几枚"而不是"藏掉几枚"。
+   一枚四字标签带色点和 ✕ 实测 82＋左右衬 20 ＝ 102，下限给 104；默认 152 让常见的
+   两枚短标签并在一行。 */
 .wb-col-priority {
-  width: var(--wb-col-w, 118px);
-  --wb-col-min: 108px;
+  width: var(--wb-col-w, 152px);
+  --wb-col-min: 104px;
 }
 .wb-col-status {
   width: var(--wb-col-w, 124px);
@@ -10046,28 +10041,35 @@ button:disabled {
    在投/已发表没有阶段进度格，展开箭头仍留在操作列第一颗。在投比另两张表多一颗
    "转回在研"（投稿被拒/撤稿后要退回在研继续改），四颗控件 168px 装不下，实测
    内容 230px 溢出列边——流转是这张表的主动作，不能靠换行挤进去。
-   窄档衬宽降到 6px，见下面的 ≤640 档。 */
+   窄档衬宽降到 6px，见下面的 ≤640 档。
+   这一列也带把手：宽度走 --wb-col-w，下限就是这些按控件实测出来的数——再窄就切按钮。 */
 .wb-table--research .wb-col-actions {
-  width: 122px;
+  width: var(--wb-col-w, 122px);
+  --wb-col-min: 122px;
 }
 .wb-table--submitted .wb-col-actions {
-  width: 240px;
+  width: var(--wb-col-w, 240px);
+  --wb-col-min: 240px;
 }
 .wb-table--published .wb-col-actions {
-  width: 84px;
+  width: var(--wb-col-w, 84px);
+  --wb-col-min: 84px;
 }
 /* 触屏档：--wb-icon-h 从 28 升到 32，操作列里每颗图标控件各宽 4px，实测删除键
    越出列边 7px（在投）与 6px（已发表）。三条都写在 ≤640 档的同名覆盖之前，
    所以窄档另给一组（见下面容器档位段）。 */
 @media (pointer: coarse) {
   .wb-table--research .wb-col-actions {
-    width: 126px;
+    width: var(--wb-col-w, 126px);
+    --wb-col-min: 126px;
   }
   .wb-table--submitted .wb-col-actions {
-    width: 248px;
+    width: var(--wb-col-w, 248px);
+    --wb-col-min: 248px;
   }
   .wb-table--published .wb-col-actions {
-    width: 90px;
+    width: var(--wb-col-w, 90px);
+    --wb-col-min: 90px;
   }
 }
 /* 次要字段定宽，不参与分余量（余量全给标题，见上面 .wb-col-title）。
@@ -10085,14 +10087,19 @@ button:disabled {
 }
 /* ── 列宽可调：表头右缘那一条把手 ───────────────────────────────────────
    固定列宽是这张表不抖的原因，但"调不了"正是它的代价：备注想多看两个字只能等
-   窗口更宽。所以每格内容列的右缘给一条把手（.wb-col-resizer，由 ColumnHead 渲染），
-   拖它改的是 th 上的 --wb-col-w，上面那批 `width: var(--wb-col-w, 默认)` 跟着走。
-   把手只给内容列：拖拽柄列没有宽度语义，标题列是唯一的弹性列（它吸收所有余量，
-   只能被别列挤窄、不该自己去挤别人），操作列的宽度由格子里的控件实测决定，拽窄
-   就是切按钮。
+   窗口更宽。所以每一列有名字的表头都在右缘给一条把手（.wb-col-resizer，由
+   ColumnHead 渲染），拖它改的是 th 上的 --wb-col-w，上面那批
+   `width: var(--wb-col-w, 默认)` 跟着走。
+   唯一不给把手的是拖拽柄列（.wb-col-grip）：它没有表头文案，宽度由里面的把手＋
+   编号实测出来，不是给用户调的字段。
+   标题列和操作列以前是例外，现在都带把手：标题的默认值仍是 auto（吸收整张表的
+   余量），只有被拖过才落成确定宽度；操作列的下限就是格子里那串按钮的实测宽度，
+   再窄就切按钮。往宽的上限由 JS 现算：同一行里其余各列"现宽 − 各自下限"之和，
+   所以怎么拖都不会把表拽出容器——fixed 布局一旦超出容器就是横向滚动条，而格子里
+   的弹层菜单会被滚动容器裁掉。
    --wb-col-min 不是样式值，是写给 JS 读的每列下限：就是上面注释里实测出来的控件
-   宽（药丸 108、阶段轨 116），再窄就截字。放在这里而不是写死在组件里，是为了让它
-   和默认宽度一起改、一起被同一档容器查询看见。 */
+   宽（药丸 108、阶段轨 116、操作列按钮串 122），再窄就截字。放在这里而不是写死在
+   组件里，是为了让它和默认宽度一起改、一起被同一档容器查询看见。 */
 .wb-table thead th {
   position: relative;
 }
@@ -10286,27 +10293,34 @@ button:disabled {
     width: var(--wb-col-w, 112px);
   }
   /* 窄档衬宽从 10px 降到 6px（上面第一条），三张表的操作列各减 8px：
-     在研 101＋12＝113→114，在投 210＋12＝221→232，已发表 62＋12＝74→76。 */
+     在研 101＋12＝113→114，在投 210＋12＝221→232，已发表 62＋12＝74→76。
+     下限跟着这一档的实测值走，否则宽屏留下的 --wb-col-w 会在这档把列顶宽。 */
   .wb-table--research .wb-col-actions {
-    width: 114px;
+    width: var(--wb-col-w, 114px);
+    --wb-col-min: 114px;
   }
   .wb-table--submitted .wb-col-actions {
-    width: 232px;
+    width: var(--wb-col-w, 232px);
+    --wb-col-min: 232px;
   }
   .wb-table--published .wb-col-actions {
-    width: 76px;
+    width: var(--wb-col-w, 76px);
+    --wb-col-min: 76px;
   }
   /* 触屏档在这一档再各减 8px 衬：实测内容 109/155/70，配 118/168/82 留 1～13px。
      写在同一档位里，是为了让上面那组宽屏数（126/248/90）在这条之前生效。 */
   @media (pointer: coarse) {
     .wb-table--research .wb-col-actions {
-      width: 118px;
+      width: var(--wb-col-w, 118px);
+      --wb-col-min: 118px;
     }
     .wb-table--submitted .wb-col-actions {
-      width: 240px;
+      width: var(--wb-col-w, 240px);
+      --wb-col-min: 240px;
     }
     .wb-table--published .wb-col-actions {
-      width: 82px;
+      width: var(--wb-col-w, 82px);
+      --wb-col-min: 82px;
     }
   }
 }

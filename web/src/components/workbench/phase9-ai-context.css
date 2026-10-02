@@ -19,12 +19,17 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* 论文上下文提示：只在没有任何对话时出现，说明"现在问的是哪些论文"。 */
-.ai-chat__context-note {
-  margin: var(--space-6) 0 var(--space-4);
-  color: var(--text-tertiary);
-  font-size: var(--text-2xs);
-  line-height: var(--leading-ui);
+/* 1a）面板被拖到 300px 时，两个选择器并排会把 provider 名压成十几个字符；
+      断点量的是面板自己那一列的宽度，不是窗口宽度（与 .wb-table-wrap 的 wbtable
+      同一套路），inline-size 容器不改高度、也不引入新的滚动条。 */
+.wb-shell > .ai-workbench {
+  container-type: inline-size;
+  container-name: ai-panel;
+}
+@container ai-panel (max-width: 340px) {
+  .wb-shell > .ai-workbench .ai-workbench__controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* 1b）901–1365 这一档里，styles.css:4305 会把面板改成 absolute 浮层（阅读器在

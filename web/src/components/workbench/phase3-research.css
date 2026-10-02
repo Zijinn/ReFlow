@@ -230,68 +230,13 @@
   color: var(--text-tertiary);
 }
 
-/* ── 标签格：药丸 + 弹层菜单 ──────────────────────────────────────────────
-   药丸沿用 .wb-badge 色相令牌（前三档红/琥珀/灰由迁移的 High/Medium/Average
-   继续占位，之后循环家族其余淡底），配方与旧优先级药丸一致：色相淡底 +
-   同色相深墨 + 胶囊圆角 + 鬓发环。这里自带全套而不是蹭 styles.css 的
-   .wb-priority-pill：那份挂在旧类名上，本文件排在 styles.css 之后，值以此为准。 */
+/* ── 标签格：平铺药丸 + 勾选弹层 ──────────────────────────────────────────
+   药丸的版式在 styles.css 的「标签格」一节（.wb-tag-cell / .wb-tag-chip /
+   .wb-tag-blank），配色沿用 .wb-badge 色相令牌：色相淡底 + 同色相深墨 +
+   胶囊圆角 + 鬓发环。这里只补这一格在研究表里的容器约束。 */
 .wb-tag-cell {
   width: 100%;
   min-width: 0;
-}
-.wb-tag-pill {
-  width: 100%;
-  border-color: transparent;
-  border-radius: var(--radius-full);
-  font-weight: var(--fw-semibold);
-  background: color-mix(
-    in srgb,
-    var(--wb-badge-hue, var(--text-tertiary)) var(--wb-badge-tint, 12%),
-    transparent
-  );
-  color: var(--wb-badge-ink, var(--text-secondary));
-  box-shadow: var(--ring-hairline);
-}
-/* 反馈在自己的色相里加深（+5% / +9%），与普通按钮的灰底悬停分开：
-   药丸的颜色是"这是哪个标签"，交互那一刻不能把状态色洗掉。 */
-.wb-tag-pill:hover:not(:disabled) {
-  border-color: transparent;
-  background: color-mix(
-    in srgb,
-    var(--wb-badge-hue, var(--text-tertiary)) calc(var(--wb-badge-tint, 12%) + 5%),
-    transparent
-  );
-}
-.wb-tag-pill:active:not(:disabled) {
-  transform: none;
-  background: color-mix(
-    in srgb,
-    var(--wb-badge-hue, var(--text-tertiary)) calc(var(--wb-badge-tint, 12%) + 9%),
-    transparent
-  );
-}
-.wb-tag-pill:focus-visible {
-  outline: none;
-  box-shadow: var(--focus-ring);
-}
-/* 未挂标签是"安静但可点"的占位：虚线边 + 三级墨，不涂任何色相淡底，
-   读起来就是一个等着被填的空位，而不是某个真实标签。 */
-.wb-tag-pill--empty,
-.wb-tag-pill--empty:hover:not(:disabled),
-.wb-tag-pill--empty:active:not(:disabled) {
-  border: 1px dashed var(--border-strong);
-  background: transparent;
-  color: var(--text-tertiary);
-  box-shadow: none;
-}
-.wb-tag-pill--empty:hover:not(:disabled) {
-  color: var(--text-secondary);
-  border-color: var(--accent);
-}
-.wb-tag-pill .wb-menu-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 /* 弹层里的"无标签"行：三级墨的安静文案，与带色点的真实标签分层。 */
 .wb-tag-none {

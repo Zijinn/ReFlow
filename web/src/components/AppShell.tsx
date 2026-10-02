@@ -65,6 +65,7 @@ import {
   testSyncConnection,
 } from "../api/client"
 import type {
+  AIProfile,
   Entry,
   EntryPage,
   EntryState,
@@ -95,6 +96,7 @@ import { PaneDivider } from "./PaneDivider"
 import { Toaster } from "./Toaster"
 import { WorkspaceHeader } from "./WorkspaceHeader"
 import { AIWorkbench } from "./AIWorkbench"
+import type { EditAIProfileInput } from "./AIProfileDialog"
 
 const AddFeedDialog = lazy(() =>
   import("./AddFeedDialog").then((module) => ({ default: module.AddFeedDialog })),
@@ -177,6 +179,7 @@ export function AppShell() {
   const [syncAccountProvider, setSyncAccountProvider] = useState<SyncProviderID>()
   const [syncAccountEditing, setSyncAccountEditing] = useState<SyncAccount>()
   const [aiProfileOpen, setAIProfileOpen] = useState(false)
+  const [aiProfileEditing, setAIProfileEditing] = useState<AIProfile>()
   const [organizationOpen, setOrganizationOpen] = useState(false)
   const [organizationMode, setOrganizationMode] = useState<"all" | "folders">("all")
   const [dialogReturnTarget, setDialogReturnTarget] = useState<"preferences" | null>(null)
@@ -946,6 +949,18 @@ export function AppShell() {
       ])
     },
   })
+  // 编辑既有提供商：PATCH 只在显式带上 api_key 时才覆盖密钥，所以对话框留空时
+  // 这个字段根本不会出现在 patch 里，已加密保存的那一把继续生效。
+  const updateAIProfileMutation = useMutation({
+    mutationFn: ({ profileID, ...patch }: { profileID: string } & EditAIProfileInput) =>
+      updateAIProfile(profileID, patch),
+    onSuccess: async () => {
+      setAIProfileEditing(undefined)
+      closeSecondaryDialog(setAIProfileOpen)
+      await queryClient.invalidateQueries({ queryKey: ["ai-profiles"] })
+    },
+    onError: () => toast(t("aiProfileUpdateFailed")),
+  })
   const toggleAIProfileMutation = useMutation({
     mutationFn: ({ profileID, enabled }: { profileID: string; enabled: boolean }) =>
       updateAIProfile(profileID, { enabled }),
@@ -1449,6 +1464,13 @@ export function AppShell() {
               onAddAIProfile={() => {
                 setDialogReturnTarget("preferences")
                 setPreferencesOpen(false)
+                setAIProfileEditing(undefined)
+                setAIProfileOpen(true)
+              }}
+              onEditAIProfile={(profile) => {
+                setDialogReturnTarget("preferences")
+                setPreferencesOpen(false)
+                setAIProfileEditing(profile)
                 setAIProfileOpen(true)
               }}
               onToggleAIProfile={(profileID, enabled) =>
@@ -1522,15 +1544,24 @@ export function AppShell() {
         {aiProfileOpen && (
           <Suspense fallback={null}>
             <AIProfileDialog
+              key={aiProfileEditing?.id ?? "new-ai-profile"}
               open
               providers={aiProviders.data?.items ?? []}
-              pending={createAIProfileMutation.isPending}
-              error={createAIProfileMutation.error}
+              profile={aiProfileEditing}
+              pending={createAIProfileMutation.isPending || updateAIProfileMutation.isPending}
+              error={createAIProfileMutation.error ?? updateAIProfileMutation.error}
               onOpenChange={(open) => {
                 if (open) setAIProfileOpen(true)
-                else closeSecondaryDialog(setAIProfileOpen)
+                else {
+                  setAIProfileEditing(undefined)
+                  closeSecondaryDialog(setAIProfileOpen)
+                }
               }}
               onCreate={(input) => createAIProfileMutation.mutate(input)}
+              onSave={(input) => {
+                if (!aiProfileEditing) return
+                updateAIProfileMutation.mutate({ profileID: aiProfileEditing.id, ...input })
+              }}
             />
           </Suspense>
         )}

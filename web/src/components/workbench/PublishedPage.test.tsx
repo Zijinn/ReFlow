@@ -349,4 +349,23 @@ describe("PublishedPage AI metadata fill", () => {
   })
 })
 
+describe("PublishedPage column headers", () => {
+  it("gives every named column header a width handle", () => {
+    // 标题列和操作列以前是仅有的两个没有把手的列头：一个吸收整张表的余量，
+    // 一个宽度由格子里的按钮串实测决定。现在都能拖，只剩拖拽柄列没有把手。
+    render(
+      <PublishedPage papers={[paper()]} {...noopProps()} crossrefEmail="" aiProfiles={[]} />,
+    )
+    const heads = Array.from(document.querySelectorAll("thead tr > th"))
+    expect(heads).toHaveLength(8)
+    expect(
+      heads.filter((th) => !th.querySelector(".wb-col-resizer")).map((th) => th.className),
+    ).toEqual(["wb-col-grip"])
+    expect(screen.getByRole("columnheader", { name: "Title" })).toBeInTheDocument()
+    expect(
+      screen.getByRole("separator", { name: "Drag to resize, double-click to reset: Actions" }),
+    ).toBeInTheDocument()
+  })
+})
+
 afterEach(() => cleanup())

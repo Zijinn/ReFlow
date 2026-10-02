@@ -678,7 +678,7 @@ export function DragHandle() {
 const COLUMN_STEP = 16
 // CSS 没给 --wb-col-min 时的兜底下限：再窄就只剩一个汉字宽，等于把列藏了。
 const COLUMN_MIN = 64
-// 上限是给"把整张表拽到容器外"留的闸；容器内的真实上限由标题列的余量算出来。
+// 上限是给"把整张表拽到容器外"留的闸；容器内的真实上限由其余各列还能让出的余量算出来。
 const COLUMN_MAX = 640
 
 function parsePx(value: string | null | undefined) {
@@ -712,19 +712,30 @@ export function ColumnHead(props: {
   )
 
   // 列宽下限读 CSS 的 --wb-col-min：那些数字本来就按格子里的控件实测出来的
-  // （药丸 108、阶段轨 116），写在样式表里才不会和默认宽度各说各话。
-  // 可拖的余量从标题列身上拿——它是唯一的弹性列，留够 min-width 就不会被挤成 0。
+  // （药丸 108、阶段轨 116、操作列的按钮串 122），写在样式表里才不会和默认宽度各说各话。
+  // 往宽能拖多少，看的是同一张表里其余内容列各自还能让出多少（现宽 − 自己的下限）：
+  // 表是 width:100% 的 fixed 布局，各列下限之和永远塞得下容器，所以这条上限同时保证
+  // 拖不出横向滚动条——滚动条会把格子里的弹层菜单裁掉。
+  // 标题列是这张表唯一的 width:auto 列（它吸收整张表的余量），所以只要它没被拖过，
+  // 看到的都是标题在让位；一旦标题也落下确定宽度，余量就按各列现宽比例摊开。
   const measure = () => {
     const cell = cellRef.current
     const from = cell?.getBoundingClientRect().width ?? 0
-    const title = cell?.closest(".wb-table")?.querySelector<HTMLElement>(".wb-col-title")
-    const titleWidth = title?.getBoundingClientRect().width ?? 0
-    const titleMin = title ? (parsePx(getComputedStyle(title).minWidth) ?? COLUMN_MIN) : COLUMN_MIN
     // 往窄只能收到本列控件自己的实测下限（Math.min 兜住"当前已经比下限窄"的情形：
     // 窗口收窄后下限可能大于现宽，这时不该被一把顶宽）。
     const declared = cell ? getComputedStyle(cell).getPropertyValue("--wb-col-min") : null
     const min = Math.min(from, parsePx(declared) ?? COLUMN_MIN)
-    return { from, min, max: Math.min(COLUMN_MAX, from + Math.max(0, titleWidth - titleMin)) }
+    let slack = 0
+    const row = cell?.closest("tr")
+    for (const th of Array.from(row?.children ?? [])) {
+      if (th === cell || th.classList.contains("wb-col-grip")) continue
+      const width = th.getBoundingClientRect().width
+      const floor = parsePx(getComputedStyle(th).getPropertyValue("--wb-col-min")) ?? COLUMN_MIN
+      slack += Math.max(0, width - floor)
+    }
+    // 标题没被拖过时它的现宽就是吸收完余量的结果，可以远大于 COLUMN_MAX；闸不能
+    // 低于现宽，否则第一下拖拽就把一列 900px 的标题拽回 640。
+    return { from, min, max: Math.min(Math.max(COLUMN_MAX, from), from + slack) }
   }
 
   const clamp = (value: number, bounds: { min: number; max: number }) =>

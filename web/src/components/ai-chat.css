@@ -1,0 +1,244 @@
+/* 对话面板（ReFlow Insight）的样式独立一份，由 AIWorkbench.tsx 引入。模块图里
+   main.tsx 那串 styles.css / phase*.css 先于本模块求值，所以同特异度的规则这里排在
+   后面就能取胜，不需要给选择器加码；styles.css 正被主会话改，这一份不碰它。
+   只用已有令牌：深度来自材料与白色接光边，不来自灰底（.button--quiet 的 --surface-muted
+   悬停填色在下面被撤掉），hover/press/focus 都不改变尺寸或位置。 */
+
+/* 1）对话态把面板切成三段：表头与选择器固定在顶上，消息区自己滚，撰写区钉在底部。
+      文本到达只动消息区内部，撰写区一寸不位移。 */
+.ai-workbench--dock .ai-workbench__body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ai-workbench--dock .ai-workbench__header,
+.ai-workbench--dock .ai-workbench__controls,
+.ai-workbench--dock .ai-mode-tabs,
+.ai-workbench--dock .ai-chat__composer,
+.ai-workbench--dock .form-error {
+  flex: 0 0 auto;
+}
+.ai-workbench--dock .ai-workbench__header {
+  position: static;
+  min-height: 60px;
+  margin-bottom: var(--space-7);
+}
+.ai-workbench--dock .ai-chat {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  padding-top: 0;
+}
+.ai-workbench--dock .ai-chat__messages {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
+  padding-right: var(--space-4);
+  overscroll-behavior: contain;
+  /* 静止不上色、滚起来才显形，与 .timeline-scroll 同一档；显形档的选择器表在
+     styles.css（那边不能动），所以这一族写在容器自己身上。 */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.ai-workbench--dock .ai-chat__messages[data-scrolling="true"] {
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+/* 没有对话时空态接管剩余高度并居中：面板读起来是"一屏准备就绪"，不是中间一大块空。
+   有对话之后回到 .ai-chat__messages 拉伸、撰写区钉底。 */
+.ai-workbench--dock .ai-chat--empty .ai-chat__messages {
+  flex: 0 0 auto;
+}
+.ai-workbench--dock .ai-chat__empty {
+  flex: 1;
+  min-height: 0;
+  align-content: center;
+  overflow-y: auto;
+}
+
+/* 2）空态：一句诚实的"模型读得到什么"，加三个能直接问出口的问题。 */
+.ai-chat__empty {
+  display: grid;
+  gap: var(--space-6);
+}
+.ai-chat__empty-scope {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-4);
+  margin: 0;
+}
+.ai-chat__empty-scope strong {
+  font-size: var(--text-2xl);
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-metric);
+  font-variant-numeric: tabular-nums;
+}
+.ai-chat__empty-scope span {
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-meta);
+}
+.ai-chat__empty-lead {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-ui);
+}
+.ai-chat__openers-label {
+  margin: var(--space-4) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-3xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-eyebrow);
+}
+/* 中文界面这行本来就是译文，再 uppercase 只会把词压碎；只有拉丁界面收紧。 */
+:lang(en) .ai-chat__openers-label {
+  text-transform: uppercase;
+}
+/* 问题列表按一行一条排：300px 宽时两列会把一句问题劈成十几个字符一行的碎行。 */
+.ai-chat__suggestions {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+  margin-bottom: 0;
+}
+.ai-chat__suggestions button {
+  min-height: 0;
+  padding: var(--space-5) var(--space-6);
+  font-size: var(--text-xs);
+  line-height: var(--leading-ui);
+  border-radius: var(--radius-md);
+}
+.ai-chat__suggestions button:active:not(:disabled) {
+  transform: none;
+}
+
+/* 3）一行回答的版式：角色标签退成极小的元信息，正文才是主角。 */
+.ai-chat__message strong {
+  margin-bottom: var(--space-3);
+  color: var(--text-tertiary);
+  font-size: var(--text-3xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-meta);
+}
+.ai-chat__message p {
+  font-size: var(--text-sm);
+  line-height: var(--leading-prose);
+}
+/* 成本是一行票据，不是一张图：token · 耗时 · 模型。 */
+.ai-chat__receipt {
+  margin: var(--space-4) 0 0;
+  color: var(--text-tertiary);
+  font-size: var(--text-3xs);
+  letter-spacing: var(--tracking-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 4）唯一的活性信号：一枚呼吸点 + 秒数。呼吸沿用 styles.css 的 pulse（只有
+      opacity，没有位移），减弱动效时冻在半亮，秒数自己就把"在跑"说清楚。 */
+.ai-chat__message--pending p {
+  color: var(--text-tertiary);
+}
+.ai-chat__live {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  margin: 0;
+}
+.ai-chat__pulse {
+  width: 6px;
+  height: 6px;
+  background: var(--accent);
+  border-radius: var(--radius-full);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+.ai-chat__elapsed {
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-chat__pulse {
+    animation: none;
+    opacity: 0.55;
+  }
+}
+
+/* 5）失败的回答比成功的回答响：错误原样落在对话里，不翻译成一句安慰话。 */
+.ai-chat__message--failed {
+  padding: var(--space-5) var(--space-6);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface-raised));
+  border-left-color: var(--danger);
+}
+.ai-chat__message--failed strong,
+.ai-chat__message--failed p {
+  color: var(--danger-strong);
+}
+
+/* 6）撰写区：一个面把输入与两个动作装在一起，发送不再飘在卡片外面。 */
+.ai-chat__form.ai-chat__composer {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-6);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.ai-chat__composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+}
+.ai-chat__composer .ai-chat__input {
+  min-height: 58px;
+  padding: var(--space-5) var(--space-5) var(--space-1);
+  color: var(--text);
+  font-size: var(--text-sm);
+  line-height: var(--leading-ui);
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  resize: none;
+}
+/* 焦点环留在输入框自己身上（描在框内，不吃卡片边线），只是不再多套一圈。 */
+.ai-chat__composer .ai-chat__input:focus-visible {
+  outline-offset: -3px;
+}
+.ai-chat__composer .ai-chat__input::placeholder {
+  color: var(--text-tertiary);
+}
+.ai-chat__actions {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+.ai-chat__actions .button {
+  width: auto;
+  height: 30px;
+  min-height: 30px;
+  padding: 0 var(--space-5);
+  font-size: var(--text-xs);
+}
+.ai-chat__actions .button svg {
+  width: 13px;
+  height: 13px;
+}
+.ai-chat__actions .button:active:not(:disabled) {
+  transform: none;
+}
+/* 停止是常驻控件：空档也占着这个位置并显出轮廓，只是 disabled，跑起来才亮。
+   悬停只换色与边线，不填 --surface-muted 那层灰，也不位移。 */
+.ai-stop-control {
+  color: var(--text-secondary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+}
+.ai-stop-control:hover:not(:disabled) {
+  color: var(--danger-strong);
+  background: transparent;
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--border-strong));
+}
+.ai-operation .ai-stop-control {
+  margin-top: var(--space-5);
+}

@@ -185,7 +185,9 @@ export function SubmittedPage(props: {
           <thead>
             <tr>
               <th className="wb-col-grip" aria-label={t("colCode")} />
-              <th className="wb-col-title">{t("colTitle")}</th>
+              <ColumnHead table="submitted" column="title" className="wb-col-title">
+                {t("colTitle")}
+              </ColumnHead>
               <ColumnHead table="submitted" column="journal" className="wb-col-text">
                 {t("currentJournal")}
               </ColumnHead>
@@ -204,7 +206,9 @@ export function SubmittedPage(props: {
               <ColumnHead table="submitted" column="notes" className="wb-col-notes">
                 {t("colNotes")}
               </ColumnHead>
-              <th className="wb-col-actions">{t("colActions")}</th>
+              <ColumnHead table="submitted" column="actions" className="wb-col-actions">
+                {t("colActions")}
+              </ColumnHead>
             </tr>
           </thead>
           <tbody>
