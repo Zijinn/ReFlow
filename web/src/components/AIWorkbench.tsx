@@ -50,6 +50,13 @@ interface AIWorkbenchProps {
   profiles: AIProfile[]
   width: number
   contextLabel: string
+  /**
+   * How many items the caller actually has in view, when that is more than the
+   * ids it passed. `contextCount` is capped by the endpoint, so without this the
+   * panel can print "20 条在上下文" over a 200-entry list and read as if nothing
+   * was left behind.
+   */
+  contextTotal?: number
   initialMode?: AIOperation | "chat"
   onWidthChange: (width: number) => void
   onClose: () => void
@@ -512,6 +519,15 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                         <span>{t(emptyScopeKey)}</span>
                       </p>
                     )}
+                    {/* 端点只收 20 个 id，调用方在递进来之前就截断了。上一行说"20 条在上下文里"
+                        时，列表里其实有 200 条——那句真话读起来像"全都带上了"。差值只有这一行
+                        能说清，所以只在真被截断时出现。 */}
+                    {props.contextTotal !== undefined && props.contextTotal > contextCount && (
+                      <p className="ai-chat__empty-scope">
+                        <strong>{props.contextTotal}</strong>
+                        <span>{t("aiChatContextCap")}</span>
+                      </p>
+                    )}
                     <p className="ai-chat__empty-lead">{t(emptyLeadKey)}</p>
                     {openers.length > 0 && (
                       <>
@@ -596,15 +612,22 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                       <ChatCircle />
                       {t("ask")}
                     </button>
-                    <button
-                      className="button button--quiet ai-stop-control"
-                      type="button"
-                      disabled={!jobActive || cancelMutation.isPending}
-                      onClick={() => cancelMutation.mutate(pendingJobID)}
-                    >
-                      <Stop />
-                      {t("cancel")}
-                    </button>
+                    {/* 空闲时这颗不存在。它原来常驻、并且永远 disabled：一个"可点但永远不可点"
+                        的东西挂在输入区下方，读起来像界面坏了。而且它画的是 <Stop />（方块）
+                        却贴"取消"——图标说的是"掐断正在跑的东西"，文案说的是"撤销一个还没做的
+                        决定"，两回事。现在只在真有作业时出现，文案跟图标对齐。
+                        row-reverse 让发送键始终在它右边那一格，增删这一颗不会推动发送键。 */}
+                    {(jobActive || cancelMutation.isPending) && (
+                      <button
+                        className="button button--quiet ai-stop-control"
+                        type="button"
+                        disabled={cancelMutation.isPending}
+                        onClick={() => cancelMutation.mutate(pendingJobID)}
+                      >
+                        <Stop />
+                        {t("aiStopGeneration")}
+                      </button>
+                    )}
                   </div>
                 </form>
               </div>
@@ -623,15 +646,18 @@ export function AIWorkbench(props: AIWorkbenchProps) {
                   )}
                   {t("run")} {t(operations.find((item) => item.id === mode)?.labelKey ?? "summary")}
                 </button>
-                <button
-                  className="button button--quiet ai-stop-control"
-                  type="button"
-                  disabled={!jobActive || cancelMutation.isPending}
-                  onClick={() => cancelMutation.mutate(pendingJobID)}
-                >
-                  <Stop />
-                  {t("cancel")}
-                </button>
+                {/* 与对话那一颗同一规矩：只在真有作业时出现（见上面那段注释）。 */}
+                {(jobActive || cancelMutation.isPending) && (
+                  <button
+                    className="button button--quiet ai-stop-control"
+                    type="button"
+                    disabled={cancelMutation.isPending}
+                    onClick={() => cancelMutation.mutate(pendingJobID)}
+                  >
+                    <Stop />
+                    {t("aiStopGeneration")}
+                  </button>
+                )}
                 {latestResult && (
                   <div className="ai-result" aria-live="polite">
                     <p>{formatAIResult(latestResult)}</p>

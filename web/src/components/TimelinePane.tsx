@@ -1,5 +1,6 @@
 import {
   ArrowsClockwise,
+  CheckSquare,
   CircleNotch,
   Plus,
   Sparkle,
@@ -127,15 +128,28 @@ export function TimelinePane(props: TimelinePaneProps) {
           >
             {t("saved")}
           </button>
+        </div>
+        <div className="timeline-filterbar__actions">
+          {/* 动作不留在筛选组里：上面三枚 chip 改的是 scope（同一时刻只能有一枚按下，
+              所以它们带 aria-pressed 并成一组），这一枚按下去改变一串条目的状态、
+              按完回到原样。混在同一个 role="group" aria-label="articleFilters" 里，
+              读屏念出的是"四条筛选"而其中一条根本不是筛选。
+              图标是给 ≤620 那一档准备的：那边把文字标签 display:none 只留 38px 方盒，
+              没有图标它就是个空盒子。 */}
           <button
-            className="filter-chip timeline-mark-read"
+            className="button button--quiet timeline-mark-read"
             type="button"
             aria-label={t("markAllRead")}
             title={t("markAllRead")}
             disabled={props.entries.length === 0 || props.markReadPending}
             onClick={props.onMarkAllRead}
           >
-            <span>{t("markRead")}</span>
+            {props.markReadPending ? <CircleNotch className="spin" /> : <CheckSquare />}
+            {/* 可见文案与 aria-label 必须是同一句：这里按下去标的是当前筛选里的全部条目，
+                而 WCAG 2.5.3 要求无障碍名字包含看得见那几个字——"Mark read" 不是
+                "Mark all read" 的子串，两套说法就是不合格。窄屏把这一行藏掉时，
+                无障碍名字仍由上面的 aria-label 提供。 */}
+            <span>{t("markAllRead")}</span>
           </button>
         </div>
       </div>

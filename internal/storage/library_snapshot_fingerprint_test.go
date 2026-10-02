@@ -171,14 +171,14 @@ func TestSnapshotFingerprintTracksResearchChanges(t *testing.T) {
 		t.Fatal("fingerprint ignored a research paper edit")
 	}
 
-	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if changed := fingerprint(); changed == afterEdit {
 		t.Fatal("fingerprint ignored a new research tag")
 	}
-	if _, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, "特急"); err != nil {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("特急"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if changed := fingerprint(); changed == afterEdit {

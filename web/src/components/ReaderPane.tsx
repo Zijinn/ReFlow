@@ -653,7 +653,7 @@ export function ReaderPane(props: ReaderPaneProps) {
             href={entry.canonical_url}
             target="_blank"
             rel="noreferrer"
-            aria-label={t("openOriginalArticle")}
+            aria-label={t("openOriginal")}
             title={t("openOriginal")}
           >
             <ArrowSquareOut />

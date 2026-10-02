@@ -17,6 +17,7 @@ import {
 import {
   addFeed,
   APIError,
+  AI_CONTEXT_CAP,
   createAIProfile,
   createEntryAnnotation,
   createFolder,
@@ -1311,8 +1312,11 @@ export function AppShell() {
                 key={selectedEntryID ?? `library-${scope.kind}-${"id" in scope ? scope.id : "all"}`}
                 entryID={selectedEntryID ?? undefined}
                 entryIDs={
-                  selectedEntryID ? undefined : entries.slice(0, 20).map((entry) => entry.id)
+                  selectedEntryID
+                    ? undefined
+                    : entries.slice(0, AI_CONTEXT_CAP).map((entry) => entry.id)
                 }
+                contextTotal={selectedEntryID ? undefined : entries.length}
                 profiles={aiProfiles.data?.items ?? []}
                 width={aiPanelWidth}
                 contextLabel={selectedEntryID ? t("privateToArticle") : t("currentLibraryContext")}

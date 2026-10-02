@@ -1,3 +1,8 @@
+// 月历浮层（DatePickerCell）的样式跟着在投页那份引入：ESM 里同一个模块只会
+// 进一次产物，所以这里再 import 一次不会把 submitted-picker.css 拷第二份进 chunk；
+// 求值顺序仍旧排在 main.tsx 那一串 styles.css / phase*.css 之后（见该文件开头）。
+import "./submitted-picker.css"
+
 import {
   Fragment,
   useEffect,
@@ -5,6 +10,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
 } from "react"
 
 import { CaretRight } from "@phosphor-icons/react"
@@ -21,6 +27,7 @@ import {
 import {
   ChipEditor,
   ColumnHead,
+  DatePickerCell,
   DragHandle,
   EmptyState,
   InlineText,
@@ -29,18 +36,37 @@ import {
   Row,
 } from "./shared"
 import {
+  daysUntil,
+  deadlineDays,
+  deadlineUrgency,
   displayID,
   matchesPaperQuery,
+  parseDeadline,
   reorderList,
   tagBadgeClass,
   tagDisplayName,
   tagDotClass,
+  tagHueVar,
 } from "./utils"
 import { StageTree } from "./StageTree"
 
-// 工具栏排序档：manual 是手工顺序（拖拽把手可见），其余三种都是纯前端视图
+// 工具栏排序档：manual 是手工顺序（拖拽把手可见），其余几种都是纯前端视图
 // 排序——只改渲染顺序，不写回后端、不碰手工顺序，且把手隐藏。
-type SortMode = "manual" | "updated_desc" | "updated_asc" | "tag"
+type SortMode = "manual" | "updated_desc" | "updated_asc" | "deadline_asc" | "tag"
+
+// 行染色取的是"这一行最高的那一档"：调色板里下标最小的那枚标签（和 tag 排序
+// 同一个口径），它挂上的色相写进 --wb-row-hue 交给 phase3-research.css 去画。
+// 没挂标签、或只剩已被删除的残留 id，就返回 null 不染色。
+function rowHue(tagIDs: string[], tags: ResearchTag[], rank: Map<string, number>): string | null {
+  let best = -1
+  for (const id of tagIDs) {
+    const index = rank.get(id)
+    if (index === undefined) continue
+    if (best < 0 || index < best) best = index
+  }
+  if (best < 0) return null
+  return tagHueVar(best, tags[best]!.color)
+}
 
 // 标签格：一篇论文可以同时挂多个标签，挂上的都平铺成小药丸（与在投页的作者/关键词
 // 同一套语汇：药丸 + 每颗自带的 ✕ + 末尾一颗 ＋），列宽不够就换行、行高自己长，
@@ -74,8 +100,8 @@ function TagCell(props: {
 
   const tagIDs = props.paper.tag_ids
   const selected = useMemo(() => new Set(tagIDs), [tagIDs])
-  // 调色板下标同时是色阶下标；不在调色板里的 id（标签已被删除）取 -1，
-  // tagBadgeClass/tagDotClass 对负下标本就回中性灰，名字换成占位文案。
+  // 调色板下标同时是"没有自选色时"的色阶下标；不在调色板里的 id（标签已被删除）
+  // 取 -1，tagBadgeClass/tagDotClass 对负下标本就回中性灰，名字换成占位文案。
   const paletteIndex = useMemo(
     () => new Map(props.tags.map((tag, index) => [tag.id, index] as const)),
     [props.tags],
@@ -88,6 +114,7 @@ function TagCell(props: {
           id,
           key: `${id}-${order}`,
           index,
+          color: index >= 0 ? props.tags[index]!.color : "",
           label:
             index >= 0 ? tagDisplayName(props.tags[index]!.name, t) : t("tagRemovedLabel"),
         }
@@ -240,8 +267,11 @@ function TagCell(props: {
     <div ref={rootRef} className="wb-menu wb-tag-cell">
       <span className="wb-tag-list">
         {entries.map((entry) => (
-          <span key={entry.key} className={`wb-tag-chip ${tagBadgeClass(entry.index)}`}>
-            <i className={`wb-dot ${tagDotClass(entry.index)}`} aria-hidden="true" />
+          <span
+            key={entry.key}
+            className={`wb-tag-chip ${tagBadgeClass(entry.index, entry.color)}`}
+          >
+            <i className={`wb-dot ${tagDotClass(entry.index, entry.color)}`} aria-hidden="true" />
             <span className="wb-tag-chip-label">{entry.label}</span>
             <button
               type="button"
@@ -319,7 +349,7 @@ function TagCell(props: {
                 className={itemClass(index + 1)}
                 onClick={() => toggle(tag.id)}
               >
-                <i className={`wb-dot ${tagDotClass(index)}`} aria-hidden="true" />
+                <i className={`wb-dot ${tagDotClass(index, tag.color)}`} aria-hidden="true" />
                 <span className="wb-menu-item-label">{tagDisplayName(tag.name, t)}</span>
                 {/* 勾选框永远占位：切换时整行不跳，读屏也拿到 aria-checked。 */}
                 <span
@@ -403,13 +433,14 @@ export function ResearchPage(props: {
   const [sortMode, setSortMode] = useState<SortMode>("manual")
   const sorting = sortMode !== "manual"
 
-  // 调色板顺序即服务端 position 升序，筛选项与色阶都直接按下标走。
+  // 调色板顺序即服务端 position 升序，筛选项按它排；圆点取的是标签自己存的颜色，
+  // 没有自选色才回落到下标推出来的那一档。
   const tagOptions = useMemo(
     () =>
       props.tags.map((tag, index) => ({
         value: tag.id,
         label: tagDisplayName(tag.name, t),
-        dotClass: tagDotClass(index),
+        dotClass: tagDotClass(index, tag.color),
       })),
     [props.tags, t],
   )
@@ -430,7 +461,8 @@ export function ResearchPage(props: {
 
   // 视图排序：papers prop 的副本，同档按原（手工）顺序稳定排列。标签顺序按
   // 调色板下标升序，多个标签取其中最前的那一档（挂上就等于声称它属于那个优先级
-  // 区间）；未挂标签（或 id 全都不在调色板里）恒排最后。
+  // 区间）；未挂标签（或 id 全都不在调色板里）恒排最后。截止档同一条规矩：
+  // 没有日历日期（空串或"下周三是死线"这类自由文本）恒排最后。
   const visible = useMemo(() => {
     if (sortMode === "manual") return filtered
     const untagged = Number.MAX_SAFE_INTEGER
@@ -443,6 +475,11 @@ export function ResearchPage(props: {
           const rankA = rank(a.paper)
           const rankB = rank(b.paper)
           if (rankA !== rankB) return rankA - rankB
+          return a.index - b.index
+        }
+        if (sortMode === "deadline_asc") {
+          const days = deadlineDays(a.paper) - deadlineDays(b.paper)
+          if (days !== 0) return days
           return a.index - b.index
         }
         // last_updated 是 ISO 时间串，字典序即时间序；空串在"旧→新"里最靠前。
@@ -490,6 +527,7 @@ export function ResearchPage(props: {
             { value: "manual", label: t("sortManual") },
             { value: "updated_desc", label: t("sortUpdatedNewest") },
             { value: "updated_asc", label: t("sortUpdatedOldest") },
+            { value: "deadline_asc", label: t("sortDeadlineNearest") },
             { value: "tag", label: t("sortTagOrder") },
           ]}
         />
@@ -530,6 +568,19 @@ export function ResearchPage(props: {
               <ColumnHead table="research" column="note" className="wb-col-text wb-col-note">
                 {t("nextAction")}
               </ColumnHead>
+              {/* 截止日期挨着更新日期放（两张日期列归在一起）。列头键用 "deadline"
+                  而不是 "date"：--wb-col-w 的持久化是按 column 键存的，"date" 已经被
+                  更新日期占了，共用会让两列同宽同变。
+                  类名带两份：wb-col-date 借等宽数字与"日期列"那一套几何，
+                  wb-col-deadline 是这一列自己的钩子（宽度与收列档在
+                  phase3-research.css 里）。 */}
+              <ColumnHead
+                table="research"
+                column="deadline"
+                className="wb-col-date wb-col-deadline"
+              >
+                {t("deadlineLabel")}
+              </ColumnHead>
               <ColumnHead table="research" column="date" className="wb-col-date">
                 {t("lastUpdatedLabel")}
               </ColumnHead>
@@ -544,7 +595,7 @@ export function ResearchPage(props: {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={9} className="wb-empty">
+                <td colSpan={10} className="wb-empty">
                   {search.trim() || tagFilter ? (
                     <EmptyState title={t("noMatchingPapers")} hint={t("emptySearchHint")} />
                   ) : (
@@ -571,9 +622,24 @@ export function ResearchPage(props: {
                 const currentTickIndex = ticks.findIndex((tick) => tick.fraction < 1)
                 const currentStage =
                   currentTickIndex >= 0 ? ticks[currentTickIndex]!.name : t("stageAllDone")
+                // 行染色的色相（最高优先级那一枚标签的颜色）与截止紧急度。
+                const hue = rowHue(paper.tag_ids, props.tags, tagRank)
+                const deadlineDate = parseDeadline(paper.deadline)
+                const urgency = deadlineDate
+                  ? deadlineUrgency(daysUntil(deadlineDate))
+                  : null
                 return (
                   <Fragment key={paper.id}>
-                    <Row id={paper.id} onReorder={reorder} dataPaperID={paper.id}>
+                    <Row
+                      id={paper.id}
+                      onReorder={reorder}
+                      dataPaperID={paper.id}
+                      className={hue ? "wb-row--tinted" : undefined}
+                      // 自定义属性里放的是 var(--wb-hue-*) 这条引用本身：CSS 变量
+                      // 允许持有 var()，于是浅深两档跟着令牌走，一行代码都不用在
+                      // 样式表里挑颜色（也不新增任何色板令牌）。
+                      style={hue ? ({ "--wb-row-hue": hue } as CSSProperties) : undefined}
+                    >
                       <td className="wb-col-grip">
                         {/* 排序激活时不渲染把手：Row 只在按住把手时才武装拖拽，
                             把手缺席即拖拽禁用，排序视图不会被误存成手工顺序。 */}
@@ -664,6 +730,22 @@ export function ResearchPage(props: {
                           onCommit={(value) => props.onUpdate(paper.id, { next_action: value })}
                         />
                       </td>
+                      <td className="wb-col-date wb-col-deadline">
+                        {/* 空格子也要能点：占位那枚"—"是按钮里的内容，不是禁用的标签。 */}
+                        <DatePickerCell
+                          value={paper.deadline}
+                          placeholder="—"
+                          ariaLabel={t("deadlineLabel")}
+                          onCommit={(deadline) => props.onUpdate(paper.id, { deadline })}
+                        />
+                        {urgency && urgency.key && (
+                          <span className={`wb-deadline-hint ${urgency.className}`}>
+                            {urgency.count === undefined
+                              ? t(urgency.key)
+                              : `${urgency.count} ${t(urgency.key)}`}
+                          </span>
+                        )}
+                      </td>
                       <td className="wb-col-date wb-muted">
                         {(paper.last_updated || "").slice(0, 10) || "—"}
                       </td>
@@ -698,7 +780,7 @@ export function ResearchPage(props: {
                     </Row>
                     {expanded && (
                       <tr className="wb-row-detail">
-                        <td colSpan={9}>
+                        <td colSpan={10}>
                           <div className="wb-detail-grid">
                             <StageTree
                               stages={stages}

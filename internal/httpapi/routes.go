@@ -96,7 +96,7 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/research/tags", s.listResearchTags)
 	mux.HandleFunc("POST /api/v1/research/tags", s.createResearchTag)
 	mux.HandleFunc("POST /api/v1/research/tags/reorder", s.reorderResearchTags)
-	mux.HandleFunc("PATCH /api/v1/research/tags/{tagID}", s.renameResearchTag)
+	mux.HandleFunc("PATCH /api/v1/research/tags/{tagID}", s.updateResearchTag)
 	mux.HandleFunc("DELETE /api/v1/research/tags/{tagID}", s.deleteResearchTag)
 	mux.HandleFunc("GET /api/v1/integrations/zotero/status", s.getZoteroStatus)
 	mux.HandleFunc("GET /api/v1/entries/{entryID}/zotero", s.getEntryZoteroStatus)

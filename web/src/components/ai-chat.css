@@ -22,6 +22,10 @@
   position: static;
   min-height: 60px;
   margin-bottom: var(--space-7);
+  /* 面板自己已经是磨砂壳层，dock 模式这一条又是 static（下面不会滚过内容），
+     所以它不需要那块 --surface-raised 实心底——留着就等于在磨砂栏顶端压了一块白纸。
+     非 dock 那一档它是 sticky、内容会从底下穿过，那边的实心底照旧。 */
+  background-color: transparent;
 }
 .ai-workbench--dock .ai-chat {
   display: flex;
@@ -36,15 +40,12 @@
   max-height: none;
   padding-right: var(--space-4);
   overscroll-behavior: contain;
-  /* 静止不上色、滚起来才显形，与 .timeline-scroll 同一档；显形档的选择器表在
-     styles.css（那边不能动），所以这一族写在容器自己身上。 */
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  /* 滚动条外观与"滚才显形"都归 styles.css 开头那一族（.ai-chat__messages 已并入）。
+     这里原来自己写 scrollbar-width: thin + scrollbar-color：那一档在 dock 面板里滚的就是
+     这一层，标准属性会把 ::-webkit-scrollbar 整族作废，Safari 26.0–26.1 认 width 却还没有
+     color，于是这栏也留下一条藏不住的灰杠。 */
 }
-.ai-workbench--dock .ai-chat__messages[data-scrolling="true"] {
-  scrollbar-color: var(--scroll-thumb) transparent;
-}
-/* 没有对话时空态接管剩余高度并居中：面板读起来是"一屏准备就绪"，不是中间一大块空。
+/* 没有对话时空态接管剩余高度：面板读起来是"一屏准备就绪"，不是中间一大块空。
    有对话之后回到 .ai-chat__messages 拉伸、撰写区钉底。 */
 .ai-workbench--dock .ai-chat--empty .ai-chat__messages {
   flex: 0 0 auto;
@@ -52,7 +53,14 @@
 .ai-workbench--dock .ai-chat__empty {
   flex: 1;
   min-height: 0;
-  align-content: center;
+  /* 顶部停靠，只留 16px 呼吸。原来这里写 align-content: center，在实测的 339×636 里
+     把三行内容夹在中间——上方空出 201px、下方也空 201px，63% 的面板是什么都没有的，
+     而它下面紧跟的就是撰写框，视线得穿过一整屏空白才找到输入的地方。
+     居中还有第二个代价：这个元素自己 overflow-y: auto，网格在 start 方向溢出时
+     居中的那一段是滚不回来的——问题一旦多到超出一屏，最上面那条会被永久裁掉。
+     顶部停靠同时解决这两件事。 */
+  align-content: start;
+  padding-top: var(--space-8);
   overflow-y: auto;
 }
 
@@ -68,7 +76,14 @@
   margin: 0;
 }
 .ai-chat__empty-scope strong {
-  font-size: var(--text-2xl);
+  /* 降一档字号：21px 是工作台统计卡的读数刻度（.wb-stat-number 是 26px 的 metric 档，
+     .wb-status-item strong 这一类计数是 21px），那一套的前提是"数字坐在 968px 宽的
+     整块卡里，左右各让开 20px 内衬"。这里可用的是 300–380px，而且后面紧跟着的就是
+     10px 的标签——同一句话里 21px 配 10px，读起来只剩"数字在喊"。
+     --text-xl(18px) 仍高于标签一档、仍是 tabular 计数，但整行不再需要横向撑到极限。
+     行高留在 metric：这里是一个纯数字自己占一格（见 313 那段的适用条件），
+     负字距一条都不加——这行的可见内容是"20 条内容在上下文里"，中文吃负字距会字缝发紧。 */
+  font-size: var(--text-xl);
   font-weight: var(--fw-semibold);
   line-height: var(--leading-metric);
   font-variant-numeric: tabular-nums;
@@ -107,7 +122,23 @@
   padding: var(--space-5) var(--space-6);
   font-size: var(--text-xs);
   line-height: var(--leading-ui);
-  border-radius: var(--radius-md);
+  /* 药丸形，不是方角输入框。原来吃 --radius-md(8px)：配上 --control-glass 的白面、
+     1px 鬓发边和接触影，这三颗读起来是三个"空的字段"——而它们是能按的东西。
+     字段那一档自己留着 --radius-xl，形状因此仍然是两种语言；半径由盒子自己收口
+     （9999px 在 10+12px 内衬的两行高度上被钳成半高），所以不会有鼓包。 */
+  border-radius: var(--radius-full);
+}
+/* 领头一枚箭头：把"这是一句可以直接问出口的话"写进形状里，而不是只靠颜色暗示。
+   用 accent-strong 而不是 accent——它压在带色相的控件面上是 5.08:1，过非文本 3:1；
+   原来的 --text-tertiary 在浅档只剩 5.2:1 且和正文同色，读起来像正文的一部分。
+   尺寸用 em，跟着 --text-xs 走，不改内衬也不改盒高。 */
+.ai-chat__suggestions button::before {
+  content: "→";
+  display: inline-block;
+  width: 1.2em;
+  margin-inline-end: var(--space-2);
+  color: var(--accent-strong);
+  font-weight: var(--fw-semibold);
 }
 .ai-chat__suggestions button:active:not(:disabled) {
   transform: none;
@@ -175,18 +206,23 @@
   color: var(--danger-strong);
 }
 
-/* 6）撰写区：一个面把输入与两个动作装在一起，发送不再飘在卡片外面。 */
+/* 6）撰写区：一个面把输入与两个动作装在一起，发送不再飘在卡片外面。
+   卡片走全局那一级卡片面（--card-glass 70% 白 + --sheet-edge 白色接光边 + --radius-xl），
+   不再是实心白纸加一根 --border-strong 的 18% 近黑硬边——它坐在刚换成磨砂的面板上，
+   硬灰边在磨砂底上是唯一还能读出来的东西，正是"割裂"的来源。 */
 .ai-chat__form.ai-chat__composer {
   display: flex;
   flex-direction: column;
   margin-top: var(--space-6);
-  background: var(--surface-raised);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-lg);
-  transition: border-color var(--dur-fast) var(--ease);
+  background-color: var(--card-glass);
+  border: 1px solid var(--sheet-edge);
+  border-radius: var(--radius-xl);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
 }
 .ai-chat__composer:focus-within {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--sheet-edge));
 }
 .ai-chat__composer .ai-chat__input {
   min-height: 58px;
@@ -196,12 +232,36 @@
   line-height: var(--leading-ui);
   background: transparent;
   border: 0;
-  border-radius: 0;
+  /* 卡片已经是那一口凹槽（--card-glass 面 + 它自己的边），输入框再叠一层
+     --field-glass-inset 就是"凹槽里又挖了一个凹槽"：那条顶部 inset 内影正好落在卡片
+     上缘下面。它是卡片的一部分，不是一个独立字段，所以共享字段档给的这层影要撤掉。 */
+  box-shadow: none;
+  /* 跟着卡片的上缘走。原来这里是 0，于是任何画在这一族上的环都只能是四个直角。 */
+  border-radius: calc(var(--radius-xl) - 1px) calc(var(--radius-xl) - 1px) 0 0;
   resize: none;
 }
-/* 焦点环留在输入框自己身上（描在框内，不吃卡片边线），只是不再多套一圈。 */
+/* 焦点环改挂在卡片轮廓上。原来那一圈画在输入框自己身上：输入框是 border-radius: 0
+   的矩形，2px 实心描边又切在圆角卡片内部，读起来是"框里又套了一个方框"，四个角还全是
+   直角——这就是"太锐利"。--focus-ring 是一对 box-shadow，天然跟着 --radius-xl 走，
+   实心那 2px 仍然是 --accent-strong（非文本对比 5.76:1 一点没降），外面那圈 18% 主色
+   光晕把"一条硬线"变成"一枚发光的面"。
+   :has() 是必需的：卡片里还有 取消/发送 两枚按钮，它们各自有属于自己的环，
+   用 :focus-within 会让"焦点在按钮上"也把输入卡片整块点亮。
+   顺序按"默认档 → @supports 覆盖"写：不认 :has() 的引擎整段跳过 @supports，输入框
+   上那圈硬环就是它唯一的焦点指示，不能没有。两条规则特异度相同、后者在前者之后，
+   所以认 :has() 时撤得干净。 */
 .ai-chat__composer .ai-chat__input:focus-visible {
+  outline: 0;
   outline-offset: -3px;
+  box-shadow: var(--focus-ring);
+}
+@supports selector(:has(*)) {
+  .ai-chat__composer .ai-chat__input:focus-visible {
+    box-shadow: none;
+  }
+  .ai-chat__composer:has(.ai-chat__input:focus-visible) {
+    box-shadow: var(--focus-ring);
+  }
 }
 .ai-chat__composer .ai-chat__input::placeholder {
   color: var(--text-tertiary);
@@ -228,16 +288,20 @@
   transform: none;
 }
 /* 停止是常驻控件：空档也占着这个位置并显出轮廓，只是 disabled，跑起来才亮。
-   悬停只换色与边线，不填 --surface-muted 那层灰，也不位移。 */
+   它原来那层 --surface-raised 是实心白纸，在刚换成玻璃的卡片上是一块不透底的方块，
+   所以并入共享凸面档（78% 白面 + 白色接光边 + 只到接触影）。
+   悬停不换面、不填 --surface-muted 那层灰、也不位移，只让危险色走到字和边线上；
+   底色必须重述，因为 .button--quiet:hover 会把 --surface-muted 当 background 用。 */
 .ai-stop-control {
   color: var(--text-secondary);
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background-color: var(--control-glass);
+  border: 1px solid var(--control-glass-edge);
+  box-shadow: var(--control-glass-shadow-quiet);
 }
 .ai-stop-control:hover:not(:disabled) {
   color: var(--danger-strong);
-  background: transparent;
-  border-color: color-mix(in srgb, var(--danger) 42%, var(--border-strong));
+  background-color: var(--control-glass);
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--control-glass-edge));
 }
 .ai-operation .ai-stop-control {
   margin-top: var(--space-5);

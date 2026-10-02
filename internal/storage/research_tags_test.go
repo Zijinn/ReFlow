@@ -18,8 +18,9 @@ import (
 func TestResearchTagCRUD(t *testing.T) {
 	ctx := context.Background()
 	db := newResearchTestDB(t)
+	resetResearchTagPalette(t, ctx, db)
 
-	first, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "  急件  ")
+	first, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "  急件  ", "red")
 	if err != nil {
 		t.Fatalf("create tag: %v", err)
 	}
@@ -29,12 +30,18 @@ func TestResearchTagCRUD(t *testing.T) {
 	if first.Position != 0 {
 		t.Fatalf("expected position 0, got %d", first.Position)
 	}
-	second, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "慢工")
+	if first.Color != "red" {
+		t.Fatalf("expected the chosen colour to come back, got %q", first.Color)
+	}
+	second, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "慢工", "")
 	if err != nil {
 		t.Fatalf("create second tag: %v", err)
 	}
 	if second.Position != 1 {
 		t.Fatalf("expected position 1, got %d", second.Position)
+	}
+	if second.Color != "" {
+		t.Fatalf("an unpicked colour must store as empty, got %q", second.Color)
 	}
 
 	tags, err := ListResearchTags(ctx, db, domain.DefaultProfileID)
@@ -44,28 +51,37 @@ func TestResearchTagCRUD(t *testing.T) {
 	if len(tags) != 2 || tags[0].ID != first.ID || tags[1].ID != second.ID {
 		t.Fatalf("palette order wrong: %+v", tags)
 	}
+	if tags[0].Color != "red" || tags[1].Color != "" {
+		t.Fatalf("list lost the colours: %+v", tags)
+	}
 
-	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件"); !errors.Is(err, ErrDuplicateResearchTag) {
+	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件", "teal"); !errors.Is(err, ErrDuplicateResearchTag) {
 		t.Fatalf("expected duplicate error, got %v", err)
 	}
-	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "   "); !isTagValidationError(err) {
+	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "   ", "teal"); !isTagValidationError(err) {
 		t.Fatalf("expected validation error for blank name, got %v", err)
 	}
-	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, strings.Repeat("标", researchTagNameLimit+1)); !isTagValidationError(err) {
+	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, strings.Repeat("标", researchTagNameLimit+1), "teal"); !isTagValidationError(err) {
 		t.Fatalf("expected validation error for long name, got %v", err)
 	}
+	if _, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "染色", "crimson"); !isTagValidationError(err) {
+		t.Fatalf("expected validation error for unknown colour, got %v", err)
+	}
 
-	renamed, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, first.ID, "特急")
+	updated, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, first.ID, strPointer("特急"), nil)
 	if err != nil {
-		t.Fatalf("rename tag: %v", err)
+		t.Fatalf("update tag: %v", err)
 	}
-	if renamed.Name != "特急" || renamed.Position != first.Position {
-		t.Fatalf("rename changed more than the name: %+v", renamed)
+	if updated.Name != "特急" || updated.Position != first.Position {
+		t.Fatalf("update changed more than the name: %+v", updated)
 	}
-	if _, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, first.ID, "慢工"); !errors.Is(err, ErrDuplicateResearchTag) {
+	if updated.Color != "red" {
+		t.Fatalf("a rename that never mentioned colour dropped it: %+v", updated)
+	}
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, first.ID, strPointer("慢工"), nil); !errors.Is(err, ErrDuplicateResearchTag) {
 		t.Fatalf("expected duplicate error on rename, got %v", err)
 	}
-	if _, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, "missing", "名字"); !errors.Is(err, ErrNotFound) {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", strPointer("名字"), nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected not found on rename, got %v", err)
 	}
 
@@ -90,7 +106,7 @@ func TestResearchPaperCarriesSeveralTags(t *testing.T) {
 
 	var tags []domain.ResearchTag
 	for _, name := range []string{"急件", "在改", "合作者"} {
-		tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, name)
+		tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, name, "")
 		if err != nil {
 			t.Fatalf("create tag %q: %v", name, err)
 		}
@@ -225,15 +241,15 @@ func TestDeleteResearchTagLiftsOnlyThatLabel(t *testing.T) {
 	ctx := context.Background()
 	db := newResearchTestDB(t)
 
-	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改")
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改", "")
 	if err != nil {
 		t.Fatalf("create tag: %v", err)
 	}
-	other, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "已投")
+	other, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "已投", "")
 	if err != nil {
 		t.Fatalf("create other tag: %v", err)
 	}
-	extra, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "学生一作")
+	extra, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "学生一作", "")
 	if err != nil {
 		t.Fatalf("create extra tag: %v", err)
 	}
@@ -281,7 +297,7 @@ func TestDeleteResearchPaperClearsItsLabels(t *testing.T) {
 	ctx := context.Background()
 	db := newResearchTestDB(t)
 
-	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改")
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改", "")
 	if err != nil {
 		t.Fatalf("create tag: %v", err)
 	}
@@ -314,12 +330,16 @@ func TestDeleteResearchPaperClearsItsLabels(t *testing.T) {
 func TestReorderResearchTags(t *testing.T) {
 	ctx := context.Background()
 	db := newResearchTestDB(t)
+	resetResearchTagPalette(t, ctx, db)
 
 	var created []domain.ResearchTag
-	for _, name := range []string{"急件", "在改", "合作者"} {
-		tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, name)
+	seeds := []struct{ name, color string }{
+		{"急件", "red"}, {"在改", "teal"}, {"合作者", "violet"},
+	}
+	for _, seed := range seeds {
+		tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, seed.name, seed.color)
 		if err != nil {
-			t.Fatalf("create tag %q: %v", name, err)
+			t.Fatalf("create tag %q: %v", seed.name, err)
 		}
 		created = append(created, tag)
 	}
@@ -343,9 +363,15 @@ func TestReorderResearchTags(t *testing.T) {
 	if len(tags) != len(want) {
 		t.Fatalf("expected %d tags, got %+v", len(want), tags)
 	}
+	colors := map[string]string{created[0].ID: "red", created[1].ID: "teal", created[2].ID: "violet"}
 	for index, tag := range tags {
 		if tag.ID != want[index] || tag.Position != index {
 			t.Fatalf("tag %d should be %q at position %d, got %+v", index, want[index], index, tag)
+		}
+		// The tint belongs to the label, not to the row it happens to sit in, so
+		// dragging the palette reorders chips without re-colouring them.
+		if tag.Color != colors[tag.ID] {
+			t.Fatalf("tag %d (%q) came back %q, want %q", index, tag.ID, tag.Color, colors[tag.ID])
 		}
 	}
 
@@ -374,11 +400,11 @@ func TestListResearchPapersLoadsLabelsAcrossChunks(t *testing.T) {
 	db := newResearchTestDB(t)
 
 	const papers = researchTagQueryChunk*2 + 7
-	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件", "")
 	if err != nil {
 		t.Fatalf("create tag: %v", err)
 	}
-	other, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改")
+	other, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改", "")
 	if err != nil {
 		t.Fatalf("create other tag: %v", err)
 	}
@@ -424,11 +450,12 @@ func TestListResearchPapersLoadsLabelsAcrossChunks(t *testing.T) {
 	}
 }
 
-func TestRenameResearchTagKeepsPaperReferences(t *testing.T) {
+func TestUpdateResearchTagKeepsPaperReferences(t *testing.T) {
 	ctx := context.Background()
 	db := newResearchTestDB(t)
+	resetResearchTagPalette(t, ctx, db)
 
-	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "High")
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "High", "red")
 	if err != nil {
 		t.Fatalf("create tag: %v", err)
 	}
@@ -438,7 +465,7 @@ func TestRenameResearchTagKeepsPaperReferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create paper: %v", err)
 	}
-	if _, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, "顶刊冲刺"); err != nil {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("顶刊冲刺"), nil); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	reloaded, err := GetResearchPaper(ctx, db, domain.DefaultProfileID, paper.ID)
@@ -519,14 +546,21 @@ func TestMigrationMovesPaperTagIntoAssociations(t *testing.T) {
 	ctx := context.Background()
 	db := openDatabaseBeforeMigration(t, ctx, 17)
 
-	mine, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
-	if err != nil {
-		t.Fatalf("create own tag: %v", err)
+	// The palette is written with raw SQL here: this schema predates the colour
+	// column, so the storage helper would be testing a table it has not seen.
+	for _, row := range []struct{ id, profileID, name string }{
+		{"mine-tag", domain.DefaultProfileID, "急件"},
+		{"theirs-tag", "other-profile", "别人的"},
+	} {
+		if _, err := db.ExecContext(ctx, `INSERT INTO research_tags
+			(id, profile_id, name, position, created_at, updated_at)
+			VALUES (?, ?, ?, 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+			row.id, row.profileID, row.name); err != nil {
+			t.Fatalf("seed tag %q: %v", row.name, err)
+		}
 	}
-	theirs, err := CreateResearchTag(ctx, db, "other-profile", "别人的")
-	if err != nil {
-		t.Fatalf("create foreign tag: %v", err)
-	}
+	mine := domain.ResearchTag{ID: "mine-tag", Name: "急件"}
+	theirs := domain.ResearchTag{ID: "theirs-tag", Name: "别人的"}
 	for _, row := range []struct{ id, tagID string }{
 		{"paper-tagged", mine.ID},
 		{"paper-untagged", ""},
@@ -581,6 +615,235 @@ func TestMigrationMovesPaperTagIntoAssociations(t *testing.T) {
 	// The column is gone, so a stale build cannot read a half-migrated schema.
 	if _, err := db.ExecContext(ctx, "SELECT tag_id FROM research_papers"); err == nil {
 		t.Fatal("research_papers.tag_id survived the migration")
+	}
+}
+
+// The workbench tints a chip from the tag's own colour, so a brand-new install
+// must already answer the three priority labels with the colours the owner
+// asked for: High red, Medium amber, Low green.
+func TestFreshDatabaseSeedsPriorityTagsWithColors(t *testing.T) {
+	ctx := context.Background()
+	db := newResearchTestDB(t)
+
+	tags, err := ListResearchTags(ctx, db, domain.DefaultProfileID)
+	if err != nil {
+		t.Fatalf("list seeded tags: %v", err)
+	}
+	want := []domain.ResearchTag{
+		{Name: "High", Position: 0, Color: "red"},
+		{Name: "Medium", Position: 1, Color: "amber"},
+		{Name: "Low", Position: 2, Color: "green"},
+	}
+	if len(tags) != len(want) {
+		t.Fatalf("expected the three priority labels, got %+v", tags)
+	}
+	for index, expected := range want {
+		tag := tags[index]
+		if tag.ID == "" || tag.Name != expected.Name || tag.Position != expected.Position || tag.Color != expected.Color {
+			t.Fatalf("seed %d should be %+v, got %+v", index, expected, tag)
+		}
+	}
+
+	// The seed fills positions 0..2, so the user's first label still appends.
+	extra, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "合作者", "violet")
+	if err != nil {
+		t.Fatalf("create tag after the seed: %v", err)
+	}
+	if extra.Position != 3 || extra.Color != "violet" {
+		t.Fatalf("expected position 3 with the chosen colour, got %+v", extra)
+	}
+}
+
+// Only an empty palette is seeded: a user who already arranged labels must not
+// wake up to a second, competing set, and a label typed by hand as "High" must
+// keep its own row instead of colliding with the seed.
+func TestMigrationSeedsPriorityTagsPerProfileWithEmptyPalette(t *testing.T) {
+	ctx := context.Background()
+	db := openDatabaseBeforeMigration(t, ctx, 18)
+
+	const otherProfile = "00000000-0000-4000-8000-000000000009"
+	if _, err := db.ExecContext(ctx,
+		"INSERT INTO profiles (id, display_name) VALUES (?, ?)", otherProfile, "Work"); err != nil {
+		t.Fatalf("add profile: %v", err)
+	}
+	// Raw SQL because this schema is the one before the colour column exists.
+	if _, err := db.ExecContext(ctx, `INSERT INTO research_tags
+		(id, profile_id, name, position, created_at, updated_at)
+		VALUES ('built-by-hand', ?, 'High', 0, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z')`,
+		domain.DefaultProfileID); err != nil {
+		t.Fatalf("seed a hand-made palette: %v", err)
+	}
+
+	if err := Migrate(ctx, db); err != nil {
+		t.Fatalf("upgrade to the colour migration: %v", err)
+	}
+
+	mine, err := ListResearchTags(ctx, db, domain.DefaultProfileID)
+	if err != nil {
+		t.Fatalf("list existing palette: %v", err)
+	}
+	if len(mine) != 1 || mine[0].ID != "built-by-hand" {
+		t.Fatalf("a profile that already owns labels was seeded anyway: %+v", mine)
+	}
+	if mine[0].Color != "" {
+		t.Fatalf("a pre-colour label must read as unpicked, got %q", mine[0].Color)
+	}
+
+	fresh, err := ListResearchTags(ctx, db, otherProfile)
+	if err != nil {
+		t.Fatalf("list new profile's palette: %v", err)
+	}
+	if len(fresh) != 3 || fresh[0].Name != "High" || fresh[0].Color != "red" ||
+		fresh[1].Name != "Medium" || fresh[1].Color != "amber" ||
+		fresh[2].Name != "Low" || fresh[2].Color != "green" {
+		t.Fatalf("an empty palette did not get the priority defaults: %+v", fresh)
+	}
+	for index, tag := range fresh {
+		if tag.ID == "" || tag.Position != index {
+			t.Fatalf("seed %d needs its own id and priority order, got %+v", index, tag)
+		}
+	}
+}
+
+// A patch sends whichever control the user touched, so a nil field has to leave
+// the column alone while a bad colour is refused before anything is written.
+func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
+	ctx := context.Background()
+	db := newResearchTestDB(t)
+	resetResearchTagPalette(t, ctx, db)
+
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "在改", " gray ")
+	if err != nil {
+		t.Fatalf("create tag: %v", err)
+	}
+	if tag.Color != "gray" {
+		t.Fatalf("expected the colour to be trimmed, got %q", tag.Color)
+	}
+	other, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "已投", "blue")
+	if err != nil {
+		t.Fatalf("create other tag: %v", err)
+	}
+
+	// Colour only: the label keeps its name, position and papers.
+	recoloured, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer("orange"))
+	if err != nil {
+		t.Fatalf("recolour: %v", err)
+	}
+	if recoloured.Name != "在改" || recoloured.Position != tag.Position || recoloured.Color != "orange" {
+		t.Fatalf("recolour changed more than the colour: %+v", recoloured)
+	}
+
+	// Both at once.
+	both, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer(" 修改中 "), strPointer("teal"))
+	if err != nil {
+		t.Fatalf("patch name and colour: %v", err)
+	}
+	if both.Name != "修改中" || both.Color != "teal" {
+		t.Fatalf("expected a trimmed name and the new colour, got %+v", both)
+	}
+
+	// Clearing the choice is a real value: the client goes back to index tinting.
+	cleared, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer(""))
+	if err != nil {
+		t.Fatalf("clear colour: %v", err)
+	}
+	if cleared.Color != "" {
+		t.Fatalf("expected an unpicked colour, got %+v", cleared)
+	}
+
+	// Renaming a tag to the name it already has is not a clash with itself.
+	sameName, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("修改中"), strPointer("teal"))
+	if err != nil {
+		t.Fatalf("reapply the tag's own name: %v", err)
+	}
+	if sameName.Name != "修改中" || sameName.Color != "teal" {
+		t.Fatalf("expected the tag unchanged, got %+v", sameName)
+	}
+
+	// An empty patch answers the tag without rewriting it.
+	untouched, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil)
+	if err != nil {
+		t.Fatalf("empty patch: %v", err)
+	}
+	if untouched.Name != sameName.Name || untouched.Color != sameName.Color {
+		t.Fatalf("an empty patch rewrote the tag: %+v", untouched)
+	}
+
+	// Existence still beats the duplicate check, so a deleted tag cannot leak
+	// another label's name clash as a 409.
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", strPointer(other.Name), nil); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected not found before duplicate, got %v", err)
+	}
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer(other.Name), nil); !errors.Is(err, ErrDuplicateResearchTag) {
+		t.Fatalf("expected duplicate error, got %v", err)
+	}
+	for _, bad := range []struct {
+		name, color string
+	}{{"修改中", "crimson"}, {"", "teal"}, {strings.Repeat("标", researchTagNameLimit+1), "teal"}} {
+		if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID,
+			tag.ID, strPointer(bad.name), strPointer(bad.color)); !isTagValidationError(err) {
+			t.Fatalf("patch %+v should be refused, got %v", bad, err)
+		}
+	}
+	// A refused patch must not have half-applied: the colour stayed put.
+	rejected, err := GetResearchTag(ctx, db, domain.DefaultProfileID, tag.ID)
+	if err != nil {
+		t.Fatalf("reload tag: %v", err)
+	}
+	if rejected.Name != "修改中" || rejected.Color != "teal" {
+		t.Fatalf("a refused patch wrote to the row: %+v", rejected)
+	}
+	// A client-fixable field problem is reported even about a tag that is gone.
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", nil, strPointer("magenta")); !isTagValidationError(err) {
+		t.Fatalf("expected validation before lookup, got %v", err)
+	}
+}
+
+// Every name the stylesheet ships has to round-trip, because the colour picker
+// offers exactly these swatches.
+func TestResearchTagAcceptsEveryShippedColor(t *testing.T) {
+	ctx := context.Background()
+	db := newResearchTestDB(t)
+	resetResearchTagPalette(t, ctx, db)
+
+	for index, color := range researchTagColorNames {
+		name := fmt.Sprintf("色-%d", index)
+		tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, name, color)
+		if err != nil {
+			t.Fatalf("create tag %q with %q: %v", name, color, err)
+		}
+		if tag.Color != color {
+			t.Fatalf("create echoed %q, want %q", tag.Color, color)
+		}
+		stored, err := GetResearchTag(ctx, db, domain.DefaultProfileID, tag.ID)
+		if err != nil {
+			t.Fatalf("reload tag: %v", err)
+		}
+		if stored.Color != color {
+			t.Fatalf("tag stored colour %q, want %q", stored.Color, color)
+		}
+		if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer(color)); err != nil {
+			t.Fatalf("patch colour %q: %v", color, err)
+		}
+	}
+	body, err := json.Marshal(domain.ResearchTag{ID: "x", Name: "x", Color: ""})
+	if err != nil {
+		t.Fatalf("marshal tag: %v", err)
+	}
+	if !strings.Contains(string(body), `"color":""`) {
+		t.Fatalf("an unpicked colour must serialise as the empty string, got %s", body)
+	}
+}
+
+// resetResearchTagPalette empties the palette migration 0018 hands every fresh
+// profile, so a test can assert on positions and counts against only the labels
+// it created itself.
+func resetResearchTagPalette(t *testing.T, ctx context.Context, db *sql.DB) {
+	t.Helper()
+	for _, statement := range []string{"DELETE FROM research_paper_tags", "DELETE FROM research_tags"} {
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			t.Fatalf("%s: %v", statement, err)
+		}
 	}
 }
 

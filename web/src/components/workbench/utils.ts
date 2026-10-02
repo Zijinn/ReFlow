@@ -77,6 +77,26 @@ export function daysUntil(date: Date, now: Date = new Date()): number {
   return Math.round((startOf(date) - startOf(now)) / 86_400_000)
 }
 
+// 距离截止还有几天：没有日历日期（空串，或"下周三是死线"这类自由文本）恒排最后，
+// 所以排序拿它当键位时未设值不会挤掉已设值。
+export function deadlineDays(paper: ResearchPaper): number {
+  const date = parseDeadline(paper.deadline)
+  return date ? daysUntil(date) : Number.MAX_SAFE_INTEGER
+}
+
+// 紧急度三档（过期 / 今天 / 一周内）：类名给 .wb-deadline--* 上色，文案走 i18n 键。
+// 在研与在投两张表共用同一份判定，两份日历列的"要不要提醒"必须说得一样。
+export function deadlineUrgency(days: number): {
+  className: string
+  key: string
+  count?: number
+} {
+  if (days < 0) return { className: "wb-deadline--overdue", key: "overdueUnit", count: -days }
+  if (days === 0) return { className: "wb-deadline--today", key: "dueToday" }
+  if (days <= 7) return { className: "wb-deadline--soon", key: "daysLeftUnit", count: days }
+  return { className: "", key: "" }
+}
+
 // 状态 / 优先级圆点与药丸映射：与 shared.tsx 的 MenuSelect 配合使用，
 /// 避免把非组件函数放在组件文件里触发 react-refresh 告警。
 export function statusDotClass(status: string): string {
@@ -117,46 +137,56 @@ export function statusBadgeClass(status: string): string {
   }
 }
 
-// 标签色阶：前三档沿用旧优先级的红/琥珀/灰（迁移把 High/Medium/Average 播种为
+// 标签色阶：前三档沿用旧优先级的红/琥珀/灰（迁移把 High/Medium/Average/Low 播种为
 // position 0/1/2，旧行的含义不变），第四档起循环 wb-badge 家族其余既有淡底。
-// 只按调色板下标取色，不新增任何色板令牌。
-const TAG_BADGE_TINTS = [
-  "wb-badge--red",
-  "wb-badge--amber",
-  "wb-badge--gray",
-  "wb-badge--green",
-  "wb-badge--teal",
-  "wb-badge--orange",
-  "wb-badge--violet",
-  "wb-badge--blue",
-]
+// 顺序就是后端允许的那八个名字（`research_tags.color` 只收这些值），
+// 不新增任何色板令牌：色相永远从 wb-badge / wb-dot / --wb-hue-* 既有三件套里取。
+export const TAG_COLOR_NAMES = [
+  "red",
+  "amber",
+  "gray",
+  "green",
+  "teal",
+  "orange",
+  "violet",
+  "blue",
+] as const
 
-const TAG_DOT_TINTS = [
-  "wb-dot--red",
-  "wb-dot--amber",
-  "wb-dot--gray",
-  "wb-dot--green",
-  "wb-dot--teal",
-  "wb-dot--orange",
-  "wb-dot--violet",
-  "wb-dot--blue",
-]
+export type TagColorName = (typeof TAG_COLOR_NAMES)[number]
 
-export function tagBadgeClass(index: number): string {
-  if (index < 0) return "wb-badge--gray"
-  return TAG_BADGE_TINTS[index % TAG_BADGE_TINTS.length]!
+// 存进来的颜色名要挡一道未知值：后端只认这八个，但旧缓存/别处写入的脏值不该把
+// 整颗药丸渲染成 `wb-badge--<undefined>` 这种没有样式的类名。
+export function isTagColorName(value: string | undefined | null): value is TagColorName {
+  return typeof value === "string" && (TAG_COLOR_NAMES as readonly string[]).includes(value)
 }
 
-export function tagDotClass(index: number): string {
-  if (index < 0) return "wb-dot--gray"
-  return TAG_DOT_TINTS[index % TAG_DOT_TINTS.length]!
+// 调色板下标推出的那一档：越靠前的标签越"重"，红 → 琥珀 → 灰，之后循环其余淡底。
+export function tagColorName(index: number, color?: string): TagColorName {
+  if (isTagColorName(color)) return color
+  if (index < 0) return "gray"
+  return TAG_COLOR_NAMES[index % TAG_COLOR_NAMES.length]!
 }
 
-// 迁移播种的三个旧优先级标签按既有 i18n 键显示本地化名；其余名字原样渲染。
+export function tagBadgeClass(index: number, color?: string): string {
+  return `wb-badge--${tagColorName(index, color)}`
+}
+
+export function tagDotClass(index: number, color?: string): string {
+  return `wb-dot--${tagColorName(index, color)}`
+}
+
+// 行染色的色相：把色相名写成一条 var() 引用交给 CSS 自定义属性，浅深两档由
+// styles.css 里那批 --wb-hue-* 令牌自己分档，所以这里不新造任何颜色。
+export function tagHueVar(index: number, color?: string): string {
+  return `var(--wb-hue-${tagColorName(index, color)})`
+}
+
+// 迁移播种的旧优先级标签按既有 i18n 键显示本地化名；其余名字原样渲染。
+// 后端现在播种的是 Low（不再是 Average），两代名字都指向同一档"低优先级"。
 export function tagDisplayName(name: string, t: (key: string) => string): string {
   if (name === "High") return t("priorityHigh")
   if (name === "Medium") return t("priorityMedium")
-  if (name === "Average") return t("priorityAverage")
+  if (name === "Average" || name === "Low") return t("priorityAverage")
   return name
 }
 

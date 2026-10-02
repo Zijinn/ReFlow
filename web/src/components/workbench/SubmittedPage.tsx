@@ -22,6 +22,7 @@ import {
 } from "./shared"
 import {
   daysUntil,
+  deadlineUrgency,
   displayID,
   matchesPaperQuery,
   parseDeadline,
@@ -32,13 +33,6 @@ import {
 
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10)
-}
-
-function deadlineUrgency(days: number): { className: string; key: string; count?: number } {
-  if (days < 0) return { className: "wb-deadline--overdue", key: "overdueUnit", count: -days }
-  if (days === 0) return { className: "wb-deadline--today", key: "dueToday" }
-  if (days <= 7) return { className: "wb-deadline--soon", key: "daysLeftUnit", count: days }
-  return { className: "", key: "" }
 }
 
 export function SubmittedPage(props: {
@@ -197,7 +191,13 @@ export function SubmittedPage(props: {
               <ColumnHead table="submitted" column="note" className="wb-col-text wb-col-note">
                 {t("nextAction")}
               </ColumnHead>
-              <ColumnHead table="submitted" column="date" className="wb-col-date">
+              {/* 这一列装在投的截止日期，所以带上 wb-col-deadline 钩子：≤880 档收的是
+                  "更新日期"那类元数据日期列，截止日期整档留在表上（见 styles.css 收列顺序）。 */}
+              <ColumnHead
+                table="submitted"
+                column="date"
+                className="wb-col-date wb-col-deadline"
+              >
                 {t("deadlineLabel")}
               </ColumnHead>
               <ColumnHead table="submitted" column="count" className="wb-col-count">
@@ -284,7 +284,7 @@ export function SubmittedPage(props: {
                           onCommit={(value) => props.onUpdate(paper.id, { next_action: value })}
                         />
                       </td>
-                      <td className="wb-col-date">
+                      <td className="wb-col-date wb-col-deadline">
                         <DatePickerCell
                           value={paper.deadline}
                           placeholder={t("fillPlaceholder")}

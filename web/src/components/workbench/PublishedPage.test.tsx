@@ -209,7 +209,7 @@ describe("PublishedPage offline", () => {
   it("disables write affordances when offline", () => {
     const props = { ...noopProps(), crossrefEmail: "", offline: true }
     render(<PublishedPage papers={[paper()]} {...props} />)
-    expect(screen.getByRole("button", { name: /＋ Add paper|Add paper/ })).toBeDisabled()
+    expect(screen.getByRole("button", { name: /Add paper/ })).toBeDisabled()
   })
 })
 

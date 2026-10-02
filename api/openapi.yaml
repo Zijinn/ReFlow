@@ -1666,12 +1666,24 @@ paths:
       operationId: listResearchTags
       tags: [research]
       description: >
-        The profile's tag palette in priority order. The three legacy priority
-        labels are seeded by migration 0016 at positions 0, 1 and 2. Drag the
-        palette into a new order with POST /api/v1/research/tags/reorder.
+        The profile's tag palette in priority order. A fresh database seeds the
+        three priority labels at positions 0, 1 and 2 - High in red, Medium in
+        amber, Low in green - and a profile that already owns labels is left
+        alone. Drag the palette into a new order with
+        POST /api/v1/research/tags/reorder.
       responses:
         "200":
           description: Tags ordered by position.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tags]
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ResearchTag"
     post:
       operationId: createResearchTag
       tags: [research]
@@ -1688,9 +1700,24 @@ paths:
                   minLength: 1
                   maxLength: 40
                   description: Trimmed; a name already used by the profile returns 409.
+                color:
+                  type: string
+                  enum: ["", red, amber, gray, green, teal, orange, violet, blue]
+                  description: >
+                    Optional chip tint, omitted or empty for no explicit
+                    choice. Any other value returns 400 with code
+                    invalid_research_tag.
       responses:
         "201":
           description: Tag appended to the end of the palette.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tag]
+                properties:
+                  tag:
+                    $ref: "#/components/schemas/ResearchTag"
         "400":
           $ref: "#/components/responses/Problem"
         "409":
@@ -1728,26 +1755,43 @@ paths:
         schema:
           type: string
     patch:
-      operationId: renameResearchTag
+      operationId: updateResearchTag
       tags: [research]
       description: >
-        Renames a tag. Papers reference tags by id, so their tag_ids are
-        unchanged.
+        Partial update of a palette entry: renames it, recolours it, or both.
+        An omitted field is left untouched, so the settings pane can send the
+        one control the user actually changed. Papers reference tags by id, so
+        their tag_ids are unchanged.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [name]
+              minProperties: 1
               properties:
                 name:
                   type: string
                   minLength: 1
                   maxLength: 40
+                color:
+                  type: string
+                  enum: ["", red, amber, gray, green, teal, orange, violet, blue]
+                  description: >
+                    Passing the empty string clears the choice, which returns
+                    the chip to index-derived tinting; an unknown name returns
+                    400 with code invalid_research_tag.
       responses:
         "200":
-          description: Renamed tag.
+          description: Updated tag.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tag]
+                properties:
+                  tag:
+                    $ref: "#/components/schemas/ResearchTag"
         "400":
           $ref: "#/components/responses/Problem"
         "404":
@@ -2625,6 +2669,34 @@ components:
           maxLength: 120
         color:
           type: [string, "null"]
+    ResearchTag:
+      type: object
+      description: >
+        One label of the research-workbench palette. Distinct from the library
+        Tag: a research tag carries a priority order and a chip tint chosen by
+        the user, and a paper wears several of them at once.
+      required: [id, name, position, color]
+      properties:
+        id:
+          type: string
+          description: >
+            Opaque label id. Seeded labels are minted inside the migration, so
+            do not assume a canonical uuid spelling.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        position:
+          type: integer
+          minimum: 0
+          description: Priority order within the profile; drag to reorder.
+        color:
+          type: string
+          enum: ["", red, amber, gray, green, teal, orange, violet, blue]
+          description: >
+            Chip tint stored with the label. The empty string is part of the
+            contract and means no explicit choice, so the client keeps tinting
+            the chip by its palette index.
     Rule:
       type: object
       required: [id, name, enabled, priority, conditions, actions, created_at, updated_at]

@@ -9,6 +9,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
+  AI_CONTEXT_CAP,
   createResearchPaper,
   createResearchTag,
   deleteResearchPaper,
@@ -40,7 +41,7 @@ import { Dashboard } from "./Dashboard"
 import { PublishedPage } from "./PublishedPage"
 import { ResearchPage } from "./ResearchPage"
 import { SubmittedPage } from "./SubmittedPage"
-import { daysUntil, parseDeadline } from "./utils"
+import { deadlineDays, parseDeadline } from "./utils"
 
 type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
 
@@ -52,13 +53,8 @@ const TABS: Array<{ id: WorkbenchTab; labelKey: string; Icon: typeof Books }> = 
   { id: "calendar", labelKey: "calendar", Icon: CalendarBlank },
 ]
 
-// `/ai/paper-chat` accepts 1..20 ids; anything longer is a 400.
-const AI_PAPER_LIMIT = 20
-
-function deadlineDays(paper: ResearchPaper): number {
-  const date = parseDeadline(paper.deadline)
-  return date ? daysUntil(date) : Number.MAX_SAFE_INTEGER
-}
+// `/ai/paper-chat` accepts 1..20 ids; anything longer is a 400. The cap lives in
+// the api layer because the panel has to print it when it bites (see contextTotal).
 
 function truncateTitle(title: string): string {
   const trimmed = title.trim()
@@ -178,7 +174,7 @@ export function Workbench(props: WorkbenchProps) {
   const focusedPaper = openRowID ? tabPapers.find((paper) => paper.id === openRowID) ?? null : null
   const aiPaperIDs = useMemo(
     () =>
-      (focusedPaper ? [focusedPaper] : tabPapers.slice(0, AI_PAPER_LIMIT)).map((paper) => paper.id),
+      (focusedPaper ? [focusedPaper] : tabPapers.slice(0, AI_CONTEXT_CAP)).map((paper) => paper.id),
     [focusedPaper, tabPapers],
   )
   const aiContextLabel = focusedPaper
@@ -600,6 +596,7 @@ export function Workbench(props: WorkbenchProps) {
       {props.aiOpen && (
         <AIWorkbench
           paperIDs={aiPaperIDs}
+          contextTotal={focusedPaper ? aiPaperIDs.length : tabPapers.length}
           profiles={props.aiProfiles ?? []}
           width={props.aiPanelWidth ?? 380}
           contextLabel={aiContextLabel}

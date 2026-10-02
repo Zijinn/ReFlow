@@ -70,14 +70,14 @@ describe("Dashboard", () => {
     expect(screen.getAllByText("Under Review").length).toBeGreaterThan(0)
     // Kind labels are translated at render time, not memoised into the data.
     expect(screen.getAllByText("In progress").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Under review").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("In submission").length).toBeGreaterThan(0)
   })
 
   it("lists high-priority projects with the localized eyebrow", () => {
     // 优先项目取调色板最前的标签，与标签叫什么无关：用户改名后这一栏依旧成立。
     const tags = [
-      { id: "t-high", name: "冲刺中", position: 0 },
-      { id: "t-average", name: "Average", position: 2 },
+      { id: "t-high", name: "冲刺中", position: 0, color: "" },
+      { id: "t-average", name: "Average", position: 2, color: "" },
     ]
     render(
       <Dashboard
@@ -97,8 +97,8 @@ describe("Dashboard", () => {
   it("still lists a paper that wears the top tag next to others", () => {
     // 多选之后这一栏的判据是 includes 而不是相等：同时挂着别的标签也得进来。
     const tags = [
-      { id: "t-field", name: "Fieldwork", position: 0 },
-      { id: "t-high", name: "High", position: 1 },
+      { id: "t-field", name: "Fieldwork", position: 0, color: "" },
+      { id: "t-high", name: "High", position: 1, color: "" },
     ]
     render(
       <Dashboard

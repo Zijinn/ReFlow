@@ -382,9 +382,15 @@ export function DatePickerCell(props: {
           }`}
           style={placement.maxHeight ? { maxHeight: placement.maxHeight } : undefined}
           onKeyDown={(e) => {
-            if (e.key === "Escape" || e.key === "Tab") {
+            if (e.key === "Escape") {
               e.preventDefault()
               closePicker()
+            } else if (e.key === "Tab") {
+              // Tab 是"离开这里"，不是"关掉再回原处"。以前这一支和 Escape 合并写了
+              // preventDefault + closePicker()，而 closePicker 会把焦点送回触发格，
+              // 于是键盘用户在 Tab 之后又被弹回同一枚按钮，永远走不到下一个字段。
+              // 不 preventDefault、refocus=false：让浏览器把焦点交给 DOM 里的下一站。
+              closePicker(false)
             }
           }}
         >
@@ -615,10 +621,13 @@ export function Card(props: {
 
 // Row is the table counterpart of Card: same reorder contract, but the drop
 // hint renders as a top/bottom edge on the <tr> instead of a card outline.
+// style 只给"这一行自己的东西"用（在研页把最高优先级标签的色相挂成
+// --wb-row-hue），行内控件的样式仍旧归样式表管。
 export function Row(props: {
   id: string
   onReorder: (fromID: string, toID: string, before: boolean) => void
   className?: string
+  style?: CSSProperties
   dataPaperID?: string
   children: ReactNode
 }) {
@@ -630,6 +639,7 @@ export function Row(props: {
   return (
     <tr
       className={`wb-row ${dropHint ? `wb-row--drop-${dropHint}` : ""} ${props.className ?? ""}`}
+      style={props.style}
       data-paper-id={props.dataPaperID}
       draggable={armed}
       onPointerDown={(e) => {

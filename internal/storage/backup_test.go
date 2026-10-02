@@ -68,12 +68,13 @@ func TestBackupRestoreRoundTripPreservesResearchTags(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	resetResearchTagPalette(t, ctx, db)
 
-	urgent, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
+	urgent, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件", "red")
 	if err != nil {
 		t.Fatal(err)
 	}
-	revised, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "修改中")
+	revised, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "修改中", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,6 +116,9 @@ func TestBackupRestoreRoundTripPreservesResearchTags(t *testing.T) {
 	}
 	if len(tags) != 2 || tags[0].Name != "急件" || tags[1].Name != "修改中" {
 		t.Fatalf("restored palette: %+v", tags)
+	}
+	if tags[0].Color != "red" || tags[1].Color != "" {
+		t.Fatalf("restore lost the chosen colours: %+v", tags)
 	}
 	restored, err := GetResearchPaper(ctx, db, domain.DefaultProfileID, paper.ID)
 	if err != nil {

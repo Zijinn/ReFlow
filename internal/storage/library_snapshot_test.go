@@ -164,11 +164,11 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件")
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "急件", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	extra, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "合作者")
+	extra, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "合作者", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +190,7 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 		domain.ResearchPaperPatch{TagIDs: &untagged}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := RenameResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, "本地改名"); err != nil {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("本地改名"), nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := RestoreLibrarySnapshot(ctx, db, document); err != nil {

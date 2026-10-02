@@ -202,7 +202,7 @@ beforeEach(() => {
   vi.mocked(api.putPreference).mockResolvedValue({})
   vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
   vi.mocked(api.createResearchTag).mockImplementation((name) =>
-    Promise.resolve({ id: `tag-${name}`, name, position: 0 }),
+    Promise.resolve({ id: `tag-${name}`, name, position: 0, color: "" }),
   )
   // The daily-digest card auto-runs once an AI profile exists; default it to the
   // honest degraded path (no provider on the server) so panel tests stay focused
@@ -376,8 +376,8 @@ describe("Workbench research tags", () => {
   it("loads the tag palette and renders the paper's tag as a chip", async () => {
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0 },
-        { id: "t-field", name: "Fieldwork", position: 1 },
+        { id: "t-high", name: "High", position: 0, color: "" },
+        { id: "t-field", name: "Fieldwork", position: 1, color: "" },
       ],
     })
     papersByKind.research = [paper({ tag_ids: ["t-field"] })]
@@ -394,6 +394,7 @@ describe("Workbench research tags", () => {
       id: "t-placebo",
       name: "Placebo",
       position: 0,
+      color: "",
     })
     renderWorkbench()
     goToTab(/Working papers/)
@@ -412,8 +413,8 @@ describe("Workbench research tags", () => {
     // 多选写回的是一整串 tag_ids：已有的保持指派顺序在前，刚勾上的追加在末尾。
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0 },
-        { id: "t-field", name: "Fieldwork", position: 1 },
+        { id: "t-high", name: "High", position: 0, color: "" },
+        { id: "t-field", name: "Fieldwork", position: 1, color: "" },
       ],
     })
     papersByKind.research = [paper({ tag_ids: ["t-field"] })]

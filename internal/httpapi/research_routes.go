@@ -214,13 +214,14 @@ func (s *Server) listResearchTags(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createResearchTag(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name string `json:"name"`
+		Name  string `json:"name"`
+		Color string `json:"color"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
 		return
 	}
-	tag, err := storage.CreateResearchTag(r.Context(), s.db, domain.DefaultProfileID, request.Name)
+	tag, err := storage.CreateResearchTag(r.Context(), s.db, domain.DefaultProfileID, request.Name, request.Color)
 	if err != nil {
 		s.storageError(w, r, err)
 		return
@@ -229,15 +230,17 @@ func (s *Server) createResearchTag(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]any{"tag": tag})
 }
 
-func (s *Server) renameResearchTag(w http.ResponseWriter, r *http.Request) {
+func (s *Server) updateResearchTag(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name string `json:"name"`
+		Name  *string `json:"name"`
+		Color *string `json:"color"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
 		return
 	}
-	tag, err := storage.RenameResearchTag(r.Context(), s.db, domain.DefaultProfileID, r.PathValue("tagID"), request.Name)
+	tag, err := storage.UpdateResearchTag(r.Context(), s.db, domain.DefaultProfileID,
+		r.PathValue("tagID"), request.Name, request.Color)
 	if err != nil {
 		s.storageError(w, r, err)
 		return

@@ -321,7 +321,7 @@ export function PublishedPage(props: {
                     title={props.offline ? t("workbenchOfflineHint") : undefined}
                     onClick={() => {
                       // The button only renders for English papers; non-English
-                      // guidance (citationNotEnglish) is surfaced elsewhere.
+                      // guidance is the inline citationManualHint on that row.
                       if (!doi) {
                         toast(t("citationNoDoi"))
                         return

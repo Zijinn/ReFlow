@@ -113,6 +113,28 @@ it("falls back to the global view mode outside a feed scope", () => {
   expect(container.querySelector(".timeline-entry--card")).not.toBeNull()
 })
 
+it("keeps the mark-all-read action out of the filter group", () => {
+  const { container } = renderPane({
+    scope: { kind: "all", title: "All feeds" },
+    entries: [makeEntry()],
+    subscriptions: [makeSubscription()],
+  })
+  // 读屏进到这个 group 念出来的必须是"三条筛选"，而不是"四条筛选其中一条不是筛选"。
+  const group = container.querySelector('[role="group"][aria-label="Article filters"]')
+  expect(group?.querySelectorAll("button")).toHaveLength(3)
+  const markRead = container.querySelector<HTMLButtonElement>(".timeline-mark-read")
+  expect(markRead).not.toBeNull()
+  expect(group?.contains(markRead as Node)).toBe(false)
+  expect(
+    container.querySelector(".timeline-filterbar__actions")?.contains(markRead as Node),
+  ).toBe(true)
+  // ≤620 那一档把文字藏掉只留 38px 方盒：没有图标它就是一个空盒子。
+  expect(markRead?.querySelector("svg")).not.toBeNull()
+  // WCAG 2.5.3：无障碍名字要含得住看得见的那几个字，所以两者必须是同一句。
+  expect(markRead?.textContent).toBe("Mark all read")
+  expect(markRead?.getAttribute("aria-label")).toBe("Mark all read")
+})
+
 it("omits the image element when an entry has no lead image", () => {
   const { container } = renderPane({
     scope: feedScope,

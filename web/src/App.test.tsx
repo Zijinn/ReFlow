@@ -215,7 +215,7 @@ describe("ReFlow reading experience", () => {
     const addButtons = await screen.findAllByRole("button", { name: "Add feed" })
     fireEvent.click(addButtons[0]!)
     expect(await screen.findByRole("dialog")).toBeInTheDocument()
-    expect(await screen.findByRole("heading", { name: "Add subscription" })).toBeInTheDocument()
+    expect(await screen.findByRole("heading", { name: "Add feed" })).toBeInTheDocument()
     expect(await screen.findByLabelText("Feed or website URL")).toBeInTheDocument()
     expect(
       screen.getByText("Supports rsshub://github/trending/daily and direct RSSHub HTTPS URLs."),

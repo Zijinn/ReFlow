@@ -205,25 +205,25 @@ describe("AIWorkbench empty state", () => {
   })
 })
 
-describe("AIWorkbench resident stop control", () => {
-  it("holds its slot in the composer and is disabled between runs", async () => {
+describe("AIWorkbench stop control", () => {
+  it("is absent between runs instead of sitting there disabled", async () => {
     renderPanel()
     submit()
     await flush()
     cleanup()
-    const second = renderPanel()
-    const stop = screen.getByRole("button", { name: "Cancel" })
-    expect(stop).toBeDisabled()
-    // The control lives in the composer, so it never chases the layout.
-    expect(stop.closest("form")).toBe(second.container.querySelector(".ai-chat__composer"))
+    renderPanel()
+    // 原来这颗常驻且永远 disabled——"可点但永远不可点"挂在输入区下方读起来像界面坏了。
+    expect(screen.queryByRole("button", { name: "Stop generating" })).toBeNull()
   })
 
-  it("enables while a job runs and cancels exactly that job", async () => {
+  it("appears in the composer while a job runs and cancels exactly that job", async () => {
     vi.mocked(api.getJob).mockResolvedValue(job("running"))
-    renderPanel()
+    const { container } = renderPanel()
     submit()
     await flush()
-    const stop = screen.getByRole("button", { name: "Cancel" })
+    const stop = await screen.findByRole("button", { name: "Stop generating" })
+    // 控件在 composer 里，而那一排是 row-reverse：增删这一颗不会推动发送键。
+    expect(stop.closest("form")).toBe(container.querySelector(".ai-chat__composer"))
     await waitFor(() => expect(stop).not.toBeDisabled())
     fireEvent.click(stop)
     // React Query appends its mutation context to the variables, so `cancelJob`

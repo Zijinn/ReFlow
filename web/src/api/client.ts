@@ -306,6 +306,14 @@ export function startAILibraryChat(
 }
 
 /**
+ * How many ids the AI chat endpoints accept. The server takes 1..20 and dedupes,
+ * so a longer selection is capped here rather than sent and rejected — which
+ * means "N 条在上下文" can read as "everything is in context" when it isn't.
+ * Exported so the panel can say so out loud when the cap is what's being shown.
+ */
+export const AI_CONTEXT_CAP = 20
+
+/**
  * The workbench asks questions about research papers, not RSS entries, so it
  * cannot go through `startAILibraryChat` (which validates against entry
  * content). Async like the other chat endpoints: 202 -> poll `getJob` -> read
@@ -322,7 +330,7 @@ export function startAIPaperChat(input: {
     body: JSON.stringify({
       // The endpoint takes 1..20 ids and dedupes server-side; cap here so a
       // long tab list never turns into a 400.
-      paper_ids: input.paperIDs.slice(0, 20),
+      paper_ids: input.paperIDs.slice(0, AI_CONTEXT_CAP),
       ...(input.profileID ? { profile_id: input.profileID } : {}),
       ...(input.sessionID ? { session_id: input.sessionID } : {}),
       message: input.message,
@@ -459,20 +467,37 @@ export function listResearchTags(signal?: AbortSignal): Promise<{ tags: Research
   return request<{ tags: ResearchTag[] }>("/api/v1/research/tags", { signal })
 }
 
-/** 400 when the name is empty or over 40 chars; 409 on a duplicate name. */
-export async function createResearchTag(name: string): Promise<ResearchTag> {
+/**
+ * 400 when the name is empty or over 40 chars; 409 on a duplicate name.
+ * `color` is one of the eight badge tints and it is left out of the body
+ * entirely unless the caller picked one, so a plain create stores the server's
+ * `""` default ("auto" = tint derived from the palette index).
+ */
+export async function createResearchTag(name: string, color?: string): Promise<ResearchTag> {
   const response = await request<{ tag: ResearchTag }>("/api/v1/research/tags", {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(color === undefined ? { name } : { name, color }),
   })
   return response.tag
 }
 
-/** 404 for an unknown id; 409 on a duplicate name. */
-export async function updateResearchTag(tagID: string, name: string): Promise<ResearchTag> {
+/**
+ * 404 for an unknown id; 409 on a duplicate name. `color` follows the PATCH
+ * contract: omitted leaves the stored colour alone, `""` puts the tag back on
+ * the index-derived tint. The server's duplicate check excludes the tag itself,
+ * so a colour-only write that re-sends the current name is a no-op rename.
+ */
+export async function updateResearchTag(
+  tagID: string,
+  name: string,
+  color?: string,
+): Promise<ResearchTag> {
   const response = await request<{ tag: ResearchTag }>(
     `/api/v1/research/tags/${encodeURIComponent(tagID)}`,
-    { method: "PATCH", body: JSON.stringify({ name }) },
+    {
+      method: "PATCH",
+      body: JSON.stringify(color === undefined ? { name } : { name, color }),
+    },
   )
   return response.tag
 }

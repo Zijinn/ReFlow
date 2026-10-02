@@ -61,7 +61,12 @@ import {
 import { canvasPhotoVeilMax, canvasPhotoVeilMin, canvasPhotoVeilSafe } from "../lib/canvas"
 import { CanvasPhotoError, readCanvasPhoto } from "../lib/canvas-photo"
 import { displayShortcut, keyboardChord } from "../lib/shortcuts"
-import { reorderList, tagDotClass } from "./workbench/utils"
+import {
+  reorderList,
+  TAG_COLOR_NAMES,
+  tagDotClass,
+  type TagColorName,
+} from "./workbench/utils"
 import { toast } from "../store/toast"
 import { ConfirmDialog } from "./ConfirmDialog"
 import {
@@ -1310,6 +1315,20 @@ interface TagsResponse {
   tags: ResearchTag[]
 }
 
+// 八档色相的显示名键位，键名规则是 color + 首字母大写的色相名（见 i18n）。
+// 用 Record 钉死：调色板加一档而这里漏一条时，typecheck 先报错，界面上不会出现
+// 一颗没有名字的色块。
+const TAG_COLOR_LABEL_KEYS: Record<TagColorName, string> = {
+  red: "colorRed",
+  amber: "colorAmber",
+  gray: "colorGray",
+  green: "colorGreen",
+  teal: "colorTeal",
+  orange: "colorOrange",
+  violet: "colorViolet",
+  blue: "colorBlue",
+}
+
 function TagsSection(props: {
   t: Translator
   onRenaming: (active: boolean) => void
@@ -1348,6 +1367,15 @@ function TagsSection(props: {
       updateResearchTag(tagID, tagName),
     onSuccess: () => invalidateAll(),
     onError: (error) => toast(failure(error, props.t("tagRenameFailed"))),
+  })
+  // 换色与改名是同一个 PATCH：这一格不碰名字，所以把当前名字原样带过去——
+  // 服务端的同名校验排除自己，重写一遍现名不会被当成重名（409）。
+  // 传空串就是「自动」：颜色退回调色板下标推出来的那一档。
+  const colorMutation = useMutation({
+    mutationFn: ({ tagID, tagName, color }: { tagID: string; tagName: string; color: string }) =>
+      updateResearchTag(tagID, tagName, color),
+    onSuccess: () => invalidateAll(),
+    onError: (error) => toast(failure(error, props.t("tagColorFailed"))),
   })
   const deleteMutation = useMutation({
     mutationFn: (tagID: string) => deleteResearchTag(tagID),
@@ -1396,6 +1424,12 @@ function TagsSection(props: {
     createMutation.mutate(trimmed)
   }
   const commit = (next: ResearchTag[]) => reorderMutation.mutate(next.map((tag) => tag.id))
+  // 同一枚色块再点一次就是"没打算改"，不发请求（PATCH 成功也会整栏刷新，
+  // 白闪一次）。
+  const commitColor = (tag: ResearchTag, color: string) => {
+    if (tag.color === color || colorMutation.isPending) return
+    colorMutation.mutate({ tagID: tag.id, tagName: tag.name, color })
+  }
   const move = (index: number, delta: number) => {
     const target = index + delta
     if (target < 0 || target >= tags.length) return
@@ -1490,8 +1524,9 @@ function TagsSection(props: {
                 <span className="pref-tag-grip" aria-hidden="true">
                   ⠿
                 </span>
-                {/* 色点与工作台同一套：调色板下标取模，两边看到的永远是同一个颜色。 */}
-                <i className={`wb-dot ${tagDotClass(index)}`} aria-hidden="true" />
+                {/* 色点与工作台同一套：先取标签自己存的颜色，没有自选色才回落到
+                    调色板下标推出来的那一档。 */}
+                <i className={`wb-dot ${tagDotClass(index, tag.color)}`} aria-hidden="true" />
                 {/* 显示的是存进库的那个名字（不是工作台对旧优先级名的本地化显示），
                     因为这一格要写的就是它。 */}
                 <TagNameField
@@ -1500,6 +1535,43 @@ function TagsSection(props: {
                   onRenaming={props.onRenaming}
                   onCommit={(tagName) => renameMutation.mutate({ tagID: tag.id, tagName })}
                 />
+                {/* 颜色：八档既有淡底 +「自动」。自动写回空串，意思是"跟随调色板
+                   下标"——所以下面这排在拖动顺序之后仍会整体换色；自选色则钉住不动。
+                   色块自己不写颜色字面量：底色读同行的 wb-badge--* 挂上来的
+                   --wb-badge-hue，与表里的药丸永远同一档色相、同一套深浅分档。 */}
+                <span className="pref-tag-colors" role="group" aria-label={props.t("tagColor")}>
+                  <button
+                    type="button"
+                    className={`pref-tag-color-auto ${
+                      tag.color === "" ? "pref-tag-color--on" : ""
+                    }`}
+                    aria-pressed={tag.color === ""}
+                    aria-label={`${props.t("tagColor")}: ${props.t("tagColorAuto")}`}
+                    title={props.t("tagColorAuto")}
+                    disabled={colorMutation.isPending}
+                    onClick={() => commitColor(tag, "")}
+                  >
+                    {props.t("tagColorAuto")}
+                  </button>
+                  {TAG_COLOR_NAMES.map((name) => {
+                    const on = tag.color === name
+                    const label = props.t(TAG_COLOR_LABEL_KEYS[name])
+                    return (
+                      <button
+                        key={name}
+                        type="button"
+                        className={`pref-tag-swatch wb-badge--${name} ${
+                          on ? "pref-tag-swatch--on" : ""
+                        }`}
+                        aria-pressed={on}
+                        aria-label={`${props.t("tagColor")}: ${label}`}
+                        title={label}
+                        disabled={colorMutation.isPending}
+                        onClick={() => commitColor(tag, name)}
+                      />
+                    )
+                  })}
+                </span>
                 <span className="pref-tag-actions">
                   <button
                     className="icon-button icon-button--small"

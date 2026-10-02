@@ -18,6 +18,22 @@ import (
 // fixed table column, so a sentence-long label would wrap the row tall.
 const researchTagNameLimit = 40
 
+// researchTagColorNames are the tints the workbench stylesheet ships as
+// wb-badge--<name> / wb-dot--<name>. A name outside the list would store a
+// colour no chip can render, so the server rejects it instead of silently
+// keeping a dead value; "" is handled separately as "no explicit colour".
+var researchTagColorNames = []string{
+	"amber", "blue", "gray", "green", "orange", "red", "teal", "violet",
+}
+
+var researchTagColors = func() map[string]struct{} {
+	colors := make(map[string]struct{}, len(researchTagColorNames))
+	for _, color := range researchTagColorNames {
+		colors[color] = struct{}{}
+	}
+	return colors
+}()
+
 // ErrDuplicateResearchTag reports a name clash inside one profile so the API
 // layer can answer 409 instead of leaking the UNIQUE constraint as a 500.
 var ErrDuplicateResearchTag = errors.New("duplicate research tag name")
@@ -36,6 +52,22 @@ func validateResearchTagName(name string) error {
 		return &ResearchTagValidationError{Reason: fmt.Sprintf("tag name exceeds %d characters", researchTagNameLimit)}
 	}
 	return nil
+}
+
+// validateResearchTagColor normalises a colour choice and rejects a name the
+// palette does not ship. The empty string passes through: it is the documented
+// "no colour picked" value the client reads to fall back to index tinting.
+func validateResearchTagColor(color string) (string, error) {
+	trimmed := strings.TrimSpace(color)
+	if trimmed == "" {
+		return "", nil
+	}
+	if _, ok := researchTagColors[trimmed]; !ok {
+		return "", &ResearchTagValidationError{
+			Reason: fmt.Sprintf("tag color must be empty or one of %s", strings.Join(researchTagColorNames, ", ")),
+		}
+	}
+	return trimmed, nil
 }
 
 // researchTagNameTaken reports whether another tag of the profile already
@@ -57,13 +89,13 @@ func scanResearchTag(scanner interface {
 	Scan(dest ...any) error
 }) (domain.ResearchTag, error) {
 	var tag domain.ResearchTag
-	if err := scanner.Scan(&tag.ID, &tag.Name, &tag.Position); err != nil {
+	if err := scanner.Scan(&tag.ID, &tag.Name, &tag.Position, &tag.Color); err != nil {
 		return domain.ResearchTag{}, err
 	}
 	return tag, nil
 }
 
-const researchTagColumns = `id, name, position`
+const researchTagColumns = `id, name, position, color`
 
 // ListResearchTags returns a profile's palette in priority order.
 func ListResearchTags(ctx context.Context, db *sql.DB, profileID string) ([]domain.ResearchTag, error) {
@@ -85,14 +117,20 @@ func ListResearchTags(ctx context.Context, db *sql.DB, profileID string) ([]doma
 	return items, rows.Err()
 }
 
-// CreateResearchTag appends a label to the end of the palette.
-func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name string) (domain.ResearchTag, error) {
+// CreateResearchTag appends a label to the end of the palette. An empty color
+// stores "no colour chosen", which is what lets the client keep tinting by
+// index for palettes the user never recoloured.
+func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name, color string) (domain.ResearchTag, error) {
 	name = strings.TrimSpace(name)
 	if err := validateResearchTagName(name); err != nil {
 		return domain.ResearchTag{}, err
 	}
+	color, err := validateResearchTagColor(color)
+	if err != nil {
+		return domain.ResearchTag{}, err
+	}
 	now := time.Now().UTC()
-	tag := domain.ResearchTag{ID: uuid.NewString(), Name: name}
+	tag := domain.ResearchTag{ID: uuid.NewString(), Name: name, Color: color}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.ResearchTag{}, fmt.Errorf("begin research tag create: %w", err)
@@ -109,9 +147,9 @@ func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name string) 
 		return domain.ResearchTag{}, ErrDuplicateResearchTag
 	}
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO research_tags (id, profile_id, name, position, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		tag.ID, profileID, tag.Name, tag.Position, formatTime(now), formatTime(now)); err != nil {
+		`INSERT INTO research_tags (id, profile_id, name, position, color, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		tag.ID, profileID, tag.Name, tag.Position, tag.Color, formatTime(now), formatTime(now)); err != nil {
 		return domain.ResearchTag{}, fmt.Errorf("create research tag: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -120,27 +158,56 @@ func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name string) 
 	return tag, nil
 }
 
-// RenameResearchTag changes a label; papers keep referencing it by id, so no
-// paper row moves.
-func RenameResearchTag(ctx context.Context, db *sql.DB, profileID, id, name string) (domain.ResearchTag, error) {
-	name = strings.TrimSpace(name)
-	if err := validateResearchTagName(name); err != nil {
-		return domain.ResearchTag{}, err
+// UpdateResearchTag applies a partial patch: a nil field is left alone, so the
+// settings pane renames, recolours, or does both in one request. Papers keep
+// referencing the tag by id, so neither change rewrites a paper row.
+func UpdateResearchTag(ctx context.Context, db *sql.DB, profileID, id string, name, color *string) (domain.ResearchTag, error) {
+	if name != nil {
+		trimmed := strings.TrimSpace(*name)
+		if err := validateResearchTagName(trimmed); err != nil {
+			return domain.ResearchTag{}, err
+		}
+		name = &trimmed
+	}
+	if color != nil {
+		chosen, err := validateResearchTagColor(*color)
+		if err != nil {
+			return domain.ResearchTag{}, err
+		}
+		color = &chosen
 	}
 	// Existence first so an unknown id always answers 404, even when the name
 	// it asked for happens to be taken by another tag.
 	if _, err := GetResearchTag(ctx, db, profileID, id); err != nil {
 		return domain.ResearchTag{}, err
 	}
-	if exists, err := researchTagNameTaken(ctx, db, profileID, name, id); err != nil {
-		return domain.ResearchTag{}, err
-	} else if exists {
-		return domain.ResearchTag{}, ErrDuplicateResearchTag
+	if name != nil {
+		if exists, err := researchTagNameTaken(ctx, db, profileID, *name, id); err != nil {
+			return domain.ResearchTag{}, err
+		} else if exists {
+			return domain.ResearchTag{}, ErrDuplicateResearchTag
+		}
 	}
+	sets := []string{"updated_at = ?"}
+	args := []any{formatTime(time.Now().UTC())}
+	if name != nil {
+		sets = append(sets, "name = ?")
+		args = append(args, *name)
+	}
+	if color != nil {
+		sets = append(sets, "color = ?")
+		args = append(args, *color)
+	}
+	if len(sets) == 1 {
+		// A patch that mentions nothing is not a write: the row keeps its
+		// updated_at instead of being stamped by an empty request.
+		return GetResearchTag(ctx, db, profileID, id)
+	}
+	args = append(args, profileID, id)
 	if _, err := db.ExecContext(ctx,
-		"UPDATE research_tags SET name = ?, updated_at = ? WHERE profile_id = ? AND id = ?",
-		name, formatTime(time.Now().UTC()), profileID, id); err != nil {
-		return domain.ResearchTag{}, fmt.Errorf("rename research tag: %w", err)
+		"UPDATE research_tags SET "+strings.Join(sets, ", ")+
+			" WHERE profile_id = ? AND id = ?", args...); err != nil {
+		return domain.ResearchTag{}, fmt.Errorf("update research tag: %w", err)
 	}
 	return GetResearchTag(ctx, db, profileID, id)
 }

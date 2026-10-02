@@ -50,17 +50,23 @@
   --canvas-wash-meadow: linear-gradient(163deg, #cce5d1 0%, #e2eee0 32%, #eff0e0 64%, #f8efd6 100%);
   --canvas-wash-orchid: linear-gradient(163deg, #e4def2 0%, #ece6f1 32%, #f4ecea 64%, #fbeee3 100%);
   --canvas-wash-slate: linear-gradient(163deg, #d8dfe8 0%, #e5e8ec 32%, #ecebe8 64%, #f2efe9 100%);
+  /* 白光束锚点：34% / -8%。原来钉在 82% / -10%，那正是 1440×900 下停靠 AI 栏的落点——
+     束心把画布抬到 rgb(237,238,240)（b* 只剩 −1.2，等于灰），于是白控件叠白 sheet 的 ΔE 只有 1.38，
+     整栏读不出高程；P0 实测的 11 处"浅叠浅"有 4 处就落在这束里。
+     挪到 34% 后 AI 栏头部画布 rgb(233,235,238)：sheet 对画布 ΔE 3.98、控件对 sheet ΔE 3.31。
+     alpha 从 .72 降到 .5 是为了给左端留余量——按 18% 挪会把洗白转嫁给侧栏头（b* −9.3 → −7.4），
+     34% 时侧栏头 b* −7.8，且束在 x=1250 处已衰减到 0。四束锚点必须同步，色卡也共用这组原语。 */
   --canvas-glow-aurora:
-    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(120% 70% at 34% -8%, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0) 60%),
     radial-gradient(90% 60% at 8% 108%, rgb(255 208 168 / 0.45) 0%, rgb(255 208 168 / 0) 65%);
   --canvas-glow-meadow:
-    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(120% 70% at 34% -8%, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0) 60%),
     radial-gradient(90% 60% at 8% 108%, rgb(206 226 168 / 0.42) 0%, rgb(206 226 168 / 0) 65%);
   --canvas-glow-orchid:
-    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.7) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(120% 70% at 34% -8%, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0) 60%),
     radial-gradient(90% 60% at 8% 108%, rgb(236 196 214 / 0.42) 0%, rgb(236 196 214 / 0) 65%);
   --canvas-glow-slate:
-    radial-gradient(120% 70% at 82% -10%, rgb(255 255 255 / 0.72) 0%, rgb(255 255 255 / 0) 60%),
+    radial-gradient(120% 70% at 34% -8%, rgb(255 255 255 / 0.5) 0%, rgb(255 255 255 / 0) 60%),
     radial-gradient(90% 60% at 8% 108%, rgb(210 216 224 / 0.4) 0%, rgb(210 216 224 / 0) 65%);
   --canvas-wash: var(--canvas-wash-aurora);
   --canvas-glow: var(--canvas-glow-aurora);
@@ -88,7 +94,14 @@
   );
   --sheet-glass: rgb(255 255 255 / 0.55);
   --sheet-edge: rgb(255 255 255 / 0.62);
-  --card-glass: rgb(255 255 255 / 0.7);
+  /* 阶梯的高层两档要带色相，不能只靠 alpha。纯叠白在浅档画布上量不出差别：
+     画布本来就被光束抬到 rgb(233~237)，控件 .78 压 sheet .55 的 ΔE*ab 最小 0.73、中位 1.52，
+     而刚阈是 2.3——"同一张纸"因此名存实亡（P0 实测 11 处浅叠浅）。
+     改法是给上层掺 --accent 色相，alpha 一个都不动：card 4%、control 6%，
+     重测 ΔE 最小 1.55、中位 4.70，阶梯重新可读。掺白进 rgba 走预乘，alpha 会自己涨：
+     .70 → 0.712、.78 → 0.793，sheet .55 < field .62 < card .712 < control .793 的次序不变。
+     浅档最上层只到 .793，画布仍有 20.7% 透出，色相不会把纸烧白。 */
+  --card-glass: color-mix(in srgb, var(--accent) 4%, rgb(255 255 255 / 0.7));
   --glass-blur-lg: blur(28px) saturate(180%);
   --glass-blur-sm: blur(16px) saturate(160%);
   --surface: #f5f6f8;
@@ -169,11 +182,14 @@
   --warning-solid-ink: #fff;
   /* 分段器选中态一份配方，五处共用。深色档不能直接沿用 --surface-raised 当胶囊：
      它 (#0f1012) 比轨道 --surface-muted (#17181b) 还暗，浮起的选中块会看起来是个洞。
-     玻璃轨道用半透明灰：压在白侧栏上合成 #edeff1（比原来的 #f1f3f6 更暗一点，
-     选中胶囊才浮得起来），换到深色/换到别的纸面上会自动跟着翻面。
-     --segment-track-inset 三层各司其职：上缘凹陷投影、0.5px 内圈接光、下缘反光；
+     玻璃轨道是"比它坐的壳层更透、并且带主色相"的凹槽。这里必须掺色相而不是减白就够：
+     42% 白压在纯白侧栏上合成 #fff —— 一点 ΔE 都没有，压在浅档画布上距壳层也只有 1.4，
+     低于 2.3 的刚阈，于是"轨道"这一级在实测里根本不存在（P0 的 .42 on .55 那处）。
+     掺 8% --accent 后合成 rgb(240,250,255)，对纯白壳 ΔE 3.05、对 AI 栏壳层 3.98，
+     三级墨在槽内 5.3:1、--accent-strong 5.1:1，都还在 AA 之上。
+     凹陷投影换成冷调（38 54 82 是画布顶端的蓝），黑影压在蓝画布上会发紫；
      外描边退到 --segment-track-edge，实心 1px 边框会把玻璃盒子的边画死。 */
-  --segment-track: rgb(255 255 255 / 0.42);
+  --segment-track: color-mix(in srgb, var(--accent) 8%, rgb(255 255 255 / 0.42));
   --segment-track-edge: rgb(255 255 255 / 0.55);
   --segment-track-inset:
     inset 0 1px 2px rgb(20 22 26 / 0.07),
@@ -189,8 +205,9 @@
     0 3px 8px rgb(20 22 26 / 0.07),
     0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
   /* 轨道 hover 是"更深"而不是更白：画布有色之后，透过去的画布越多就越凹，
-     所以加深＝减白，和原来加灰的方向等价。 */
-  --segment-track-hover: rgb(255 255 255 / 0.34);
+     所以加深＝减白，和原来加灰的方向等价。色相份额跟静置档保持 8%，
+     否则 hover 会同时改深度和改颜色，读起来像换了个控件。 */
+  --segment-track-hover: color-mix(in srgb, var(--accent) 8%, rgb(255 255 255 / 0.34));
   /* 输入面（.text-input / .wb-search / .wb-email-input）：画布有色之后，
      "井"就是让画布多透一点过来的白——62% 白，比它所在的 55% 白壳层更实、又比
      78% 的控件面更虚，于是"壳层 < 输入面 < 控件"三级在同一个色相里排好。
@@ -217,21 +234,37 @@
      模糊，合成 #f3f4f5，白控件落上去 #fefefe，差 11 级，不靠灰也能分界。
      一级墨 #18191c 在静置/悬停/按压三档 17.4 / 16.4 / 15.4:1，全部远超 AA。
      上缘那道白接光在白的静置面上等于没有，它服务的是悬停/按压：那时灰蒙把面压暗，
-     接光才显出厚度；下缘 5% 暗线是凸面的底边，白底白面时全靠它和发丝边分界。 */
-  --control-glass: rgb(255 255 255 / 0.78);
-  --control-glass-edge: rgb(255 255 255 / 0.62);
+     接光才显出厚度；下缘暗线是凸面的底边，白底白面时全靠它和发丝边分界。
+     带色相不等于涂灰：面/边掺 6%/12% --accent（灰蒙的 ΔE 是零色相，这条不是），
+     重测一级墨 17.4→15.12、二级 #5f6268 系 6.36→6.22、三级 5.38→5.26、
+     --accent-strong 对面 5.76→5.08:1，非文本仍 ≥4.5。底边与接触影随之各加深一档
+     （5%→7%、9%→11%），否则色相一上来原来的发丝边就追不上面。 */
+  --control-glass: color-mix(in srgb, var(--accent) 6%, rgb(255 255 255 / 0.78));
+  --control-glass-edge: color-mix(in srgb, var(--accent) 12%, rgb(255 255 255 / 0.62));
   --control-glass-inset:
     inset 0 1px 0 rgb(255 255 255 / 0.9),
-    inset 0 -1px 0 rgb(38 54 82 / 0.05);
+    inset 0 -1px 0 rgb(38 54 82 / 0.07);
   --control-glass-shadow:
     var(--control-glass-inset),
-    0 1px 2px rgb(38 54 82 / 0.09),
+    0 1px 2px rgb(38 54 82 / 0.11),
     0 8px 20px rgb(38 54 82 / 0.1);
   /* 密集排布（表格行、状态药丸）只留接触影：一行七八颗控件各拖一层环境影，
      整表会糊成一片灰，行高也会被读成变高。 */
   --control-glass-shadow-quiet:
     var(--control-glass-inset),
     0 1px 1.5px rgb(38 54 82 / 0.08);
+  /* 按下一档：把控件按进纸里，只给 1px 内投影 + 一圈内发丝边，不提变换、不改尺寸。
+     这条替换的是静置那一叠 lifted 阴影——按下去就是"沉进纸面"，两层同时留会打架。
+     深色档用黑基（见 data-theme="dark"），浅色的 38 54 82 在带色相的面上读作 12% 凹陷。 */
+  --press-inset:
+    inset 0 1px 2px rgb(38 54 82 / 0.12),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.55);
+  /* 下拉箭头自绘：原生 select 的箭头由操作系统画，浅档是灰三角、深档翻黑，
+     还会连带把整个控件画成系统控件的样子，把阶梯材质一起抹掉。
+     改成 appearance:none + 背景图层，深浅各一份（url() 里不能写 var()，只能内联颜色，
+     与 9149 那颗图标同一写法）。墨色取三级灰：#5f6268 压在带色相的控件面上 5.2:1，
+     过非文本 3:1 线还有余量；深色档 #9aa0ad 压在深色面上 4.4:1。 */
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 4.6 6 8l3.4-3.4' fill='none' stroke='%235f6268' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   /* 列表行选中底：侧栏三类行（文件夹/订阅/移动抽屉）此前各写各的
      color-mix(accent-soft …)，四份配方叠在层叠里互相顶。收成一份，
      悬停要重述底色时也只有一处真相。 */
@@ -305,8 +338,13 @@
      拉丁副标题，display 给 ≥30px 的页面主标题，label 给 11-12px 的眉标/小标签。
      负值只给拉丁文和数字：中文吃负字距会字缝发紧，所以 metric/display 两档的标题类
      用法一律写在 :lang(en) 下。micro 是唯一例外——14-16px 上它是 0.07-0.08px/字，
-     低于中文的可辨阈值，写与不写在表里没有区别，就不必为它增加一层语言分支。 */
+     低于中文的可辨阈值，写与不写在表里没有区别，就不必为它增加一层语言分支。
+     title 是补 21px 那一档的缺口：21px 的标题在阅读器（.brand__name、设置面板 h2）
+     完全没写字距、在工作台（.wb-status-item strong、.wb-section-head > b）却吃 metric，
+     实测同一行的两个 21px 一个 normal 一个 -0.315px。-0.01em 在 21px 上是 -0.21px，
+     正好落在 micro(-0.005) 与 metric(-0.015) 之间，两栏从此共用一份定义。 */
   --tracking-micro: -0.005em;
+  --tracking-title: -0.01em;
   --tracking-metric: -0.015em;
   --tracking-display: -0.02em;
   --tracking-label: 0.02em;
@@ -366,6 +404,38 @@
   --z-modal: 81;
   --z-popover: 96;
   --z-toast: 120;
+
+  /* 状态色相：语义色，故意不跟随 data-accent——总览卡的阶段色必须和表内药丸
+     同色，否则一屏里会出现两种蓝。强调色只留给交互（选中、焦点、进度条）。
+     每个色相三层：本体（图形/淡底）、浅底文字 -ink、深底文字（见下面深色档）。
+     -ink 不是本体变暗那么简单：黄色系掉对比度最快，所以逐色手挑，
+     保证药丸文字在淡底上至少 4.5:1。而且余量要按最重的按压底算（tint+9%），
+     不是按静置底算——青绿原来取 700 级 #0f766e，静置 4.75 过关，一按到 18%
+     就掉到 4.47/4.25，故降到 800 级。
+     这一族挂在 :root 而不是 .wb-shell：偏好设置里的"标签颜色"色块、日历芯片、
+     阅读器里的标签都要读同一份色板。原来挂在 .wb-shell 上时，弹层在树外读不到，
+     `--wb-badge-hue: var(--wb-hue-red)` 变成无效替换，整条 background 失效——
+     实测设置里的八颗色块全是不存在的"透明圆点"，用户根本挑不了颜色。 */
+  --wb-hue-blue: #3b82f6;
+  --wb-hue-green: #16a34a;
+  --wb-hue-teal: #0d9488;
+  --wb-hue-amber: #d97706;
+  --wb-hue-orange: #ea580c;
+  --wb-hue-violet: #7c3aed;
+  --wb-hue-red: #dc2626;
+  --wb-hue-gray: #787880;
+  --wb-hue-blue-ink: #1d4ed8;
+  --wb-hue-green-ink: #166534;
+  --wb-hue-teal-ink: #115e59;
+  --wb-hue-amber-ink: #92400e;
+  --wb-hue-orange-ink: #9a3412;
+  --wb-hue-violet-ink: #6d28d9;
+  --wb-hue-red-ink: #b91c1c;
+  --wb-hue-gray-ink: #55555c;
+  /* 危险控件专用的一档红墨：删除键可能坐在裸纸面上（行内图标按钮），也可能坐在
+     accent 9% 的作者药丸上，同一片 18% 红蒙在后者上会把 12px 字压到 4.33:1。
+     底不能按上下文改浓度（那会让"按下删除"在两个地方深浅不一样），所以加深墨。 */
+  --wb-hue-red-ink-strong: #991b1b;
 
 /* ── End design tokens */
 }
@@ -482,7 +552,13 @@
      轨道 #202123 与选中胶囊 #2b2c2e 之间，四级高程在深色下同样成立。
      接光层在深档必须换弱白——浅档那层 78% 白压在深面上会把上缘画成一条亮边，
      读起来像描边而不是玻璃高光。二级墨三档 6.25 / 4.72 / 4.13:1
-     （按压是瞬时态，加深量与既有 --fill-* 两档同量级）。 */
+     （按压是瞬时态，加深量与既有 --fill-* 两档同量级）。
+     浅档新加的 --accent 色相在深档不能照搬，两处都是量的：
+     一是没收益——深档控件对 sheet 的 ΔE*ab 本来就是 3.24~3.50，早过 2.3 的刚阈，
+     层级是靠"往上提白"撑的，不靠 alpha 差；
+     二是会掉出 AA——同样 4% accent 叠在 .09 白上，三级墨 #90939b 从 4.4 掉到 3.97~4.11:1，
+     而它在画布顶端 #22190f 上已经只有 4.36:1，深档的白每加一档都先吃掉这行小字。
+     所以深档三档继续留纯白 alpha，浅色那份色相不在这里复制。 */
   --control-glass: rgb(255 255 255 / 0.09);
   --control-glass-edge: rgb(255 255 255 / 0.12);
   --control-glass-inset:
@@ -495,7 +571,27 @@
   --control-glass-shadow-quiet:
     var(--control-glass-inset),
     0 1px 1.5px rgb(0 0 0 / 0.4);
+  /* 深档的按进纸面是黑基内投影 + 弱白内圈，量级与浅档的 12% 凹陷对齐；
+     箭头换浅墨，理由见浅档 --select-chevron 那段。 */
+  --press-inset:
+    inset 0 1px 2px rgb(0 0 0 / 0.5),
+    inset 0 0 0 0.5px rgb(255 255 255 / 0.1);
+  --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2.6 4.6 6 8l3.4-3.4' fill='none' stroke='%239aa0ad' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   --shadow-panel: 0 20px 54px rgb(0 0 0 / 0.38);
+  /* 深色底上同一色相要提亮，否则 700 级字色直接糊进背景。
+     和浅档那族一起挂在 :root：色板必须能被 .wb-shell 之外的浮层读到（偏好设置的
+     标签色块、日历芯片、阅读器标签），理由见文件开头 --wb-hue-* 那段。
+     本体（--wb-hue-*）不分档——图形和淡底混的是透明，深浅两档各自叠在自己的画布上，
+     自动分深浅；只有当文字要坐在淡底上时才需要另一个更亮的墨。 */
+  --wb-hue-blue-ink: #93c5fd;
+  --wb-hue-green-ink: #86efac;
+  --wb-hue-teal-ink: #5eead4;
+  --wb-hue-amber-ink: #fcd34d;
+  --wb-hue-orange-ink: #fdba74;
+  --wb-hue-violet-ink: #c4b5fd;
+  --wb-hue-red-ink: #fca5a5;
+  --wb-hue-red-ink-strong: #fecaca;
+  --wb-hue-gray-ink: #aeaec0;
 }
 
 * {
@@ -532,6 +628,27 @@ button,
 a {
   color: inherit;
 }
+/* 交互族的过渡地板。审计在工作台 37 个可交互元素里数出 7 个、设置面板 62 个里数出 22 个
+   是硬切的——悬停/按压的反馈确实写了，但没有 transition，状态一步到位，
+   读起来像界面闪了一下而不是回应。逐条补会漏（下一批新控件还是硬切），所以这里给
+   元素类型本身铺一层地板，四类会变的属性各自守住自己的时长档：
+   颜色/边框/底面走 --dur-fast（100ms，瞬时反馈不该拖成动画），阴影走 --dur-base——
+   阴影是深度表达，100ms 内一张卡片"陷下去"会被看成渲染故障而不是状态。
+   特异度只有 (0,0,1)，任何自己写了 transition 的类规则都按属性覆盖它（下面的
+   .skip-link、.button、9595 那组交互打磨都在这么用），所以这层不会把既有节奏改平。
+   prefers-reduced-motion 由 6507 那条 * 规则整族掐掉，这里不需要再分支。 */
+a,
+button,
+select,
+input,
+textarea,
+[role="button"] {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-base) var(--ease);
+}
 button:focus-visible,
 input:focus-visible,
 select:focus-visible,
@@ -563,6 +680,10 @@ button:disabled {
   background: var(--accent-strong);
   border-radius: var(--radius-control);
   transform: translateY(-160%);
+  /* 跳转链接的唯一反馈就是"滑进画面"，没有这一条它就是凭空出现/消失的一闪
+     （审计点的 7 个硬切元素之一）。地板那层不含 transform，所以在这里单补：
+     --dur-base 而不是 fast，160% 的位移在 100ms 里读起来像弹出而不是到达。 */
+  transition: transform var(--dur-base) var(--ease);
 }
 .skip-link:focus {
   transform: translateY(0);
@@ -599,22 +720,32 @@ button:disabled {
    用户圈出来的那一条。所以内嵌档只写伪元素，标准属性关进下面的 @supports 只给 Gecko：
    伪元素族不支持的引擎拿到的仍然是细、静止透明、滚才显形的槽，只是没有圆角。
    只有本来就常驻一条槽的容器才进内嵌档（.wb-main / .reader-scroll /
-   .subscription-scroll）：凭空给别的容器补一条 ::-webkit-scrollbar-thumb 会把它从 overlay
-   切成自定义滚动条、从此常驻占掉一条槽。没进这一族的（.timeline-scroll、
-   .auto-tag-scope-list）继续只吃 scrollbar-color，静止档写在各组件自己身上。故意整条藏
-   起来的（.wb-nav、.wb-table .wb-notes-input、.sidebar .subscription-scroll、
+   .subscription-scroll / .timeline-scroll / .auto-tag-scope-list / .ai-chat__messages）：
+   凭空给别的容器补一条 ::-webkit-scrollbar-thumb 会把它从 overlay 切成自定义滚动条、从此
+   常驻占掉一条槽。这六条本来就常驻——前三条由自身布局决定，后三条由它们各自的
+   scrollbar-width: thin 决定，而 thin 一旦写上就等于宣告"这条槽一直占着位"，却只换来一条
+   系统灰杠：WebKit 认 scrollbar-width（伪元素就此作废）却还不支持 scrollbar-color 的那些
+   版本，连"静止透明"都实现不了，正是用户圈出来的那一条。所以它们并进这一族，标准属性退到
+   下面的 @supports 只留给 Gecko。
+   故意整条藏起来的（.wb-nav、.wb-table .wb-notes-input、.sidebar .subscription-scroll、
    .app-shell--reader-open .timeline-scroll）走的是 scrollbar-width: none 加
    ::-webkit-scrollbar { display: none }：槽根本不存在，给滑块上色复活不了它，而它们的
    选择器权重也仍然压得住这里的伪元素规则。 */
 .wb-main::-webkit-scrollbar,
 .reader-scroll::-webkit-scrollbar,
-.subscription-scroll::-webkit-scrollbar {
+.subscription-scroll::-webkit-scrollbar,
+.timeline-scroll::-webkit-scrollbar,
+.auto-tag-scope-list::-webkit-scrollbar,
+.ai-chat__messages::-webkit-scrollbar {
   width: var(--scroll-slot);
   height: var(--scroll-slot);
 }
 .wb-main::-webkit-scrollbar-thumb,
 .reader-scroll::-webkit-scrollbar-thumb,
-.subscription-scroll::-webkit-scrollbar-thumb {
+.subscription-scroll::-webkit-scrollbar-thumb,
+.timeline-scroll::-webkit-scrollbar-thumb,
+.auto-tag-scope-list::-webkit-scrollbar-thumb,
+.ai-chat__messages::-webkit-scrollbar-thumb {
   background: transparent;
   border: var(--scroll-inset) solid transparent;
   border-radius: var(--radius-full);
@@ -622,23 +753,35 @@ button:disabled {
 }
 .wb-main::-webkit-scrollbar-track,
 .reader-scroll::-webkit-scrollbar-track,
-.subscription-scroll::-webkit-scrollbar-track {
+.subscription-scroll::-webkit-scrollbar-track,
+.timeline-scroll::-webkit-scrollbar-track,
+.auto-tag-scope-list::-webkit-scrollbar-track,
+.ai-chat__messages::-webkit-scrollbar-track {
   background: transparent;
 }
 .wb-main::-webkit-scrollbar-button,
 .reader-scroll::-webkit-scrollbar-button,
-.subscription-scroll::-webkit-scrollbar-button {
+.subscription-scroll::-webkit-scrollbar-button,
+.timeline-scroll::-webkit-scrollbar-button,
+.auto-tag-scope-list::-webkit-scrollbar-button,
+.ai-chat__messages::-webkit-scrollbar-button {
   display: none;
 }
 
 .wb-main[data-scrolling="true"]::-webkit-scrollbar-thumb,
 .reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
-.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb {
+.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.timeline-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.auto-tag-scope-list[data-scrolling="true"]::-webkit-scrollbar-thumb,
+.ai-chat__messages[data-scrolling="true"]::-webkit-scrollbar-thumb {
   background-color: var(--scroll-thumb);
 }
 .wb-main[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
 .reader-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
-.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover {
+.subscription-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.timeline-scroll[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.auto-tag-scope-list[data-scrolling="true"]::-webkit-scrollbar-thumb:hover,
+.ai-chat__messages[data-scrolling="true"]::-webkit-scrollbar-thumb:hover {
   background-color: var(--scroll-thumb-strong);
 }
 
@@ -647,22 +790,21 @@ button:disabled {
 @supports not selector(::-webkit-scrollbar) {
   .wb-main,
   .reader-scroll,
-  .subscription-scroll {
+  .subscription-scroll,
+  .timeline-scroll,
+  .auto-tag-scope-list,
+  .ai-chat__messages {
     scrollbar-width: thin;
     scrollbar-color: transparent transparent;
   }
   .wb-main[data-scrolling="true"],
   .reader-scroll[data-scrolling="true"],
-  .subscription-scroll[data-scrolling="true"] {
+  .subscription-scroll[data-scrolling="true"],
+  .timeline-scroll[data-scrolling="true"],
+  .auto-tag-scope-list[data-scrolling="true"],
+  .ai-chat__messages[data-scrolling="true"] {
     scrollbar-color: var(--scroll-thumb) transparent;
   }
-}
-
-/* 只走标准属性那一档的容器：静止档写在它们自己的组件规则里（.timeline-scroll、
-   .auto-tag-scope-list），这里只补显形档。 */
-.timeline-scroll[data-scrolling="true"],
-.auto-tag-scope-list[data-scrolling="true"] {
-  scrollbar-color: var(--scroll-thumb) transparent;
 }
 
 .app-shell {
@@ -1255,8 +1397,8 @@ button:disabled {
   flex: 1;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  /* 静止/显形两档由文件开头那一节内嵌滚动条族负责。这里不能再写 scrollbar-width /
+     scrollbar-color：它们只要计算值不是 auto，整族 ::-webkit-scrollbar 就作废。 */
 }
 .timeline-list {
   position: relative;
@@ -1286,13 +1428,11 @@ button:disabled {
   border: 0;
   cursor: pointer;
 }
-.timeline-entry--read h2 {
-  font-weight: var(--fw-medium);
-  color: var(--text-secondary);
-}
-.timeline-entry--read .unread-dot {
-  opacity: 0;
-}
+/* 已读态的字号/颜色档全部写在文件后部 .timeline-entry h2 那一节之后——那里才是
+   标题权重的最终裁决点。未读圆点不在这里管：真实契约是 .timeline-entry::before，
+   已读态由后面那条 .timeline-entry--read::before { display: none } 收掉。
+   （原先这里挂的是 .timeline-entry--read .unread-dot，而 .unread-dot 从没出现在
+   TimelinePane.tsx 里，是一条永远命不中的死规则。） */
 .timeline-entry__meta {
   display: flex;
   align-items: center;
@@ -1653,8 +1793,8 @@ button:disabled {
   border-radius: var(--radius-control);
   cursor: pointer;
   transition:
-    background 0.14s ease,
-    color 0.14s ease;
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
 }
 .reader-ai-option:hover:not(:disabled) {
   background-color: var(--fill-hover);
@@ -3071,6 +3211,11 @@ button:disabled {
   font-weight: var(--fw-semibold);
   line-height: var(--leading-display);
 }
+/* 26px 这一档原来什么都没写，而同样 26px 的 .wb-stat-number 吃 metric——两栏页首摆在一起
+   就是工作台标题更紧。标题会翻成中文，负字距只在拉丁下成立。 */
+.pane-header h1:lang(en) {
+  letter-spacing: var(--tracking-metric);
+}
 .pane-header__description {
   max-width: 62ch;
   margin: var(--space-4) 0 0;
@@ -3088,6 +3233,16 @@ button:disabled {
 }
 .timeline-filterbar__scopes {
   display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* 动作位与筛选轨分家：筛选轨里的三枚是互斥的 scope（同一时刻只有一枚按下），
+   这一位放"按下去改变一串条目、按完回到原样"的动作。flex 上右端不参与伸缩，
+   左边的分段器才不会为了给它让位而被压扁。 */
+.timeline-filterbar__actions {
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
   align-items: center;
   gap: var(--space-3);
 }
@@ -3426,13 +3581,45 @@ button:disabled {
   color: var(--text-secondary);
   font-weight: var(--fw-semibold);
 }
-/* Heavier weight than the previous 520: CJK glyphs need more stroke to read as
-   a title at this size. */
+/* 未读是这一列的默认态，所以粗体写在基础规则上而不是 .timeline-entry--unread 上。
+   600 而不是 700：CJK 落点是苹方（--cjk-sans），它有 Regular/Medium/Semibold/Bold 实档，
+   600 与已读的 400 之间已经隔了两档、扫一眼就能分组，700 会粗到和左侧那枚未读点抢注意力。 */
 .timeline-entry h2 {
   font-family: var(--font-ui);
   font-size: var(--text-lg);
-  font-weight: var(--fw-medium);
+  font-weight: var(--fw-semibold);
   line-height: var(--leading-ui);
+}
+/* 读过的整条下台阶，而不是只把标题变灰：译名那行是主色、DOI 那枚胶囊也是主色，
+   不一起压下去这一条仍然在未读堆里喊。全部走现成的色阶，不用 opacity——
+   opacity 要和这束随位置变化的画布渐变复合，对比度就没法按 token 审了。
+   :not(.timeline-entry--selected) 是必需的而不是保险：点开一条就把它标成已读，
+   正在读的那一行如果跟着变灰，选中态就被已读态吃掉了。 */
+.timeline-entry--read:not(.timeline-entry--selected) h2 {
+  color: var(--text-secondary);
+  font-weight: var(--fw-regular);
+}
+.timeline-entry--read:not(.timeline-entry--selected) .timeline-entry__meta,
+.timeline-entry--read:not(.timeline-entry--selected) .timeline-entry__feed,
+.timeline-entry--read:not(.timeline-entry--selected) .timeline-entry__summary {
+  color: var(--text-tertiary);
+}
+/* 作者名停在三档（浅档实测 6.0:1）而不是 --text-faint：本文件的规矩是 faint 只给装饰
+   （它封顶 4.25:1），而读过的条目仍然要能扫读作者。虚化靠"权重 400 + 整条下台阶"完成，
+   不靠把某一行推到不可读。 */
+.timeline-entry--read:not(.timeline-entry--selected) .timeline-entry__author {
+  color: var(--text-tertiary);
+}
+.timeline-entry--read:not(.timeline-entry--selected) .timeline-entry__doi {
+  color: var(--text-tertiary);
+  background: var(--surface-muted);
+  border-color: var(--border);
+}
+/* !important 是被上面 .timeline-entry__translation 那条同权重 !important 逼出来的：
+   它要先赢过通用的 .timeline-entry p，只能带 !important 出场。 */
+.timeline-entry--read:not(.timeline-entry--selected) .timeline-entry__translation {
+  color: var(--text-tertiary) !important;
+  font-weight: var(--fw-regular);
 }
 .timeline-entry p {
   color: var(--text-secondary);
@@ -3567,6 +3754,12 @@ button:disabled {
 }
 .app-shell--reader-open .pane-header h1 {
   font-size: var(--text-2xl);
+}
+/* 阅读器打开时这一行降到 21px，字距必须跟着降一档：留着上面那条 metric
+   就成了"21px 吃 26px 的字距"，比不写更糟。选择器多一层 .app-shell--reader-open，
+   特异度 (0,3,1) 压得住 3177 那条 (0,2,1)。 */
+.app-shell--reader-open .pane-header h1:lang(en) {
+  letter-spacing: var(--tracking-title);
 }
 .app-shell--reader-open .pane-header__description,
 .app-shell--reader-open .today-overview {
@@ -4354,30 +4547,36 @@ button:disabled {
   color: var(--text-secondary);
   font-size: var(--text-xs);
   text-align: left;
-  background: var(--surface-raised);
-  border: 1px solid var(--border);
+  background: var(--control-glass);
+  border: 1px solid var(--control-glass-edge);
   border-radius: var(--radius-sm);
+  box-shadow: var(--control-glass-shadow-quiet);
   transition:
-    color 0.14s ease,
-    border-color 0.14s ease,
-    background 0.14s ease;
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-base) var(--ease);
 }
+/* 悬停不给它换一坨实心浅蓝：面仍是那 78% 白玻璃，主色只作为一层薄纱骑在
+   background-image 上，所以 --control-glass-shadow-quiet 那圈接触影也留着。 */
 .ai-chat__suggestions button:hover {
   color: var(--text);
-  background: color-mix(in srgb, var(--accent-soft) 32%, var(--surface-raised));
-  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background-color: var(--control-glass);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--accent-soft) 46%, transparent),
+    color-mix(in srgb, var(--accent-soft) 46%, transparent)
+  );
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--control-glass-edge));
 }
-/* The workbench reads as a flat white column: its form controls follow with
-   white fills and visible borders instead of the global gray-filled style. */
-.ai-workbench .select-input,
-.ai-workbench .text-input {
-  background: var(--surface-raised);
-  border-color: var(--border-strong);
-}
-.ai-workbench .select-input:hover,
-.ai-workbench .text-input:hover {
-  background: var(--surface-raised);
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--border-strong));
+/* 这一档原来是"面板是实心白纸，所以控件也跟着白底 + 可见灰边"，为的是躲开当时全局那层
+   灰填色（.select-input 的 --surface-muted 混合）。两个前提都没了：面板上面刚换成磨砂壳层，
+   全局控件也换成了白玻璃阶梯，于是这条 (0,2,0) 的钉法只剩下把选择器钉回实心白纸、
+   并且用 --border-strong 那根 18% 近黑描边盖掉文件末尾的 --control-glass-edge。
+   现在只保留这一族真正还需要收窄的那一件事：两枚选择器并排在一栏 300–600px 的面板里，
+   共享档那层 0 8px 20px 环境影在这个尺度上会互相糊成一片灰，按 .wb-stage-cell 同一档
+   收成接触影。底色、描边、hover 全部交还给文件末尾的共享玻璃控件。 */
+.ai-workbench .select-input {
+  box-shadow: var(--control-glass-shadow-quiet);
 }
 .reader-toast {
   position: absolute;
@@ -4663,8 +4862,9 @@ button:disabled {
   overflow-y: auto;
   border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  scrollbar-width: thin;
-  scrollbar-color: transparent transparent;
+  /* 槽宽与显形都归文件前部那一族（见"滚动条：内嵌外观"）：这里原来自己写
+     scrollbar-width: thin + scrollbar-color，而那对标准属性会把 ::-webkit-scrollbar 整族
+     作废——Safari 26.0–26.1 认 width 却还没有 color，于是设置弹窗里也是同一条藏不住的灰杠。 */
 }
 .auto-tag-scope-list > label {
   display: grid;
@@ -5163,8 +5363,9 @@ button:disabled {
   box-shadow:
     inset -1px 0 color-mix(in srgb, var(--border) 62%, transparent),
     inset 1px 0 var(--glass-border);
-  backdrop-filter: blur(28px) saturate(1.5);
-  -webkit-backdrop-filter: blur(28px) saturate(1.5);
+  /* 这里不挂 blur：它唯一的采样对象是 .dialog-content，而那块底板已经自己 blur(36px) 采过
+     一次画布——在模糊过的面上再模糊一遍采到的还是同一块颜色，只是多花一次全尺寸回读。
+     分栏的边界本来由上面那对内嵌发丝线画，跟模糊无关。 */
 }
 .preferences-nav__brand {
   display: flex;
@@ -5267,8 +5468,10 @@ button:disabled {
   min-height: 0;
   flex-direction: column;
   background: color-mix(in srgb, var(--glass-panel) 84%, transparent);
-  backdrop-filter: blur(30px) saturate(1.6);
-  -webkit-backdrop-filter: blur(30px) saturate(1.6);
+  /* 同 .preferences-nav：这块底板的采样对象也只有 .dialog-content 那一层已经模糊过的面，
+     第二次模糊采不到新东西。真正滚动的是它内部的 .preferences-scroll，而
+     .preferences-header 是 flex: 0 0 82px 的同级、不是 sticky，没有任何行会从底板下面穿过——
+     留模糊的唯一理由是"有东西穿过"，这里没有。 */
 }
 .preferences-header {
   min-height: 82px;
@@ -5280,6 +5483,11 @@ button:disabled {
   font-size: var(--text-2xl);
   line-height: var(--leading-display);
   font-weight: var(--fw-semibold);
+}
+/* 21px 这一档两栏都要吃 title 字距（见 --tracking-title 那段）；标题会翻成中文，
+   负字距只在拉丁下成立。 */
+.preferences-header h2:lang(en) {
+  letter-spacing: var(--tracking-title);
 }
 .preferences-header p {
   margin: var(--space-2) 0 0;
@@ -6560,15 +6768,20 @@ button:disabled {
   flex: 0 0 7px;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent);
 }
+/* 筛选轨就是全站那一条"凹陷轨道"：配方一律走 --segment-track*，不在这里按
+   surface-muted 另调一份中性灰井——灰面当深度线索是这一轮要消掉的东西，而侧栏
+   分段器、时间线筛选轨、AI 档位轨必须是同一次合成。
+   原来这里写着 background/border/box-shadow 三条自定义配方，而它后面还有一条同特异度的
+   .timeline-filterbar__scopes 规则把这三条全部顶掉（同选择器写在后面取胜）：真正生效的
+   只有 gap/padding/radius，其余是死声明。边框颜色与内投影由文件末尾那条"玻璃轨道统一"
+   规则（.workspace-segment / .ai-mode-tabs / .timeline-filterbar__scopes / .wb-view-switch）
+   一次性给到，所以这里只写轨道本身。 */
 .timeline-filterbar__scopes {
   gap: var(--space-2);
   padding: var(--space-2);
-  background: color-mix(in srgb, var(--surface-muted) 88%, var(--surface-raised));
-  border: 1px solid color-mix(in srgb, var(--border-strong) 74%, transparent);
+  background: var(--segment-track);
+  border: 1px solid var(--segment-track-edge);
   border-radius: var(--radius-xl);
-  box-shadow:
-    inset 0 1px rgb(255 255 255 / 0.32),
-    0 2px 7px rgb(25 35 55 / 0.05);
 }
 .filter-chip {
   height: 30px;
@@ -6644,14 +6857,6 @@ button:disabled {
 .sidebar .folder-row,
 .sidebar .feed-row {
   color: var(--text);
-}
-
-/* Match the filter rail to the Today signal card surface. */
-.timeline-filterbar__scopes {
-  background: var(--segment-track);
-  border-color: var(--border);
-  border-radius: var(--radius-xl);
-  box-shadow: none;
 }
 
 /* Keep the reading measure tidy while allowing prose to align at both edges. */
@@ -6758,6 +6963,10 @@ button:disabled {
      也让 body 的 ui 默认值不至于把字标的行盒撑到 30px。字标在 .brand 的 min-height:46
      里垂直居中，所以这一档只决定字形自身的行盒，不改侧栏顶栏高度。 */
   line-height: var(--leading-display);
+  /* 字标是 21px 的拉丁，落在 title 档上——同字号的 .preferences-header h2 /
+     .wb-cal-head h2 都在吃负字距，只有它写着 normal，两栏摆在一起就是字标比旁边松一格。
+     这里不套 :lang(en)：品牌名永远是 "ReFlow"，不会被翻成中文。 */
+  letter-spacing: var(--tracking-title);
 }
 .subscription-section {
   margin-top: var(--space-7);
@@ -7040,7 +7249,10 @@ button:disabled {
 .app-shell--reader-open .timeline-filterbar__scopes {
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-width: 0;
+  /* 三格而不是四格：第四格原来是"标为已读"，它现在搬到同一条右侧的
+     __actions 位。留着 4 会在三枚 chip 右边空出一道看不见的槽。 */
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-1);
   padding: var(--space-2);
   background: var(--segment-track);
@@ -7058,7 +7270,10 @@ button:disabled {
   border-radius: var(--radius-md);
 }
 .app-shell--reader-open .timeline-mark-read {
-  width: 100%;
+  /* 原来是 100%：那时它躺在 grid 的第四格里，"填满这一格"就是段末一颗与前三格等宽
+     的按钮。现在它在 __actions（宽度由内容决定）里，100% 会变成相对一个由内容
+     撑开的容器计宽——按规范只能退化成 auto，留着只会误导下一个读这段的人。 */
+  width: auto;
   min-height: 30px;
   padding: 0 var(--space-3);
 }
@@ -7310,10 +7525,11 @@ button:disabled {
   font-size: var(--text-2xl);
   font-weight: var(--fw-bold);
   line-height: var(--leading-metric);
-  /* 和同字号的 .wb-section-head > b / .wb-stat-number 走同一档：都是 21-26px 的
-     tabular 大数字，原来这一处吃 -0.01em、别处吃 -0.015em，同一根计数条上
-     左右两段数字的字缝宽度不一样。 */
-  letter-spacing: var(--tracking-metric);
+  /* 按字号分档，不按"是不是数字"分档：这行是 21px，吃 title；
+     26px 的 .wb-stat-number 继续吃 metric。原来两处同写 metric，实测落出的绝对间距
+     是 -0.315px 与 -0.39px——em 档相同并不等于视觉间距相同，字号一档之差就差了 24%。
+     纯数字不受语言影响，所以这一条不需要 :lang() 分支（同 9606 那颗计数）。 */
+  letter-spacing: var(--tracking-title);
   font-variant-numeric: tabular-nums;
 }
 .wb-status-item span {
@@ -7926,10 +8142,16 @@ button:disabled {
    scrollbar-color 是继承属性，工作台子树里那些自己没写滚动条的滚动容器（弹层菜单
    .wb-menu-pop 最典型）都从这一条拿到"静止不可见"。它必须挂在 .wb-content 而不是
    .wb-main——.wb-main 是真正滚的那一层，它自己的计算值一旦不是 auto，前面那一族
-   ::-webkit-scrollbar 就会被引擎作废，内嵌外观连同闲时隐藏一起失效。 */
+   ::-webkit-scrollbar 就会被引擎作废，内嵌外观连同闲时隐藏一起失效。
+   原来紧跟在后面的那条 scrollbar-width: thin 已经删掉，它是同一族规则里最贵的一个违例：
+   width 也是继承属性，于是 thin 会顺着 .wb-content 落到工作台里每一个滚动容器上——
+   包括 .wb-main 自己。按 644 那段的实测，scrollbar-width 的计算值不是 auto 就等于把
+   ::-webkit-scrollbar 整族作废，而 Safari 26.0–26.1 恰好"认 width、不认 color"，
+   那条槽既占着位又藏不住，就是用户圈出来的那一条灰杠。
+   color 这一条留下：它不预留布局空间，且在出事的那两版 Safari 上根本没被实现，
+   作废不了伪元素；需要它的只有走标准属性的 Gecko，那里 719 的 @supports 已经自带一份。 */
 .wb-content {
   scrollbar-color: transparent transparent;
-  scrollbar-width: thin;
 }
 
 /* 表格里的自动增高笔记格：整条滚轴撤掉，滚轮与触控照旧能滚。基础外观归
@@ -8249,7 +8471,9 @@ button:disabled {
   line-height: var(--leading-display);
 }
 .wb-cal-head h2:lang(en) {
-  letter-spacing: var(--tracking-metric);
+  /* 21px 归 title 档，与 .brand__name / .preferences-header h2 同一个数；
+     metric 是给 26px 以上留的（.wb-stat-number）。 */
+  letter-spacing: var(--tracking-title);
 }
 .wb-cal-head p {
   margin: var(--space-2) 0 0;
@@ -9481,7 +9705,9 @@ button:disabled {
   font-size: var(--text-2xl);
   font-weight: var(--fw-bold);
   font-variant-numeric: tabular-nums;
-  letter-spacing: var(--tracking-metric);
+  /* 计数是 21px，跟 .wb-status-item strong 同档（title）；26px 的 .wb-stat-number 才是 metric。
+     纯数字，不需要 :lang 分支。 */
+  letter-spacing: var(--tracking-title);
   line-height: var(--leading-metric);
 }
 
@@ -9797,33 +10023,9 @@ button:disabled {
      同排才像 Reminders 的那一颗（21px）。触摸热区不靠把泡撑大——撑大到 32 会把
      34px 的阶段行顶高，行与行之间的节奏就散了——由 ::after 向外借行内空白补出来。 */
   --wb-check-h: 21px;
-  /* 状态色相：语义色，故意不跟随 data-accent——总览卡的阶段色必须和表内药丸
-     同色，否则一屏里会出现两种蓝。强调色只留给交互（选中、焦点、进度条）。
-     每个色相三层：本体（图形/淡底）、浅底文字 -ink、深底文字（见 dark 块）。
-     -ink 不是本体变暗那么简单：黄色系掉对比度最快，所以逐色手挑，
-     保证药丸文字在淡底上至少 4.5:1。而且余量要按最重的按压底算（tint+9%），
-     不是按静置底算——青绿原来取 700 级 #0f766e，静置 4.75 过关，一按到 18%
-     就掉到 4.47/4.25，故降到 800 级。 */
-  --wb-hue-blue: #3b82f6;
-  --wb-hue-green: #16a34a;
-  --wb-hue-teal: #0d9488;
-  --wb-hue-amber: #d97706;
-  --wb-hue-orange: #ea580c;
-  --wb-hue-violet: #7c3aed;
-  --wb-hue-red: #dc2626;
-  --wb-hue-gray: #787880;
-  --wb-hue-blue-ink: #1d4ed8;
-  --wb-hue-green-ink: #166534;
-  --wb-hue-teal-ink: #115e59;
-  --wb-hue-amber-ink: #92400e;
-  --wb-hue-orange-ink: #9a3412;
-  --wb-hue-violet-ink: #6d28d9;
-  --wb-hue-red-ink: #b91c1c;
-  --wb-hue-gray-ink: #55555c;
-  /* 危险控件专用的一档红墨：删除键可能坐在裸纸面上（行内图标按钮），也可能坐在
-     accent 9% 的作者药丸上，同一片 18% 红蒙在后者上会把 12px 字压到 4.33:1。
-     底不能按上下文改浓度（那会让"按下删除"在两个地方深浅不一样），所以加深墨。 */
-  --wb-hue-red-ink-strong: #991b1b;
+  /* 状态色相一族（--wb-hue-* 本体 + -ink + -ink-strong）搬到了文件开头的 :root，
+     深档那些 -ink 也在 :root[data-theme="dark"]：偏好设置的标签色块、日历芯片这些
+     不在 .wb-shell 树里的浮层要读同一份色板。继承路径不变，工作台里的取值照旧。 */
   /* 退底色：日历里非本月的格子——"内容还在但不属于当前范围"的区域。
      它和 --surface-muted 是两件相反的事：muted 是浮起来（hover、控件底），
      recede 是沉下去，所以深色模式必须往更暗混，否则邻月格子会凸到纸面之前。
@@ -9851,16 +10053,8 @@ button:disabled {
   --wb-cal-chip-plate: transparent;
   --wb-chrome-glass: color-mix(in srgb, var(--surface-raised) 72%, transparent);
   --wb-chrome-ring: inset 0 0 0 0.5px rgb(255 255 255 / 0.09);
-  /* 深色底上同一色相要提亮，否则 700 级字色直接糊进背景 */
-  --wb-hue-blue-ink: #93c5fd;
-  --wb-hue-green-ink: #86efac;
-  --wb-hue-teal-ink: #5eead4;
-  --wb-hue-amber-ink: #fcd34d;
-  --wb-hue-orange-ink: #fdba74;
-  --wb-hue-violet-ink: #c4b5fd;
-  --wb-hue-red-ink: #fca5a5;
-  --wb-hue-red-ink-strong: #fecaca;
-  --wb-hue-gray-ink: #aeaec0;
+  /* 状态色相的两族（本体在浅档 :root，深档 -ink 也在 :root[data-theme="dark"]）
+     都不在这里重述：色板只有一份，工作台里的继承取值照旧。 */
 }
 
 /* 分段导航的配色：选中态用蓝色而不是灰拇指（材质见上面的 .wb-nav） */
@@ -10205,6 +10399,10 @@ button:disabled {
     overflow: hidden;
     white-space: nowrap;
   }
+  /* 备注（.wb-col-notes）在这一档一起让位：它在本排里是唯一的"关于这一行的附注"，
+     而截止日期是新加的"这一行的承诺"。备注列自己的收列配方（0 宽＋th 的 17px 表头
+     缩进归零＋textarea max-height 归零，缺一条就留死带宽或把行撑高）写在
+     phase7-notes.css 的同档容器查询里，这里不重抄一份。 */
 }
 @container wbtable (max-width: 1200px) {
   /* DOI 是这排里最宽的次要字段（180px），先收它。 */
@@ -10235,7 +10433,14 @@ button:disabled {
   }
 }
 @container wbtable (max-width: 880px) {
-  .wb-table .wb-col-date {
+  /* 日期列在这一档让位，但截止日期不让：更新日期是"关于它的元数据"，
+     截止日期是"这一行的承诺"——要不要今天动手，看的是后者。原来这条按类名收
+     整排 .wb-col-date，把在研新加的截止日期列和在投本来就有的截止日期一起收成
+     0 宽，而备注（176）反而一路活到最窄档；实测用户常用窗口（视口 1143，容器 837）
+     里标题只剩 135px、截止日期完全看不见。现在带 .wb-col-deadline 钩子的两列
+     （在研、在投）留在表上，让位的是没带钩子的那一颗。备注已在 ≤1240 档先收，
+     这一档还给标题的净宽度是 274px。 */
+  .wb-table .wb-col-date:not(.wb-col-deadline) {
     width: 0;
     padding-inline: 0;
     visibility: hidden;
@@ -10563,6 +10768,66 @@ button:disabled {
   background-color: var(--control-glass);
   background-image: linear-gradient(var(--fill-pressed), var(--fill-pressed));
 }
+/* 按压档（P2 实测：整站只有"悬停"和"静置"两态，:active 与 :hover 的像素完全相同）。
+   反馈用 --press-inset 那一寸内投影——控件被按进它坐着的纸里，而不是变灰、更不是缩放。
+   三个决定都是照别的档定的：
+   1) 整条替换 box-shadow，不与静置那叠 lifted 阴影相加。相加会得到"上浮 + 下沉"两层，
+      读起来是一枚发虚的控件；按下去必须是"高程消失"，所以接触影与环境影都撤掉。
+   2) 选择器带 :not(:focus-visible)。焦点环在本层是 box-shadow 栈（10757、10788 那种
+      两层写法），键盘按下若不带这一句，焦点环会被按影整条擦掉——Tab 到按钮上按空格
+      就会看见描边闪没。
+   3) 密排的那些（分段器、视图卡、筛选泡）同时收回 transform：617 那条全局
+      button:active 的 scale(0.985) 在单颗按钮上是应有的物理反馈，在一排 26-32px 紧挨的
+      药丸里就是相邻两颗一起晃——那正是用户明确否掉的"按压抖动"（同 10741 阶段格那一条）。
+      .button / .wb-btn / .icon-button / .ai-stop-control 是稀疏的单颗，保留原有缩放。
+   另外必须在这里重述 transition：617 用的是 transition 简写，:active 期间它把整组长相
+   重置成"只有 transform 会过渡"，不写这一句 box-shadow 就是一步到位的硬切。 */
+.button:active:not(:disabled):not(:focus-visible),
+.wb-btn:active:not(:disabled):not(:focus-visible),
+.icon-button:active:not(:disabled):not(:focus-visible),
+.ai-stop-control:active:not(:disabled):not(:focus-visible),
+.workspace-segment__item:active:not(:disabled):not(:focus-visible),
+.app-view-switch__item:active:not(:disabled):not(:focus-visible),
+.filter-chip:active:not(:disabled):not(:focus-visible) {
+  box-shadow: var(--press-inset);
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+.workspace-segment__item:active:not(:disabled),
+.app-view-switch__item:active:not(:disabled),
+.filter-chip:active:not(:disabled) {
+  transform: none;
+}
+/* 下拉箭头自绘（P2：原生箭头由操作系统画，浅档是一枚灰三角、深档翻黑，
+   而且 appearance:auto 会顺手把整颗控件画成系统控件的样子，上面那层凸面材质等于白铺）。
+   箭头画在 background-image 的第一层——画在上一层才不会被悬停那层灰蒙盖住变虚。
+   几何一格没动：.select-input 是 width:100% + 全局 border-box，
+   加 padding-inline-end 只把文字端点从右缘 10px 推到 26px（箭头 12px + 4px 让位），
+   外框、34px/40px 两档高度、圆角都不变。appearance 一句必须留在这里而不是前面 2260 那组：
+   那组后面还有 5162 用 background 简写重铺字段底色，简写会把 background-image 一起擦成 none。 */
+.select-input {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-inline-end: calc(var(--space-5) + var(--space-8));
+  background-image: var(--select-chevron);
+  background-position: right var(--space-5) center;
+  background-size: 12px 12px;
+  background-repeat: no-repeat;
+}
+/* 悬停/按压那两层都要重述：上面 10714/10724 那两组共用一个 background-image 只写灰蒙，
+   单独生效会把箭头整条擦掉（background-image 是整条替换，不是叠加）。
+   特异度与那两组相同，靠文件顺序在后面取胜。 */
+.select-input:hover {
+  background-image:
+    var(--select-chevron),
+    linear-gradient(var(--fill-hover), var(--fill-hover));
+}
+.select-input:active:not(:disabled) {
+  background-image:
+    var(--select-chevron),
+    linear-gradient(var(--fill-pressed), var(--fill-pressed));
+}
 /* 阶段格：白面和纯白行同色，"贴上去"的观感全部来自描边那 18% 近黑（--control-glass-edge
    在浅档就是它）。把描边退到分段器轨道同一档的 ~7% 鬓发线、环境影收回接触影
    （密排表格里本来就该用 --quiet），这枚 148×38 的白玻璃就软进行里而不是压在行上。
@@ -10714,13 +10979,54 @@ body,
 }
 /* 滚动面本身必须是透明的，否则它把容器那层磨砂重新糊成实心。 */
 .reader-scroll,
-.timeline-scroll {
+.timeline-scroll,
+.ai-workbench__body {
   background-color: transparent;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
+/* ReFlow Insight 这一栏是窗口里最后一块实心白纸：三栏在有色画布那一轮换成了 55% 白壳层
+   + blur(28px)，它还留着 --surface-raised 加一根 --border-strong 的硬左缝，于是紧挨两块
+   磨砂的它读起来像贴上去的一张纸。跟着同一档走，左缝和那根拖拽线换成玻璃自己的上缘高光。
+   真正的滚动面是 .ai-workbench__body，上面那条已经把它擦回透明。
+   标题条只在 dock 模式是 static（见 ai-chat.css），那时才允许自己透明；非 dock 那一档
+   它是 sticky、下面会滚过内容，所以留着实心底。 */
+/* 选择器必须和 4312 那条同档：它是 `.ai-workbench, .ai-workbench.ai-workbench--open`
+   的成对写法，(0,2,0) 那一项会压过单类名。只写 `.ai-workbench` 的话实机上背景与左缝
+   全都留在 --surface-raised / --border-strong。 ≤900 那档的 border-left:0 只改宽度，
+   与这里的 color 不冲突。 */
+.ai-workbench,
+.ai-workbench.ai-workbench--open {
+  background-color: var(--sheet-glass);
+  border-left-color: var(--sheet-edge);
+  backdrop-filter: var(--glass-blur-lg);
+  -webkit-backdrop-filter: var(--glass-blur-lg);
+}
+.ai-workbench__resize::after {
+  background: var(--sheet-edge);
+}
+/* 表头那枚 30×30 身份牌原来是实心白纸 + 9% 近黑描边——整栏换成磨砂之后，它是这一列里
+   最后一块不透底的方块。并进凸面档，和同栏的两枚选择器、下面的问题芯片用同一阶梯
+   （78% 白面 + 白色接光边 + 接触影），描边不再是那条唯一还读得出来的灰线。 */
+.ai-workbench__identity > i {
+  background-color: var(--control-glass);
+  border-color: var(--control-glass-edge);
+  box-shadow: var(--control-glass-shadow-quiet);
+}
 /* 卡片层：比壳层更实一档的白 + 白色接光边 + 冷调双层环境影。
-   边框从"比纸深的灰线"换成"玻璃自己的上缘高光"，深色档那两枚令牌本来就是弱白。 */
+   边框从"比纸深的灰线"换成"玻璃自己的上缘高光"，深色档那两枚令牌本来就是弱白。
+   这一层不再有 backdrop-filter：审计在 1440×900 下点名的静止卡片
+   （.wb-stat-card / .wb-panel / .wb-card，外加 .wb-daily__signal / .wb-daily__plan 与
+   已经先一步去掉模糊的 .wb-table-wrap）都挂着 --glass-blur-sm = blur(16px) saturate(160%)。
+   backdrop-filter 的成本在每帧重新采样它下面那块区域，而卡片坐在
+   background-attachment: fixed 的画布上，下面根本没有会动的东西可采——
+   付了模糊的钱，采到的是同一张静态渐变。深度本来就由 .712 的白 + 接光边 +
+   坐影（见下面那组 seat shadow）表达，去掉模糊后三者的合成值一个都没变。
+   只有内容真会从面板下面穿过的层留模糊：.sidebar / .timeline / .wb-main 的两条
+   chrome / .ai-workbench / 对话框。移除时核过包含块：这三张卡片的绝对定位后代
+   （.wb-timeline-item--dot 的两枚 ::before/::after、.wb-menu-pop、.wb-stat-goto）
+   都各自有 position: relative 的父级或本身就是流内元素，没有一枚是靠
+   backdrop-filter 建立包含块的——所以下面不需要补 position: relative。 */
 .wb-card,
 .wb-panel,
 .wb-stat-card,
@@ -10731,8 +11037,6 @@ body,
 .sync-provider-card {
   background-color: var(--card-glass);
   border-color: var(--sheet-edge);
-  backdrop-filter: var(--glass-blur-sm);
-  -webkit-backdrop-filter: var(--glass-blur-sm);
 }
 /* 详情抽屉坐在滚动内容之上，半透明会让字压在穿过的行上读不清：用接近实心的白。 */
 .wb-detail-grid {

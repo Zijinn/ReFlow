@@ -283,7 +283,7 @@
   box-shadow: var(--focus-ring);
 }
 /* 工具栏排序按钮与筛选泡同族（38px 带高 / radius-lg），这条只兜住窄档：
-   四个选项的文案比"全部标签"长，不允许把主按钮挤出工具栏。 */
+   五个选项的文案比"全部标签"长，不允许把主按钮挤出工具栏。 */
 .wb-sort-menu {
   flex: none;
   max-width: 220px;
@@ -342,6 +342,145 @@
   box-shadow: var(--focus-ring);
 }
 
+/* ── 截止日期列（在研表，紧挨在"更新日期"左边） ──────────────────────────
+   列头/格子都带两个类名：wb-col-date 借来等宽数字与"日期列"那套 nowrap 几何，
+   wb-col-deadline 是这一列自己的钩子。宽度比"更新日期"那一列宽一档：这一格除了
+   `2026-09-30` 那排数字，下面还挂一行紧急度胶囊（"3 天后截止" 12px 档实测 ≈70px），
+   98 那一档会把胶囊挤成两行。下限 92 ＝ 数字串 77 ＋ 左右衬 10 ＋ 1。 */
+.wb-table--research .wb-col-deadline {
+  width: var(--wb-col-w, 112px);
+  --wb-col-min: 92px;
+}
+/* 这一列不参与 ≤880 档的收列：styles.css 那一条现在写成
+   `.wb-col-date:not(.wb-col-deadline)`，让位的是"更新日期"而不是截止日期（承诺比
+   元数据更该留在表上，见那边那段注释）。原来这里配过一条同档的 0 宽规则，是为了
+   避开"两列日期只收一颗留下的死带宽"，现在截止日期整档留下，那条也就不需要了。 */
+
+/* ── 行的标签色：淡染 + 前缘色条 ──────────────────────────────────────────
+   一行挂了几枚标签时取调色板里最靠前的那一枚（与"标签顺序"排序同一口径）。
+   组件把那枚的色相以 --wb-row-hue 挂在 <tr> 上，值是 var(--wb-hue-*) 这条引用
+   本身：CSS 自定义属性允许持有 var()，于是浅深两档跟着既有令牌自动分档，
+   这里不新增一个颜色字面量、也不新造一档色板。没挂标签的行不带这个类。 */
+.wb-row.wb-row--tinted {
+  /* 必须是 background-image：.wb-row:hover 写的是 background-color，两层各自独立，
+     悬停才会"叠在染色之上"而不是把染色顶掉（行是玻璃面，涂实色会盖住它）。
+     6% 是"扫一眼能分组、盯两秒不觉得脏"那一档，和表头鬓发线同一个浓度量级。 */
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--wb-row-hue, transparent) 6%, transparent),
+    color-mix(in srgb, var(--wb-row-hue, transparent) 6%, transparent)
+  );
+}
+/* 3px 前缘色条画在第一格的内侧阴影上：不动盒模型（不加边框、不改 padding、
+   不缩不放），所以列宽与别的行逐像素一致，也不会因为多一层描边把行撑高。
+   55% 是淡染的浓度上限：条纹要读得出"这是那一枚标签的颜色"，但仍留在行内，
+   不越过 wb-col-grip 的编号。 */
+.wb-row.wb-row--tinted > td:first-child {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--wb-row-hue, transparent) 55%, transparent);
+}
+
+/* ── 偏好设置「研究标签」行：自选色那一排 ────────────────────────────────
+   样式写在这份模块本地文件里（它排在 styles.css 之后），不改 styles.css。
+   原来一行四格（把手/色点/名字/动作），色块排要单独占第二行：名字列是
+   minmax(0,1fr)，把九颗色块塞在它右边会整栏撑出面板宽度，所以走
+   grid-template-areas 明确两行的落位。 */
+.preference-section--tags .pref-tag-row {
+  grid-template-columns: 16px 12px minmax(0, 1fr) auto;
+  grid-template-areas:
+    "grip dot name actions"
+    ".    .    colors colors";
+  row-gap: var(--space-2);
+}
+.preference-section--tags .pref-tag-grip {
+  grid-area: grip;
+}
+.preference-section--tags .pref-tag-row > .wb-dot {
+  grid-area: dot;
+}
+.preference-section--tags .pref-tag-name,
+.preference-section--tags .pref-tag-name-input {
+  grid-area: name;
+}
+.preference-section--tags .pref-tag-actions {
+  grid-area: actions;
+}
+.preference-section--tags .pref-tag-colors {
+  grid-area: colors;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* 色块：底就是那一档色相本体（--wb-badge-hue 由同一颗按钮上的 wb-badge--* 挂上来），
+   所以八档色块和表里的药丸、日历事件条永远是同一个色相，深浅两档也一起跟着换。
+   选中态只加一圈主色环，不改变尺寸：整排在窄面板里会换行，任何尺寸抖动都会
+   让下面的行上下跳。 */
+.pref-tag-swatch {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-full);
+  background: var(--wb-badge-hue, transparent);
+  cursor: pointer;
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.pref-tag-swatch:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+/* 按键缩放是全局 button:active 给的；这一排是密集色块，缩一下邻块就跟着抖，
+   所以只压住 transform，按压反馈交给下面那一圈更亮的主色环。 */
+.pref-tag-swatch:active:not(:disabled) {
+  transform: none;
+}
+.pref-tag-swatch--on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.pref-tag-swatch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+/* 「自动」是文案不是色块：它选的是"没有自选色"这个状态，本身没有颜色可涂，
+   虚线边沿用 chip-add 的"这里还没定"语汇；选中后转实线 + 主色淡底。 */
+.pref-tag-color-auto {
+  flex: none;
+  padding: var(--space-1) var(--space-4);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1.6;
+  cursor: pointer;
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.pref-tag-color-auto:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+.pref-tag-color-auto:active:not(:disabled) {
+  transform: none;
+}
+.pref-tag-color-auto:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.pref-tag-color--on {
+  border-style: solid;
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-strong);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wb-stage-row--done .wb-stage-toggle {
     animation: none;
@@ -353,6 +492,8 @@
   .wb-stage-row,
   .wb-stage-handle,
   .wb-table .wb-notes-input,
+  .pref-tag-swatch,
+  .pref-tag-color-auto,
   .wb-stage-tools {
     transition: none;
   }

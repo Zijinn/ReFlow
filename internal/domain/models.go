@@ -382,10 +382,13 @@ type ResearchPaper struct {
 // ResearchTag is one label in a profile's ordered, user-defined palette. It
 // replaced the fixed High/Medium/Average priority enum: position is the tag's
 // priority order, and papers reference tags by id so renames stay cheap.
+// Color is the chip's tint chosen from the fixed named palette; "" means the
+// user never picked one, so the client tints by index instead.
 type ResearchTag struct {
 	ID       string `json:"id"`
 	Name     string `json:"name"`
 	Position int    `json:"position"`
+	Color    string `json:"color"`
 }
 
 // ResearchPaperPatch carries optional field updates; nil fields are untouched.

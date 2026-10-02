@@ -274,6 +274,19 @@ describe("DatePickerCell", () => {
     expect(document.activeElement).toBe(trigger)
   })
 
+  it("closes on Tab without stealing the focus back to the trigger", () => {
+    const { onCommit, trigger } = renderPicker("2026-10-15")
+    const dialog = openDialog(trigger)
+    // 打开时焦点已经在回顾格上，Tab 的意义是"从这里走出去"。
+    expect(document.activeElement).not.toBe(trigger)
+    fireEvent.keyDown(dialog, { key: "Tab" })
+    expect(onCommit).not.toHaveBeenCalled()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    // 曾经这一支和 Escape 合并写成 preventDefault + closePicker()，焦点被送回触发格，
+    // 键盘用户按 Tab 又被弹回同一枚按钮，走不到下一个字段。
+    expect(document.activeElement).not.toBe(trigger)
+  })
+
   it("walks days, weeks and months with the keyboard and commits on Enter", () => {
     const { onCommit, trigger } = renderPicker("2026-10-15")
     const dialog = openDialog(trigger)

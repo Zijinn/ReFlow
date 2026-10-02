@@ -325,11 +325,16 @@ export interface SubmissionRecord {
  * these live under `/research/tags`; a paper wears several of them at once.
  * The list endpoint returns them ordered by `position` ascending, which is the
  * user's own priority order (drag/edit happens in the preferences "tags" pane).
+ *
+ * `color` is the user's own pick out of the eight badge tints; `""` means "no
+ * explicit colour", in which case the tint falls back to the palette index (see
+ * `tagBadgeClass` in the workbench utils).
  */
 export interface ResearchTag {
   id: string
   name: string
   position: number
+  color: string
 }
 
 export interface ResearchPaper {
