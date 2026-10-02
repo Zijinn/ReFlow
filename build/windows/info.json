@@ -1,10 +1,10 @@
 {
   "fixed": {
-    "file_version": "6.6.0"
+    "file_version": "2.0.0"
   },
   "info": {
     "0000": {
-      "ProductVersion": "6.6.0",
+      "ProductVersion": "2.0.0",
       "CompanyName": "ReFlow contributors",
       "FileDescription": "ReFlow personal RSS reader",
       "LegalCopyright": "Copyright 2026 ReFlow contributors. GPL-3.0-only.",

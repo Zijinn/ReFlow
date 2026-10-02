@@ -6,7 +6,7 @@ on:
       version:
         description: Semantic version without a leading v
         required: true
-        default: 6.6.0
+        default: 2.0.0
   push:
     tags:
       - "v*.*.*"
@@ -194,8 +194,8 @@ jobs:
           wails3 generate icons -input build/icons/ReFlow-1024.png -macfilename build/darwin/ReFlow.icns -windowsfilename build/windows/ReFlow.ico
           # These literals must equal the committed version in info.json / wails.exe.manifest, or
           # the substitution silently no-ops and ships a stale FileVersion. check-release-config.sh gates it.
-          (Get-Content build/windows/info.json -Raw).Replace('6.6.0', $env:VERSION) | Set-Content build/windows/info.release.json
-          (Get-Content build/windows/wails.exe.manifest -Raw).Replace('version="6.6.0"', "version=`"$($env:VERSION)`"") | Set-Content build/windows/wails.release.exe.manifest
+          (Get-Content build/windows/info.json -Raw).Replace('2.0.0', $env:VERSION) | Set-Content build/windows/info.release.json
+          (Get-Content build/windows/wails.exe.manifest -Raw).Replace('version="2.0.0"', "version=`"$($env:VERSION)`"") | Set-Content build/windows/wails.release.exe.manifest
           wails3 generate syso -arch amd64 -icon build/windows/ReFlow.ico -manifest build/windows/wails.release.exe.manifest -info build/windows/info.release.json -out reflow_windows_amd64.syso
           go build -tags desktop -trimpath -buildvcs=false -ldflags "-s -w -H windowsgui -X github.com/Zijinn/ReFlow/internal/version.Version=$($env:VERSION)" -o dist/ReFlow.exe ./cmd/reflow-desktop
           Remove-Item reflow_windows_amd64.syso
