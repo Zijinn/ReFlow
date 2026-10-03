@@ -15,19 +15,25 @@ beforeEach(() => {
 // 全部 color: ""（「自动」）：这四枚的存在是为了证明"没有自选色时按下标取色"，
 // 自选色的覆盖另起一份调色板（COLOURED_TAGS）测，两边不会互相顶着改。
 const TAGS: ResearchTag[] = [
-  { id: "t-high", name: "High", position: 0, color: "" },
-  { id: "t-medium", name: "Medium", position: 1, color: "" },
-  { id: "t-average", name: "Average", position: 2, color: "" },
-  { id: "t-field", name: "Fieldwork", position: 3, color: "" },
+  { id: "t-high", name: "High", position: 0, color: "", color_enabled: true },
+  { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+  { id: "t-average", name: "Average", position: 2, color: "", color_enabled: true },
+  { id: "t-field", name: "Fieldwork", position: 3, color: "", color_enabled: true },
 ]
 
 // 带自选色的一版：violet 顶掉下标 0 的红，teal 顶掉下标 2 的灰；
 // "chartreuse" 不在八档色板里（脏值/后端将来加色而前端还没跟上），按未知处理回落到下标。
 const COLOURED_TAGS: ResearchTag[] = [
-  { id: "t-high", name: "High", position: 0, color: "violet" },
-  { id: "t-medium", name: "Medium", position: 1, color: "" },
-  { id: "t-field", name: "Fieldwork", position: 2, color: "teal" },
-  { id: "t-odd", name: "Odd", position: 3, color: "chartreuse" },
+  { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
+  { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+  { id: "t-field", name: "Fieldwork", position: 2, color: "teal", color_enabled: true },
+  { id: "t-odd", name: "Odd", position: 3, color: "chartreuse", color_enabled: true },
+]
+
+// 染色开关各关一半的一版：t-field 仍存着 teal，只是当前不涂；t-high 照旧在染。
+const PARTLY_MUTED_TAGS: ResearchTag[] = [
+  { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
+  { id: "t-field", name: "Fieldwork", position: 1, color: "teal", color_enabled: false },
 ]
 
 function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
@@ -87,7 +93,7 @@ function props() {
     // "resolve the created tag, then assign it". 行内新建不传颜色，所以后端回来的
     // 永远是 color: ""（自动）。
     onCreateTag: vi.fn((name: string) =>
-      Promise.resolve({ id: `t-new-${name}`, name, position: TAGS.length, color: "" }),
+      Promise.resolve({ id: `t-new-${name}`, name, position: TAGS.length, color: "", color_enabled: true }),
     ),
   }
 }
@@ -692,6 +698,53 @@ describe("ResearchPage", () => {
     expect(hue("Untagged")).toBe("")
     expect(rowOf("Ghost only")).not.toHaveClass("wb-row--tinted")
     expect(hue("Ghost only")).toBe("")
+  })
+
+  it("renders a muted tag neutral without giving up the label", () => {
+    render(
+      <ResearchPage
+        papers={[
+          paper({ id: "r-1", title: "Muted only", tag_ids: ["t-field"] }),
+          paper({ id: "r-2", title: "Muted plus painted", tag_ids: ["t-field", "t-high"] }),
+        ]}
+        {...props()}
+        tags={PARTLY_MUTED_TAGS}
+      />,
+    )
+    const chip = tagCell("Muted only").querySelector<HTMLElement>(".wb-tag-chip")!
+    // 药丸整体回到中性：没有色相修饰符，色点也不显色。
+    expect(chip).not.toHaveClass("wb-badge--teal")
+    expect(chip.querySelector(".wb-dot")).not.toHaveClass("wb-dot--teal")
+    // 关掉的是颜色，不是这枚标签：名字照旧显示，✕ 照旧能摘。
+    expect(chip.querySelector(".wb-tag-chip-label")!.textContent).toBe("Fieldwork")
+    expect(chip.querySelector(".wb-tag-chip-del")).not.toBeNull()
+
+    const muted = rowOf("Muted only")
+    expect(muted).not.toHaveClass("wb-row--tinted")
+    expect(muted.style.getPropertyValue("--wb-row-hue")).toBe("")
+    // 同一行上还有一枚在染的标签：色相来自它——被关掉的那枚不参与比较，
+    // 而不是把整行染色的决定权扣在自己手里。
+    expect(rowOf("Muted plus painted")).toHaveClass("wb-row--tinted")
+    expect(rowOf("Muted plus painted").style.getPropertyValue("--wb-row-hue")).toBe(
+      "var(--wb-hue-violet)",
+    )
+  })
+
+  it("keeps a muted tag assignable and filterable", () => {
+    render(
+      <ResearchPage
+        papers={[paper({ id: "r-1", title: "Muted only", tag_ids: [] })]}
+        {...props()}
+        tags={PARTLY_MUTED_TAGS}
+      />,
+    )
+    const cell = tagCell("Muted only")
+    fireEvent.click(within(cell).getByRole("button", { name: "Add tag" }))
+    // 菜单里的这一行仍是可勾选项，只是那颗点是中性的。
+    const item = within(cell)
+      .getByRole("menuitemcheckbox", { name: /Fieldwork/ })
+      .querySelector(".wb-dot")!
+    expect(item).not.toHaveClass("wb-dot--teal")
   })
 })
 

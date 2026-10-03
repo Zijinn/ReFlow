@@ -57,15 +57,18 @@ type SortMode = "manual" | "updated_desc" | "updated_asc" | "deadline_asc" | "ta
 // 行染色取的是"这一行最高的那一档"：调色板里下标最小的那枚标签（和 tag 排序
 // 同一个口径），它挂上的色相写进 --wb-row-hue 交给 phase3-research.css 去画。
 // 没挂标签、或只剩已被删除的残留 id，就返回 null 不染色。
+// 把颜色关掉的标签也不参加这场比较：它是用来归类的，不是用来说"这行很急"的。
+// 所以一行上若还有别的在染的标签，色相来自那些；全关掉了就跟没挂一样不涂色。
 function rowHue(tagIDs: string[], tags: ResearchTag[], rank: Map<string, number>): string | null {
   let best = -1
   for (const id of tagIDs) {
     const index = rank.get(id)
     if (index === undefined) continue
+    if (!tags[index]!.color_enabled) continue
     if (best < 0 || index < best) best = index
   }
   if (best < 0) return null
-  return tagHueVar(best, tags[best]!.color)
+  return tagHueVar(best, tags[best]!.color, tags[best]!.color_enabled)
 }
 
 // 标签格：一篇论文可以同时挂多个标签，挂上的都平铺成小药丸（与在投页的作者/关键词
@@ -110,13 +113,16 @@ function TagCell(props: {
     () =>
       tagIDs.map((id, order) => {
         const index = paletteIndex.get(id) ?? -1
+        const tag = index >= 0 ? props.tags[index] : undefined
         return {
           id,
           key: `${id}-${order}`,
           index,
-          color: index >= 0 ? props.tags[index]!.color : "",
-          label:
-            index >= 0 ? tagDisplayName(props.tags[index]!.name, t) : t("tagRemovedLabel"),
+          color: tag?.color ?? "",
+          // 关掉颜色的标签，这颗药丸整体回到中性：不涂色相、点不显色。名字仍挂得上、
+          // 仍能摘，只是不再替这行说话。
+          painted: tag?.color_enabled ?? true,
+          label: tag ? tagDisplayName(tag.name, t) : t("tagRemovedLabel"),
         }
       }),
     [paletteIndex, props.tags, tagIDs, t],
@@ -269,9 +275,12 @@ function TagCell(props: {
         {entries.map((entry) => (
           <span
             key={entry.key}
-            className={`wb-tag-chip ${tagBadgeClass(entry.index, entry.color)}`}
+            className={`wb-tag-chip ${tagBadgeClass(entry.index, entry.color, entry.painted)}`}
           >
-            <i className={`wb-dot ${tagDotClass(entry.index, entry.color)}`} aria-hidden="true" />
+            <i
+              className={`wb-dot ${tagDotClass(entry.index, entry.color, entry.painted)}`}
+              aria-hidden="true"
+            />
             <span className="wb-tag-chip-label">{entry.label}</span>
             <button
               type="button"
@@ -349,7 +358,10 @@ function TagCell(props: {
                 className={itemClass(index + 1)}
                 onClick={() => toggle(tag.id)}
               >
-                <i className={`wb-dot ${tagDotClass(index, tag.color)}`} aria-hidden="true" />
+                <i
+                  className={`wb-dot ${tagDotClass(index, tag.color, tag.color_enabled)}`}
+                  aria-hidden="true"
+                />
                 <span className="wb-menu-item-label">{tagDisplayName(tag.name, t)}</span>
                 {/* 勾选框永远占位：切换时整行不跳，读屏也拿到 aria-checked。 */}
                 <span
@@ -434,13 +446,14 @@ export function ResearchPage(props: {
   const sorting = sortMode !== "manual"
 
   // 调色板顺序即服务端 position 升序，筛选项按它排；圆点取的是标签自己存的颜色，
-  // 没有自选色才回落到下标推出来的那一档。
+  // 没有自选色才回落到下标推出来的那一档；颜色被关掉的标签点是中性的——筛选器本身
+  // 不受开关影响，仍然按名字过滤。
   const tagOptions = useMemo(
     () =>
       props.tags.map((tag, index) => ({
         value: tag.id,
         label: tagDisplayName(tag.name, t),
-        dotClass: tagDotClass(index, tag.color),
+        dotClass: tagDotClass(index, tag.color, tag.color_enabled),
       })),
     [props.tags, t],
   )

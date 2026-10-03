@@ -482,21 +482,21 @@ export async function createResearchTag(name: string, color?: string): Promise<R
 }
 
 /**
- * 404 for an unknown id; 409 on a duplicate name. `color` follows the PATCH
- * contract: omitted leaves the stored colour alone, `""` puts the tag back on
- * the index-derived tint. The server's duplicate check excludes the tag itself,
- * so a colour-only write that re-sends the current name is a no-op rename.
+ * 404 for an unknown id; 409 on a duplicate name. Every field follows the PATCH
+ * contract: omitted leaves the stored value alone. `color: ""` puts the tag back
+ * on the index-derived tint; `color_enabled` is the paint switch. The server's
+ * duplicate check excludes the tag itself, so a colour-only write that re-sends
+ * the current name is a no-op rename.
  */
 export async function updateResearchTag(
   tagID: string,
-  name: string,
-  color?: string,
+  patch: { name?: string; color?: string; color_enabled?: boolean },
 ): Promise<ResearchTag> {
   const response = await request<{ tag: ResearchTag }>(
     `/api/v1/research/tags/${encodeURIComponent(tagID)}`,
     {
       method: "PATCH",
-      body: JSON.stringify(color === undefined ? { name } : { name, color }),
+      body: JSON.stringify(patch),
     },
   )
   return response.tag

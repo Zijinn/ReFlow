@@ -1758,10 +1758,11 @@ paths:
       operationId: updateResearchTag
       tags: [research]
       description: >
-        Partial update of a palette entry: renames it, recolours it, or both.
-        An omitted field is left untouched, so the settings pane can send the
-        one control the user actually changed. Papers reference tags by id, so
-        their tag_ids are unchanged.
+        Partial update of a palette entry: renames it, recolours it, mutes or
+        unmutes its colour, or any of these together. An omitted field is left
+        untouched, so the settings pane can send the one control the user
+        actually changed. Papers reference tags by id, so their tag_ids are
+        unchanged.
       requestBody:
         required: true
         content:
@@ -1781,6 +1782,13 @@ paths:
                     Passing the empty string clears the choice, which returns
                     the chip to index-derived tinting; an unknown name returns
                     400 with code invalid_research_tag.
+                color_enabled:
+                  type: boolean
+                  description: >
+                    Whether the label paints at all: false renders its chip
+                    neutral and leaves its rows untinted. It is a separate field
+                    from color so muting a label does not erase the shade it
+                    will come back to.
       responses:
         "200":
           description: Updated tag.
@@ -2675,7 +2683,7 @@ components:
         One label of the research-workbench palette. Distinct from the library
         Tag: a research tag carries a priority order and a chip tint chosen by
         the user, and a paper wears several of them at once.
-      required: [id, name, position, color]
+      required: [id, name, position, color, color_enabled]
       properties:
         id:
           type: string
@@ -2697,6 +2705,12 @@ components:
             Chip tint stored with the label. The empty string is part of the
             contract and means no explicit choice, so the client keeps tinting
             the chip by its palette index.
+        color_enabled:
+          type: boolean
+          description: >
+            Whether that tint is painted at all. False keeps color as it was and
+            renders the chip neutral with no row tint, which is what lets a label
+            group papers without ranking them.
     Rule:
       type: object
       required: [id, name, enabled, priority, conditions, actions, created_at, updated_at]

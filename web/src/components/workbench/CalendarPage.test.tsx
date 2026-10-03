@@ -130,6 +130,30 @@ describe("CalendarPage", () => {
     expect(onSelectPaper).toHaveBeenCalledWith("s-jump")
   })
 
+  // 在研论文的截止日期与在投的同进一张网格：日历过去只喂在投那一列，所以在研设的
+  // 死线永远看不见。编号各按各表自己数，点过去由父层决定落到哪一页。
+  it("puts a working paper's deadline beside a submission's", () => {
+    const onSelectPaper = vi.fn()
+    render(
+      <CalendarPage
+        papers={[
+          paper({ id: "r-1", kind: "research", title: "Robustness", deadline: dayOffset(2) }),
+          paper({ id: "r-2", kind: "research", title: "No date", deadline: "" }),
+          paper({ id: "r-3", kind: "research", title: "Rewrite", deadline: dayOffset(2) }),
+          paper({ id: "s-1", title: "Desk reject", deadline: dayOffset(2) }),
+        ]}
+        onSelectPaper={onSelectPaper}
+      />,
+    )
+    const codes = Array.from(document.querySelectorAll(".wb-cal-event-code")).map(
+      (node) => node.textContent,
+    )
+    // r-2 没有日期、不进气泡，但顺位照样占一格：所以下一篇在研是 R003 而不是 R002。
+    expect(codes).toEqual(["R001", "R003", "S001"])
+    fireEvent.click(screen.getByRole("button", { name: /Rewrite/ }))
+    expect(onSelectPaper).toHaveBeenCalledWith("r-3")
+  })
+
   it("moves between months and jumps back to today", () => {
     render(<CalendarPage papers={[]} onSelectPaper={vi.fn()} />)
     expect(screen.getByRole("heading", { name: "March 2026" })).toBeInTheDocument()

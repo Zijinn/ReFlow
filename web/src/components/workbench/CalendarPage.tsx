@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 
-import type { AIProfile, ResearchPaper } from "../../api/types"
+import type { AIProfile, ResearchKind, ResearchPaper } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { DailyDigestCard } from "./DailyDigest"
 import { daysUntil, displayID, formatDeadline, parseDeadline } from "./utils"
@@ -27,9 +27,10 @@ function urgencyClass(days: number): string {
   return ""
 }
 
-// The calendar owns no data of its own: every event is derived from a
-// submitted paper's deadline, so editing happens in the submissions table and
-// this view can never drift from it.
+// The calendar owns no data of its own: every event is a deadline a table
+// already holds — 在研 papers set one for their internal due dates, 在投 for
+// their submission dates — so editing always happens in the row and this view
+// can never drift from it.
 export function CalendarPage(props: {
   papers: ResearchPaper[]
   aiProfiles?: AIProfile[]
@@ -45,17 +46,23 @@ export function CalendarPage(props: {
   }))
   const [expandedDay, setExpandedDay] = useState<number | null>(null)
 
+  // 编号取的是这篇在它自己那张表里的顺位（R007 / S003），所以日历上的代码和点过去
+  // 之后表里看到的那一行对得上；没有日期、不进气泡的行也要占一格，否则顺位会集体前移。
   const eventsByDay = useMemo(() => {
     const map = new Map<number, DeadlineEvent[]>()
-    props.papers.forEach((paper, index) => {
+    const ordinals = new Map<ResearchKind, number>()
+    props.papers.forEach((paper) => {
+      const ordinal = ordinals.get(paper.kind) ?? 0
+      ordinals.set(paper.kind, ordinal + 1)
       const date = parseDeadline(paper.deadline)
       if (!date) return
+      const code = displayID(paper.kind, ordinal)
       const key = dayKey(date)
       const list = map.get(key) ?? []
       list.push({
         paperID: paper.id,
-        code: displayID("submitted", index),
-        title: paper.title.trim() || paper.current_journal.trim() || displayID("submitted", index),
+        code,
+        title: paper.title.trim() || paper.current_journal.trim() || code,
         days: daysUntil(date),
       })
       map.set(key, list)

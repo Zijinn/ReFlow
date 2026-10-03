@@ -68,13 +68,33 @@ describe("research tags", () => {
       }),
     )
 
-    await expect(updateResearchTag("t-1", "Placebo")).resolves.toEqual({
+    await expect(updateResearchTag("t-1", { name: "Placebo" })).resolves.toEqual({
       ...tag,
       name: "Placebo",
     })
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/v1/research/tags/t-1",
       expect.objectContaining({ method: "PATCH", body: JSON.stringify({ name: "Placebo" }) }),
+    )
+  })
+
+  // 染色开关必须能单独发出去：这一格不碰名字也不碰颜色，所以 body 里只有它自己。
+  // 旧签名把 name 做成必填参数，那种 patch 根本表达不出来。
+  it("sends a colour-switch patch on its own", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ tag: { ...tag, color_enabled: false } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    )
+
+    await expect(updateResearchTag("t-1", { color_enabled: false })).resolves.toEqual({
+      ...tag,
+      color_enabled: false,
+    })
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/research/tags/t-1",
+      expect.objectContaining({ method: "PATCH", body: JSON.stringify({ color_enabled: false }) }),
     )
   })
 

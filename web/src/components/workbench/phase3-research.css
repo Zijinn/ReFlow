@@ -411,6 +411,51 @@
   align-items: center;
   gap: var(--space-2);
 }
+/* 第二行分两段：左边是染色开关，右边是那排色块。外层已经把两段排在同一条线上并
+   允许换行，这里给色块段自己补一份同款的排布。 */
+.pref-tag-color-group {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  transition: opacity var(--dur-fast) var(--ease);
+}
+/* 开关关掉时整排淡一档。仍可点——色块管的是"存哪一档颜色"，与涂不涂是两件事，
+   所以选中那颗的主色环照旧亮着，说明选好的颜色没被丢掉。
+   用透明度不用灰底：面板是玻璃面，铺一层灰会把色块自己的色相顶掉。 */
+.pref-tag-color-group--off {
+  opacity: 0.45;
+}
+.pref-tag-color-group--off:hover,
+.pref-tag-color-group--off:focus-within {
+  opacity: 0.8;
+}
+/* 开关这一格不复用 .checkbox-row：那一族的字号是偏好面板正文档（--text-sm），
+   而这一行的名字和「自动」都是 --text-2xs，混用会让开关比它管的色块还显眼。 */
+.pref-tag-paint {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  line-height: 1.6;
+  cursor: pointer;
+}
+.pref-tag-paint input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent-strong);
+  cursor: pointer;
+}
+.pref-tag-paint input:focus-visible {
+  outline: none;
+  border-radius: var(--radius-xs);
+  box-shadow: var(--focus-ring);
+}
 /* 色块：底就是那一档色相本体（--wb-badge-hue 由同一颗按钮上的 wb-badge--* 挂上来），
    所以八档色块和表里的药丸、日历事件条永远是同一个色相，深浅两档也一起跟着换。
    选中态只加一圈主色环，不改变尺寸：整排在窄面板里会换行，任何尺寸抖动都会

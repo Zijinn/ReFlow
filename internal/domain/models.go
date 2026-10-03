@@ -389,6 +389,10 @@ type ResearchTag struct {
 	Name     string `json:"name"`
 	Position int    `json:"position"`
 	Color    string `json:"color"`
+	// ColorEnabled is the user's "paint with this tag's colour" switch: false
+	// keeps the picked colour on record but renders the chip neutral and leaves
+	// the row untinted.
+	ColorEnabled bool `json:"color_enabled"`
 }
 
 // ResearchPaperPatch carries optional field updates; nil fields are untouched.

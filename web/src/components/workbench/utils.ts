@@ -167,17 +167,25 @@ export function tagColorName(index: number, color?: string): TagColorName {
   return TAG_COLOR_NAMES[index % TAG_COLOR_NAMES.length]!
 }
 
-export function tagBadgeClass(index: number, color?: string): string {
+// `painted` 是用户给这枚标签的「颜色是否启用」开关。关掉时这里三个函数都返回
+// 中性：药丸不带色相修饰符（.wb-badge / .wb-tag-chip 本来就在中性墨上）、点回落到
+// .wb-dot 的底色的、行染色交出 null 干脆不涂。自选的那一档颜色仍留在 tag.color 上，
+// 所以开关再打开回到原样，而不是被悄悄重置成调色板默认。
+export function tagBadgeClass(index: number, color?: string, painted = true): string {
+  if (!painted) return ""
   return `wb-badge--${tagColorName(index, color)}`
 }
 
-export function tagDotClass(index: number, color?: string): string {
+export function tagDotClass(index: number, color?: string, painted = true): string {
+  if (!painted) return ""
   return `wb-dot--${tagColorName(index, color)}`
 }
 
 // 行染色的色相：把色相名写成一条 var() 引用交给 CSS 自定义属性，浅深两档由
 // styles.css 里那批 --wb-hue-* 令牌自己分档，所以这里不新造任何颜色。
-export function tagHueVar(index: number, color?: string): string {
+// 返回 null 表示这一行不该被染色（开关关掉了，或者没有可染的标签）。
+export function tagHueVar(index: number, color?: string, painted = true): string | null {
+  if (!painted) return null
   return `var(--wb-hue-${tagColorName(index, color)})`
 }
 

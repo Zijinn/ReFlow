@@ -19,23 +19,32 @@ vi.mock("../api/client", async (importOriginal) => {
     // 第三个入参是存下来的颜色（"" = 跟着调色板下标走），mock 要把它原样回显，
     // 否则下面的选色断言只能看见名字、看不见颜色落库。
     createResearchTag: vi.fn((name: string) =>
-      Promise.resolve({ id: `t-new-${name}`, name, position: 3, color: "" }),
+      Promise.resolve({ id: `t-new-${name}`, name, position: 3, color: "", color_enabled: true }),
     ),
     deleteResearchTag: vi.fn(() => Promise.resolve()),
     listPreferences: vi.fn(() => Promise.resolve({ items: {} })),
     listResearchTags: vi.fn(() =>
       Promise.resolve({
         tags: [
-          { id: "t-high", name: "High", position: 0, color: "" },
-          { id: "t-medium", name: "Medium", position: 1, color: "" },
-          { id: "t-field", name: "Fieldwork", position: 2, color: "" },
+          { id: "t-high", name: "High", position: 0, color: "", color_enabled: true },
+          { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+          { id: "t-field", name: "Fieldwork", position: 2, color: "", color_enabled: true },
         ] satisfies ResearchTag[],
       }),
     ),
     putPreference: vi.fn(() => Promise.resolve({ items: {} })),
     reorderResearchTags: vi.fn(() => Promise.resolve()),
-    updateResearchTag: vi.fn((tagID: string, name: string, color?: string) =>
-      Promise.resolve({ id: tagID, name, position: 0, color: color ?? "" }),
+    // PATCH 的入参是"要改的那几个字段"，mock 也只回显这几个：颜色-only 的写回不该
+    // 被当成改名，染色开关那一格更是只有 color_enabled 一个字段。
+    updateResearchTag: vi.fn(
+      (tagID: string, patch: { name?: string; color?: string; color_enabled?: boolean }) =>
+        Promise.resolve({
+          id: tagID,
+          name: patch.name ?? "Fieldwork",
+          position: 0,
+          color: patch.color ?? "",
+          color_enabled: patch.color_enabled ?? true,
+        }),
     ),
   }
 })
@@ -169,7 +178,9 @@ describe("PreferencesDialog research tags", () => {
     const input = screen.getByRole("textbox", { name: "Fieldwork" })
     fireEvent.change(input, { target: { value: "Desk notes" } })
     fireEvent.keyDown(input, { key: "Enter" })
-    await waitFor(() => expect(api.updateResearchTag).toHaveBeenCalledWith("t-field", "Desk notes"))
+    await waitFor(() =>
+      expect(api.updateResearchTag).toHaveBeenCalledWith("t-field", { name: "Desk notes" }),
+    )
   })
 
   it("cancels a rename on Escape without closing the settings dialog", async () => {
@@ -208,23 +219,21 @@ describe("PreferencesDialog research tags", () => {
     )
   })
 
-  it("sends the picked colour together with the tag name", async () => {
-    // PATCH 的正文是 {name, color}：颜色不能单独发，否则后端把名字改回空串。
+  it("sends the picked colour on its own", async () => {
+    // 后端契约是"没带的字段一律不动"，所以色块只写 color，不再重发现名。
     openTagPane()
     await ready()
     fireEvent.click(within(rowOfName("Fieldwork")).getByRole("button", { name: "Tag color: Teal" }))
-    await waitFor(() =>
-      expect(api.updateResearchTag).toHaveBeenCalledWith("t-field", "Fieldwork", "teal"),
-    )
+    await waitFor(() => expect(api.updateResearchTag).toHaveBeenCalledWith("t-field", { color: "teal" }))
   })
 
   it("marks the stored colour as pressed and falls back to the palette index", async () => {
     // 色块与行首色点读的是同一个来源：自选色钉住，空串跟着下标走。
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0, color: "violet" },
-        { id: "t-medium", name: "Medium", position: 1, color: "" },
-        { id: "t-field", name: "Fieldwork", position: 2, color: "teal" },
+        { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
+        { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+        { id: "t-field", name: "Fieldwork", position: 2, color: "teal", color_enabled: true },
       ],
     })
     openTagPane()
@@ -254,25 +263,25 @@ describe("PreferencesDialog research tags", () => {
     // 「自动」不是把颜色设成某个具体值，而是交还给下标：存回空串。
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0, color: "violet" },
-        { id: "t-medium", name: "Medium", position: 1, color: "" },
-        { id: "t-field", name: "Fieldwork", position: 2, color: "teal" },
+        { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
+        { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+        { id: "t-field", name: "Fieldwork", position: 2, color: "teal", color_enabled: true },
       ],
     })
     openTagPane()
     await ready()
     const row = rowOfName("High")
     fireEvent.click(within(row).getByRole("button", { name: "Tag color: Auto" }))
-    await waitFor(() => expect(api.updateResearchTag).toHaveBeenCalledWith("t-high", "High", ""))
+    await waitFor(() => expect(api.updateResearchTag).toHaveBeenCalledWith("t-high", { color: "" }))
   })
 
   it("keeps quiet when the already-selected colour is clicked", async () => {
     // PATCH 成功会整栏刷新，白闪一次也是闪：同一枚色块再点不该发请求。
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0, color: "violet" },
-        { id: "t-medium", name: "Medium", position: 1, color: "" },
-        { id: "t-field", name: "Fieldwork", position: 2, color: "teal" },
+        { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
+        { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+        { id: "t-field", name: "Fieldwork", position: 2, color: "teal", color_enabled: true },
       ],
     })
     openTagPane()
@@ -282,6 +291,36 @@ describe("PreferencesDialog research tags", () => {
     fireEvent.click(within(row).getByRole("button", { name: "Tag color: Teal" }))
     await Promise.resolve()
     expect(api.updateResearchTag).not.toHaveBeenCalled()
+  })
+
+  it("switches the colour off without losing the pick", async () => {
+    // 开关管的是"涂不涂"，不是"存了哪一档"：关掉后色点回中性、色块排淡一档，
+    // 但选中那颗仍是按下态，所以重新打开回到原样。写回的 PATCH 只有开关这一个字段。
+    // 三枚一组的数量与 ready() 一致：这份 mock 的返回值会留到后面的用例（afterEach
+    // 只 clear 调用记录，不 reset 实现），少一枚就会把后面几条一起拖成超时。
+    vi.mocked(api.listResearchTags).mockResolvedValue({
+      tags: [
+        { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
+        { id: "t-medium", name: "Medium", position: 1, color: "", color_enabled: true },
+        { id: "t-field", name: "Fieldwork", position: 2, color: "teal", color_enabled: false },
+      ],
+    })
+    openTagPane()
+    await ready()
+    const muted = rowOfName("Fieldwork")
+    expect(rowOfName("High").querySelector(".wb-dot")).toHaveClass("wb-dot--violet")
+    expect(muted.querySelector(".wb-dot")).not.toHaveClass("wb-dot--teal")
+    expect(muted.querySelector(".pref-tag-color-group")).toHaveClass("pref-tag-color-group--off")
+    expect(within(muted).getByRole("checkbox", { name: "Use color: Fieldwork" })).not.toBeChecked()
+    expect(within(muted).getByRole("button", { name: "Tag color: Teal" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    )
+
+    fireEvent.click(within(rowOfName("High")).getByRole("checkbox", { name: "Use color: High" }))
+    await waitFor(() =>
+      expect(api.updateResearchTag).toHaveBeenCalledWith("t-high", { color_enabled: false }),
+    )
   })
 
   it("asks before deleting, then removes the tag", async () => {

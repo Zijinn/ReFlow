@@ -70,6 +70,15 @@ func validateResearchTagColor(color string) (string, error) {
 	return trimmed, nil
 }
 
+// boolToInt writes a Go bool the way SQLite stores one: a 0/1 INTEGER, which is
+// what scanResearchTag reads back.
+func boolToInt(value bool) int {
+	if value {
+		return 1
+	}
+	return 0
+}
+
 // researchTagNameTaken reports whether another tag of the profile already
 // uses the name; ignoreID excludes the tag being renamed from the comparison.
 func researchTagNameTaken(ctx context.Context, querier interface {
@@ -89,13 +98,15 @@ func scanResearchTag(scanner interface {
 	Scan(dest ...any) error
 }) (domain.ResearchTag, error) {
 	var tag domain.ResearchTag
-	if err := scanner.Scan(&tag.ID, &tag.Name, &tag.Position, &tag.Color); err != nil {
+	var colorEnabled int
+	if err := scanner.Scan(&tag.ID, &tag.Name, &tag.Position, &tag.Color, &colorEnabled); err != nil {
 		return domain.ResearchTag{}, err
 	}
+	tag.ColorEnabled = colorEnabled != 0
 	return tag, nil
 }
 
-const researchTagColumns = `id, name, position, color`
+const researchTagColumns = `id, name, position, color, color_enabled`
 
 // ListResearchTags returns a profile's palette in priority order.
 func ListResearchTags(ctx context.Context, db *sql.DB, profileID string) ([]domain.ResearchTag, error) {
@@ -119,7 +130,9 @@ func ListResearchTags(ctx context.Context, db *sql.DB, profileID string) ([]doma
 
 // CreateResearchTag appends a label to the end of the palette. An empty color
 // stores "no colour chosen", which is what lets the client keep tinting by
-// index for palettes the user never recoloured.
+// index for palettes the user never recoloured. A new tag paints with its colour
+// (color_enabled defaults to 1): the switch belongs to the settings pane, which
+// PATCHes it, and a tag created without one would be invisible in the palette.
 func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name, color string) (domain.ResearchTag, error) {
 	name = strings.TrimSpace(name)
 	if err := validateResearchTagName(name); err != nil {
@@ -130,7 +143,7 @@ func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name, color s
 		return domain.ResearchTag{}, err
 	}
 	now := time.Now().UTC()
-	tag := domain.ResearchTag{ID: uuid.NewString(), Name: name, Color: color}
+	tag := domain.ResearchTag{ID: uuid.NewString(), Name: name, Color: color, ColorEnabled: true}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return domain.ResearchTag{}, fmt.Errorf("begin research tag create: %w", err)
@@ -146,10 +159,14 @@ func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name, color s
 	} else if exists {
 		return domain.ResearchTag{}, ErrDuplicateResearchTag
 	}
+	// The colour switch is written rather than left to the column default: this
+	// function returns the struct it built, so a value it did not store would be
+	// an echo the row may not agree with.
 	if _, err := tx.ExecContext(ctx,
-		`INSERT INTO research_tags (id, profile_id, name, position, color, created_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		tag.ID, profileID, tag.Name, tag.Position, tag.Color, formatTime(now), formatTime(now)); err != nil {
+		`INSERT INTO research_tags (id, profile_id, name, position, color, color_enabled, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		tag.ID, profileID, tag.Name, tag.Position, tag.Color, boolToInt(tag.ColorEnabled),
+		formatTime(now), formatTime(now)); err != nil {
 		return domain.ResearchTag{}, fmt.Errorf("create research tag: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -159,9 +176,13 @@ func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name, color s
 }
 
 // UpdateResearchTag applies a partial patch: a nil field is left alone, so the
-// settings pane renames, recolours, or does both in one request. Papers keep
-// referencing the tag by id, so neither change rewrites a paper row.
-func UpdateResearchTag(ctx context.Context, db *sql.DB, profileID, id string, name, color *string) (domain.ResearchTag, error) {
+// settings pane renames, recolours, flips the colour switch, or does several of
+// those in one request. Papers keep referencing the tag by id, so none of them
+// rewrites a paper row.
+func UpdateResearchTag(
+	ctx context.Context, db *sql.DB, profileID, id string,
+	name, color *string, colorEnabled *bool,
+) (domain.ResearchTag, error) {
 	if name != nil {
 		trimmed := strings.TrimSpace(*name)
 		if err := validateResearchTagName(trimmed); err != nil {
@@ -197,6 +218,10 @@ func UpdateResearchTag(ctx context.Context, db *sql.DB, profileID, id string, na
 	if color != nil {
 		sets = append(sets, "color = ?")
 		args = append(args, *color)
+	}
+	if colorEnabled != nil {
+		sets = append(sets, "color_enabled = ?")
+		args = append(args, boolToInt(*colorEnabled))
 	}
 	if len(sets) == 1 {
 		// A patch that mentions nothing is not a write: the row keeps its

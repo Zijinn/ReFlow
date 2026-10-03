@@ -190,7 +190,7 @@ func TestLibrarySnapshotRoundTripsResearchPapers(t *testing.T) {
 		domain.ResearchPaperPatch{TagIDs: &untagged}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("本地改名"), nil); err != nil {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("本地改名"), nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := RestoreLibrarySnapshot(ctx, db, document); err != nil {

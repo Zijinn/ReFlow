@@ -158,14 +158,20 @@ func TestUpdateResearchTagColorRoute(t *testing.T) {
 	}
 	var createBody struct {
 		Tag struct {
-			ID       string `json:"id"`
-			Name     string `json:"name"`
-			Position int    `json:"position"`
-			Color    string `json:"color"`
+			ID           string `json:"id"`
+			Name         string `json:"name"`
+			Position     int    `json:"position"`
+			Color        string `json:"color"`
+			ColorEnabled bool   `json:"color_enabled"`
 		} `json:"tag"`
 	}
 	if err := json.NewDecoder(created.Body).Decode(&createBody); err != nil {
 		t.Fatalf("decode create body: %v", err)
+	}
+	// A label the palette just gained has to answer painted: the settings pane
+	// shows a switch, and one that starts off reads as a broken control.
+	if !createBody.Tag.ColorEnabled {
+		t.Fatalf("a created tag should come back colour-enabled, got %s", created.Body.String())
 	}
 	taken := do(http.MethodPost, "/api/v1/research/tags", `{"name":"已投","color":"blue"}`)
 	if taken.Code != http.StatusCreated {
@@ -174,8 +180,9 @@ func TestUpdateResearchTagColorRoute(t *testing.T) {
 
 	type tagReply struct {
 		Tag struct {
-			Name  string `json:"name"`
-			Color string `json:"color"`
+			Name         string `json:"name"`
+			Color        string `json:"color"`
+			ColorEnabled bool   `json:"color_enabled"`
 		} `json:"tag"`
 	}
 	decode := func(t *testing.T, recorder *httptest.ResponseRecorder) tagReply {
@@ -240,6 +247,19 @@ func TestUpdateResearchTagColorRoute(t *testing.T) {
 	}
 	if len(listBody.Tags) != 2 || listBody.Tags[0].Name != "合作者" || listBody.Tags[0].Color != "" {
 		t.Fatalf("a refused patch reached the palette: %+v", listBody.Tags)
+	}
+
+	// The colour switch mutes a label without forgetting its shade, which is the
+	// whole reason it is a second field rather than a ninth colour name.
+	off := decode(t, do(http.MethodPatch, "/api/v1/research/tags/"+createBody.Tag.ID,
+		`{"color":"red","color_enabled":false}`))
+	if off.Tag.ColorEnabled || off.Tag.Color != "red" {
+		t.Fatalf("expected a muted tag that still remembers red, got %+v", off.Tag)
+	}
+	on := decode(t, do(http.MethodPatch, "/api/v1/research/tags/"+createBody.Tag.ID,
+		`{"color_enabled":true}`))
+	if !on.Tag.ColorEnabled || on.Tag.Color != "red" {
+		t.Fatalf("switching back on should restore the picked colour, got %+v", on.Tag)
 	}
 
 	// 404 still beats 409 for a tag that no longer exists, whichever field the

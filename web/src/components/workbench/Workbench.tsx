@@ -156,15 +156,16 @@ export function Workbench(props: WorkbenchProps) {
     }
   }, [tab])
 
-  // Paper set per tab: the calendar only ever shows submitted deadlines, so it
-  // scopes to the papers that actually have one; the overview spans the whole
-  // workspace. An expanded row narrows the context to that single paper.
+  // Paper set per tab: the calendar shows the deadlines that actually exist on
+  // either table — an internal due date on a 在研 paper counts just as much as a
+  // submission date — so it scopes to papers carrying one and the overview spans
+  // the whole workspace. An expanded row narrows the context to that single paper.
   const tabPapers = useMemo<ResearchPaper[]>(() => {
     if (tab === "research") return research
     if (tab === "submitted") return submitted
     if (tab === "published") return published
     if (tab === "calendar") {
-      return submitted
+      return [...research, ...submitted]
         .filter((paper) => parseDeadline(paper.deadline) !== null)
         .sort((left, right) => deadlineDays(left) - deadlineDays(right))
     }
@@ -579,14 +580,13 @@ export function Workbench(props: WorkbenchProps) {
               )}
               {tab === "calendar" && (
                 <CalendarPage
-                  papers={submitted}
+                  papers={[...research, ...submitted]}
                   aiProfiles={props.aiProfiles ?? []}
                   onConfigureAI={props.onConfigureAI}
                   onAskAI={props.onAskAI}
-                  onSelectPaper={(id) => {
-                    setFocusPaperID(id)
-                    selectTab("submitted")
-                  }}
+                  // 点一格气泡回到它自己那张表：在研的截止日期落在在研页，在投的落在
+                  // 在投页——和摘要里那条跳转同一套逻辑（含"在投才设焦点行"）。
+                  onSelectPaper={openPaperFromDigest}
                 />
               )}
             </>

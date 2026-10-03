@@ -154,12 +154,13 @@ function chatSession(content: string): AIChatSession {
   }
 }
 
-// A submitted paper with a deadline `days` out, for the calendar scoping tests.
-function dated(id: string, days: number): ResearchPaper {
+// A paper with a deadline `days` out, for the calendar scoping tests. 在研 papers
+// carry one too (an internal due date), so the kind is a parameter.
+function dated(id: string, days: number, kind: ResearchKind = "submitted"): ResearchPaper {
   return paper({
     id,
-    kind: "submitted",
-    title: `Submitted ${id}`,
+    kind,
+    title: `${kind === "research" ? "Working" : "Submitted"} ${id}`,
     deadline: formatDeadline(new Date(Date.now() + days * 86_400_000)),
   })
 }
@@ -202,7 +203,7 @@ beforeEach(() => {
   vi.mocked(api.putPreference).mockResolvedValue({})
   vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
   vi.mocked(api.createResearchTag).mockImplementation((name) =>
-    Promise.resolve({ id: `tag-${name}`, name, position: 0, color: "" }),
+    Promise.resolve({ id: `tag-${name}`, name, position: 0, color: "", color_enabled: true }),
   )
   // The daily-digest card auto-runs once an AI profile exists; default it to the
   // honest degraded path (no provider on the server) so panel tests stay focused
@@ -376,8 +377,8 @@ describe("Workbench research tags", () => {
   it("loads the tag palette and renders the paper's tag as a chip", async () => {
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0, color: "" },
-        { id: "t-field", name: "Fieldwork", position: 1, color: "" },
+        { id: "t-high", name: "High", position: 0, color: "", color_enabled: true },
+        { id: "t-field", name: "Fieldwork", position: 1, color: "", color_enabled: true },
       ],
     })
     papersByKind.research = [paper({ tag_ids: ["t-field"] })]
@@ -395,6 +396,7 @@ describe("Workbench research tags", () => {
       name: "Placebo",
       position: 0,
       color: "",
+      color_enabled: true,
     })
     renderWorkbench()
     goToTab(/Working papers/)
@@ -413,8 +415,8 @@ describe("Workbench research tags", () => {
     // 多选写回的是一整串 tag_ids：已有的保持指派顺序在前，刚勾上的追加在末尾。
     vi.mocked(api.listResearchTags).mockResolvedValue({
       tags: [
-        { id: "t-high", name: "High", position: 0, color: "" },
-        { id: "t-field", name: "Fieldwork", position: 1, color: "" },
+        { id: "t-high", name: "High", position: 0, color: "", color_enabled: true },
+        { id: "t-field", name: "Fieldwork", position: 1, color: "", color_enabled: true },
       ],
     })
     papersByKind.research = [paper({ tag_ids: ["t-field"] })]
@@ -492,6 +494,28 @@ describe("Workbench navigation", () => {
     expect(await screen.findByRole("button", { name: "Collapse details" })).toBeInTheDocument()
     expect(screen.getByText("Submitted One")).toBeInTheDocument()
     expect(document.querySelector('tr[data-paper-id="s-1"]')).not.toBeNull()
+  })
+
+  // 在研的截止日期点过去是另一件事：它不属于在投表，也不该被"聚焦展开"那套逻辑
+  // 接管——回到它自己那张表，编号对得上就够了。
+  it("jumps from a working paper's deadline to the working papers table", async () => {
+    papersByKind.research = [
+      paper({
+        id: "r-deadline",
+        title: "Robustness Rewrite",
+        deadline: new Date().toISOString().slice(0, 10),
+      }),
+    ]
+    renderWorkbench()
+    goToTab(/Deadline calendar/)
+    const event = await screen.findByRole("button", { name: /Robustness Rewrite/ })
+    expect(event.querySelector(".wb-cal-event-code")?.textContent).toBe("R001")
+    fireEvent.click(event)
+    await waitFor(() => expect(document.querySelector(".wb-calendar")).toBeNull())
+    // 没有"聚焦展开"：那一套是在投表的行为。
+    expect(screen.queryByRole("button", { name: "Collapse details" })).not.toBeInTheDocument()
+    const row = document.querySelector('tr[data-paper-id="r-deadline"]')
+    expect(row?.querySelector(".wb-code")?.textContent).toBe("R001")
   })
 })
 
@@ -607,6 +631,11 @@ describe("Workbench AI panel", () => {
   })
 
   it("scopes the calendar tab to papers that actually have a deadline, soonest first", async () => {
+    // 在研那条死线同样要进日历：过去这里只看 submitted，所以在研设的日期永远不出现。
+    papersByKind.research = [
+      dated("r-soon", 1, "research"),
+      paper({ id: "r-none", title: "No date", deadline: "" }),
+    ]
     papersByKind.submitted = [
       dated("s-late", 20),
       dated("s-soon", 2),
@@ -614,8 +643,8 @@ describe("Workbench AI panel", () => {
     ]
     const { container } = renderWorkbench(panelProps)
     goToTab(/Deadline calendar/)
-    expect((await ask("plan my week")).paperIDs).toEqual(["s-soon", "s-late"])
-    expect(contextLabel(container)).toContain("Deadline papers in the calendar · 2")
+    expect((await ask("plan my week")).paperIDs).toEqual(["r-soon", "s-soon", "s-late"])
+    expect(contextLabel(container)).toContain("Deadline papers in the calendar · 3")
   })
 
   it("caps the context at the endpoint's twenty-id limit", async () => {

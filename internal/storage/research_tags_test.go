@@ -68,7 +68,7 @@ func TestResearchTagCRUD(t *testing.T) {
 		t.Fatalf("expected validation error for unknown colour, got %v", err)
 	}
 
-	updated, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, first.ID, strPointer("特急"), nil)
+	updated, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, first.ID, strPointer("特急"), nil, nil)
 	if err != nil {
 		t.Fatalf("update tag: %v", err)
 	}
@@ -78,10 +78,10 @@ func TestResearchTagCRUD(t *testing.T) {
 	if updated.Color != "red" {
 		t.Fatalf("a rename that never mentioned colour dropped it: %+v", updated)
 	}
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, first.ID, strPointer("慢工"), nil); !errors.Is(err, ErrDuplicateResearchTag) {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, first.ID, strPointer("慢工"), nil, nil); !errors.Is(err, ErrDuplicateResearchTag) {
 		t.Fatalf("expected duplicate error on rename, got %v", err)
 	}
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", strPointer("名字"), nil); !errors.Is(err, ErrNotFound) {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", strPointer("名字"), nil, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected not found on rename, got %v", err)
 	}
 
@@ -465,7 +465,7 @@ func TestUpdateResearchTagKeepsPaperReferences(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create paper: %v", err)
 	}
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("顶刊冲刺"), nil); err != nil {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("顶刊冲刺"), nil, nil); err != nil {
 		t.Fatalf("rename: %v", err)
 	}
 	reloaded, err := GetResearchPaper(ctx, db, domain.DefaultProfileID, paper.ID)
@@ -725,7 +725,7 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 	}
 
 	// Colour only: the label keeps its name, position and papers.
-	recoloured, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer("orange"))
+	recoloured, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer("orange"), nil)
 	if err != nil {
 		t.Fatalf("recolour: %v", err)
 	}
@@ -734,7 +734,7 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 	}
 
 	// Both at once.
-	both, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer(" 修改中 "), strPointer("teal"))
+	both, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer(" 修改中 "), strPointer("teal"), nil)
 	if err != nil {
 		t.Fatalf("patch name and colour: %v", err)
 	}
@@ -743,7 +743,7 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 	}
 
 	// Clearing the choice is a real value: the client goes back to index tinting.
-	cleared, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer(""))
+	cleared, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer(""), nil)
 	if err != nil {
 		t.Fatalf("clear colour: %v", err)
 	}
@@ -752,7 +752,7 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 	}
 
 	// Renaming a tag to the name it already has is not a clash with itself.
-	sameName, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("修改中"), strPointer("teal"))
+	sameName, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer("修改中"), strPointer("teal"), nil)
 	if err != nil {
 		t.Fatalf("reapply the tag's own name: %v", err)
 	}
@@ -761,7 +761,7 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 	}
 
 	// An empty patch answers the tag without rewriting it.
-	untouched, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil)
+	untouched, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("empty patch: %v", err)
 	}
@@ -771,17 +771,17 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 
 	// Existence still beats the duplicate check, so a deleted tag cannot leak
 	// another label's name clash as a 409.
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", strPointer(other.Name), nil); !errors.Is(err, ErrNotFound) {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", strPointer(other.Name), nil, nil); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected not found before duplicate, got %v", err)
 	}
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer(other.Name), nil); !errors.Is(err, ErrDuplicateResearchTag) {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, strPointer(other.Name), nil, nil); !errors.Is(err, ErrDuplicateResearchTag) {
 		t.Fatalf("expected duplicate error, got %v", err)
 	}
 	for _, bad := range []struct {
 		name, color string
 	}{{"修改中", "crimson"}, {"", "teal"}, {strings.Repeat("标", researchTagNameLimit+1), "teal"}} {
 		if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID,
-			tag.ID, strPointer(bad.name), strPointer(bad.color)); !isTagValidationError(err) {
+			tag.ID, strPointer(bad.name), strPointer(bad.color), nil); !isTagValidationError(err) {
 			t.Fatalf("patch %+v should be refused, got %v", bad, err)
 		}
 	}
@@ -794,7 +794,7 @@ func TestUpdateResearchTagAppliesPartialPatch(t *testing.T) {
 		t.Fatalf("a refused patch wrote to the row: %+v", rejected)
 	}
 	// A client-fixable field problem is reported even about a tag that is gone.
-	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", nil, strPointer("magenta")); !isTagValidationError(err) {
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, "missing", nil, strPointer("magenta"), nil); !isTagValidationError(err) {
 		t.Fatalf("expected validation before lookup, got %v", err)
 	}
 }
@@ -822,7 +822,7 @@ func TestResearchTagAcceptsEveryShippedColor(t *testing.T) {
 		if stored.Color != color {
 			t.Fatalf("tag stored colour %q, want %q", stored.Color, color)
 		}
-		if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer(color)); err != nil {
+		if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, strPointer(color), nil); err != nil {
 			t.Fatalf("patch colour %q: %v", color, err)
 		}
 	}
@@ -832,6 +832,96 @@ func TestResearchTagAcceptsEveryShippedColor(t *testing.T) {
 	}
 	if !strings.Contains(string(body), `"color":""`) {
 		t.Fatalf("an unpicked colour must serialise as the empty string, got %s", body)
+	}
+}
+
+// The colour switch is a second column on purpose: turning the tint off has to
+// leave the picked colour alone, so switching it back on returns the chip to the
+// exact shade the user chose rather than to the palette default.
+func TestResearchTagColorSwitchKeepsThePickedColor(t *testing.T) {
+	ctx := context.Background()
+	db := newResearchTestDB(t)
+	resetResearchTagPalette(t, ctx, db)
+
+	tag, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "高优先级", "red")
+	if err != nil {
+		t.Fatalf("create tag: %v", err)
+	}
+	// A tag created without a word about colour paints: an invisible new label
+	// would leave the settings pane with nothing to switch back on.
+	if !tag.ColorEnabled {
+		t.Fatalf("a new tag should ship with its colour enabled, got %+v", tag)
+	}
+
+	off, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil, boolPointer(false))
+	if err != nil {
+		t.Fatalf("disable the colour: %v", err)
+	}
+	if off.ColorEnabled || off.Color != "red" {
+		t.Fatalf("disabling must mute the colour, not erase it, got %+v", off)
+	}
+
+	on, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil, boolPointer(true))
+	if err != nil {
+		t.Fatalf("re-enable the colour: %v", err)
+	}
+	if !on.ColorEnabled || on.Color != "red" {
+		t.Fatalf("expected the picked colour to survive the switch, got %+v", on)
+	}
+
+	// A patch that never mentions the switch cannot flip it: renaming while the
+	// colour is on leaves it on.
+	renamed, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID,
+		strPointer("改名了"), nil, nil)
+	if err != nil {
+		t.Fatalf("rename while enabled: %v", err)
+	}
+	if !renamed.ColorEnabled {
+		t.Fatalf("a name-only patch flipped the colour switch: %+v", renamed)
+	}
+	// And the same holds the other way: once it is off, an empty patch keeps it off.
+	if _, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil, boolPointer(false)); err != nil {
+		t.Fatalf("disable the tag: %v", err)
+	}
+	untouched, err := UpdateResearchTag(ctx, db, domain.DefaultProfileID, tag.ID, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("empty patch: %v", err)
+	}
+	if untouched.ColorEnabled {
+		t.Fatalf("an empty patch flipped the colour switch: %+v", untouched)
+	}
+
+	// The switch is per tag: muting one label leaves its palette neighbours alone.
+	neighbour, err := CreateResearchTag(ctx, db, domain.DefaultProfileID, "数据待补", "blue")
+	if err != nil {
+		t.Fatalf("create neighbour tag: %v", err)
+	}
+	kept, err := GetResearchTag(ctx, db, domain.DefaultProfileID, neighbour.ID)
+	if err != nil {
+		t.Fatalf("reload neighbour: %v", err)
+	}
+	if !kept.ColorEnabled {
+		t.Fatalf("muting one tag muted its neighbour: %+v", kept)
+	}
+}
+
+// Every palette row written before migration 0019 has to come back painted, or
+// the ALTER's default silently mutes the labels a user already relied on.
+func TestResearchTagColorEnabledBackfillsExistingRows(t *testing.T) {
+	ctx := context.Background()
+	db := newResearchTestDB(t)
+
+	tags, err := ListResearchTags(ctx, db, domain.DefaultProfileID)
+	if err != nil {
+		t.Fatalf("list seeded palette: %v", err)
+	}
+	if len(tags) == 0 {
+		t.Fatal("migration 0018 seeded no palette, so this test proves nothing")
+	}
+	for _, tag := range tags {
+		if !tag.ColorEnabled {
+			t.Fatalf("pre-existing tag %q came back unmuted: %+v", tag.Name, tag)
+		}
 	}
 }
 

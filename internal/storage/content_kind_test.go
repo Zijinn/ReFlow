@@ -90,3 +90,5 @@ func TestListEntriesFiltersByContentKind(t *testing.T) {
 }
 
 func strPointer(value string) *string { return &value }
+
+func boolPointer(value bool) *bool { return &value }

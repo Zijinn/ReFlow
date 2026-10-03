@@ -329,12 +329,18 @@ export interface SubmissionRecord {
  * `color` is the user's own pick out of the eight badge tints; `""` means "no
  * explicit colour", in which case the tint falls back to the palette index (see
  * `tagBadgeClass` in the workbench utils).
+ *
+ * `color_enabled` says whether to paint with that colour at all. A grouping tag
+ * ("合作者", "实证") organises papers rather than ranking them, and it should not
+ * wash its row red. Turning it off keeps `color` on record, so switching back on
+ * returns the exact shade the user picked.
  */
 export interface ResearchTag {
   id: string
   name: string
   position: number
   color: string
+  color_enabled: boolean
 }
 
 export interface ResearchPaper {

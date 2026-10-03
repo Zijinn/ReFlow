@@ -232,15 +232,16 @@ func (s *Server) createResearchTag(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) updateResearchTag(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Name  *string `json:"name"`
-		Color *string `json:"color"`
+		Name         *string `json:"name"`
+		Color        *string `json:"color"`
+		ColorEnabled *bool   `json:"color_enabled"`
 	}
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
 		return
 	}
 	tag, err := storage.UpdateResearchTag(r.Context(), s.db, domain.DefaultProfileID,
-		r.PathValue("tagID"), request.Name, request.Color)
+		r.PathValue("tagID"), request.Name, request.Color, request.ColorEnabled)
 	if err != nil {
 		s.storageError(w, r, err)
 		return
