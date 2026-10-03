@@ -282,6 +282,19 @@ describe("ResearchPage", () => {
     expect(handlers.onUpdate).toHaveBeenCalledWith("r-1", { notes: "Updated from the detail row" })
   })
 
+  it("reads the timestamp in the detail row now that the column is gone", () => {
+    render(
+      <ResearchPage papers={[paper({ last_updated: "2026-09-10T08:00:00Z" })]} {...props()} />,
+    )
+    // 更新日期整列让位给备注：表上不再有这颗列头，值仍然在展开详情里读得到，
+    // 排序也照旧按它走（见上面的 sort 用例）。
+    expect(screen.queryByRole("columnheader", { name: "Last updated" })).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Show or hide research stages" }))
+    expect(document.querySelector(".wb-detail-meta")!.textContent).toContain(
+      "Last updated: 2026-09-10",
+    )
+  })
+
   it("shows the tag column header and drops the old header sort button", () => {
     render(<ResearchPage papers={[paper()]} {...props()} />)
     const header = screen.getByRole("columnheader", { name: "Tag" })
@@ -552,11 +565,10 @@ describe("ResearchPage", () => {
   it("gives every named column header a width handle", () => {
     // 标题和操作列原本被排除在拖宽之外（弹性列 / 宽度由格子里的控件实测决定），
     // 现在也给了把手：唯一还没有把手的是拖拽柄列，它本身没有宽度语义。
-    // 截止日期是第九颗带把手的列头（键位 "deadline"，不能借用 "date"——
-    // 那个键位已经被"更新日期"的持久化宽度占了）。
+    // 更新日期整列拿掉之后一共 9 颗列头，8 颗带把手。
     render(<ResearchPage papers={[paper()]} {...props()} />)
     const heads = Array.from(document.querySelectorAll("thead tr > th"))
-    expect(heads).toHaveLength(10)
+    expect(heads).toHaveLength(9)
     expect(
       heads.filter((th) => !th.querySelector(".wb-col-resizer")).map((th) => th.className),
     ).toEqual(["wb-col-grip"])
@@ -571,15 +583,13 @@ describe("ResearchPage", () => {
     ).toBeInTheDocument()
   })
 
-  it("renders the deadline column left of 更新日期 and picks a date from the calendar", () => {
+  it("renders the deadline column left of 备注 and picks a date from the calendar", () => {
     const handlers = props()
     render(<ResearchPage papers={[paper({ deadline: "2026-12-24" })]} {...handlers} />)
     const head = screen.getByRole("columnheader", { name: "Deadline" })
     expect(head).toHaveClass("wb-col-deadline", "wb-col-date")
-    // 两枚日期列归在一起：截止日期紧挨在"更新日期"左边。
-    expect(head.nextElementSibling).toBe(
-      screen.getByRole("columnheader", { name: "Last updated" }),
-    )
+    // 更新日期拿掉之后，紧挨着截止日期右边的是备注。
+    expect(head.nextElementSibling).toBe(screen.getByRole("columnheader", { name: "Notes" }))
     const cell = deadlineCell("Working Paper One")
     const trigger = within(cell).getByRole("button", { name: "Deadline" })
     expect(trigger).toHaveTextContent("2026-12-24")

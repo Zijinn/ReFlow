@@ -91,16 +91,20 @@ export function InlineText(props: {
 
 // scrollHeight 只算内容 + padding，不含描边；border-box 下把高度写成它，框子就永远
 // 短一圈描边，连空备注都会"差 2px 算溢出"而冒出一根滚动条。
-function borderBoxGap(node: HTMLElement): number {
+function boxEdges(node: HTMLElement) {
   const style = window.getComputedStyle(node)
   const px = (value: string) => Number.parseFloat(value) || 0
-  return px(style.borderTopWidth) + px(style.borderBottomWidth)
+  return {
+    paddingInline: px(style.paddingLeft) + px(style.paddingRight),
+    borderBlock: px(style.borderTopWidth) + px(style.borderBottomWidth),
+  }
 }
 
 // NotesCell 是备注列的栏内编辑器：一颗自动长高的 textarea，Enter 提交（走 blur
 // 这一条路，避免 keydown 与 blur 各提交一次），Shift+Enter 换行，Escape 放弃草稿。
-// 长高走 scrollHeight 套路，CSS 那边用 max-height 封顶（超长备注在格内滚动，
-// 不把整行顶成半屏）；jsdom 不算布局，scrollHeight 恒为 0，测试只断言提交语义。
+// 长高走 scrollHeight 套路且不封顶——有多少字就长多高，整段读得完（CSS 侧的解释
+// 在 phase3-research.css）。列宽是用户可拖的，宽度一变同样的字数就要多绕几行，所以
+// 挂一个只看宽度的 ResizeObserver 去重算高度。jsdom 不算布局，测试只断言提交语义。
 export function NotesCell(props: {
   value: string
   ariaLabel: string
@@ -121,8 +125,26 @@ export function NotesCell(props: {
   useEffect(() => {
     const node = areaRef.current
     if (!node) return
-    node.style.height = "auto"
-    node.style.height = `${node.scrollHeight + borderBoxGap(node)}px`
+    const fit = () => {
+      const { paddingInline, borderBlock } = boxEdges(node)
+      // 内容盒排不出一个字时不量：窄档把整列收成 0 宽，clientWidth 却仍是 12px 内衬，
+      // 而 129 字的备注在这种盒子里绕成 129 行，scrollHeight 量出两千多像素写进内联
+      // 高度；等列宽回来时窄档的 max-height:0 压制已经撤走，留下的就是一格两千像素高。
+      if (node.clientWidth - paddingInline <= 0) return
+      node.style.height = "auto"
+      node.style.height = `${node.scrollHeight + borderBlock}px`
+    }
+    fit()
+    // 只认宽度变化：这一格是 overflow:hidden 且不封顶，高度算错就是真的剪掉字；
+    // 但高度本身也归 observer 管，一响应高度就会自激一轮，所以先记下再比对。
+    let width = node.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (node.clientWidth === width) return
+      width = node.clientWidth
+      fit()
+    })
+    observer.observe(node)
+    return () => observer.disconnect()
   }, [draft, props.value])
 
   const commit = () => {

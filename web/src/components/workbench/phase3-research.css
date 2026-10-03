@@ -300,10 +300,12 @@
    才读得出边界）。hover/focus 只加深 border-color，focus 再叠全局焦点环。
    transition 只写颜色三件套：密集表格里任何 transform/scale 都会抖。
    长高由组件里的 scrollHeight 套路驱动，pre-wrap 让长句自动换行、行高随行数
-   自适应。但行高不能无上限：表格行高取各格最大值，一条 140 字的备注在 176px
-   列里绕 20 行会把整行顶到 500px+，把整张表推出去。所以封顶六行（8.7em 是
-   6 × 1.45 行距），超出部分在格内滚动——全文在展开详情里始终可读可改。
-   overflow-y 只在封顶后才出滚动条，六行以内仍是 overflow:hidden 的干净态。 */
+   自适应，并且不封顶：这一格要的就是"有多少字长多高，整段读得完"。原来封顶六行
+   （8.7em ＝ 6 × 1.45 行距）是怕一条 140 字备注把行顶到 500px+，可同一格又被
+   styles.css 的 `scrollbar-width: none` 抹掉了滚动条——六行的窗口里既没有滚动条也
+   没有截断提示，读的人不知道下面还有字，等于用"看不见"换"不撑高"。行高的代价改由
+   列宽档位去付：撑不住的那一档整列让位（见 phase7-notes.css），而不是在这儿开一个
+   看不见边的窗口。 */
 .wb-table .wb-notes-input {
   display: block;
   width: 100%;
@@ -319,8 +321,6 @@
   overflow-wrap: anywhere;
   resize: none;
   overflow: hidden;
-  overflow-y: auto;
-  max-height: calc(8.7em + var(--space-4) + 2px);
   cursor: text;
   transition:
     background-color var(--dur-fast) var(--ease),

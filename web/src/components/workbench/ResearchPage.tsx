@@ -581,9 +581,10 @@ export function ResearchPage(props: {
               <ColumnHead table="research" column="note" className="wb-col-text wb-col-note">
                 {t("nextAction")}
               </ColumnHead>
-              {/* 截止日期挨着更新日期放（两张日期列归在一起）。列头键用 "deadline"
-                  而不是 "date"：--wb-col-w 的持久化是按 column 键存的，"date" 已经被
-                  更新日期占了，共用会让两列同宽同变。
+              {/* 截止日期这一列原来挨着"更新日期"放，两颗日期归在一起；更新日期已经
+                  整列拿掉（见下面的详情行），所以这里只剩承诺那一颗。列头键仍用
+                  "deadline" 而不是 "date"：用户拖出来的列宽是按 column 键持久化的，
+                  历史数据里已经存着 "deadline"，换成 "date" 会让已存的宽度失效。
                   类名带两份：wb-col-date 借等宽数字与"日期列"那一套几何，
                   wb-col-deadline 是这一列自己的钩子（宽度与收列档在
                   phase3-research.css 里）。 */}
@@ -593,9 +594,6 @@ export function ResearchPage(props: {
                 className="wb-col-date wb-col-deadline"
               >
                 {t("deadlineLabel")}
-              </ColumnHead>
-              <ColumnHead table="research" column="date" className="wb-col-date">
-                {t("lastUpdatedLabel")}
               </ColumnHead>
               <ColumnHead table="research" column="notes" className="wb-col-notes">
                 {t("colNotes")}
@@ -608,7 +606,7 @@ export function ResearchPage(props: {
           <tbody>
             {visible.length === 0 ? (
               <tr>
-                <td colSpan={10} className="wb-empty">
+                <td colSpan={9} className="wb-empty">
                   {search.trim() || tagFilter ? (
                     <EmptyState title={t("noMatchingPapers")} hint={t("emptySearchHint")} />
                   ) : (
@@ -759,9 +757,6 @@ export function ResearchPage(props: {
                           </span>
                         )}
                       </td>
-                      <td className="wb-col-date wb-muted">
-                        {(paper.last_updated || "").slice(0, 10) || "—"}
-                      </td>
                       <td className="wb-col-notes">
                         <NotesCell
                           value={paper.notes}
@@ -793,7 +788,7 @@ export function ResearchPage(props: {
                     </Row>
                     {expanded && (
                       <tr className="wb-row-detail">
-                        <td colSpan={10}>
+                        <td colSpan={9}>
                           <div className="wb-detail-grid">
                             <StageTree
                               stages={stages}
@@ -836,8 +831,12 @@ export function ResearchPage(props: {
                                   />
                                 </div>
                               </div>
+                              {/* 更新日期整列已经从表上拿掉（它挤掉的是备注），值仍然
+                                  在这里读得到，排序照旧按它走。 */}
                               <div className="wb-muted wb-detail-meta">
-                                {t("stageProgress")} · {leaves.done}/{leaves.total}
+                                {t("stageProgress")} · {leaves.done}/{leaves.total} ·{" "}
+                                {t("lastUpdatedLabel")}: {(paper.last_updated || "").slice(0, 10) ||
+                                  "—"}
                               </div>
                             </div>
                           </div>

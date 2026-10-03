@@ -4,8 +4,9 @@ import "@testing-library/jest-dom/vitest"
 // sizes its scroll viewport from `offsetWidth`/`offsetHeight` (virtual-core's
 // `getRect`) and abandons range calculation entirely once that height is 0,
 // mounting no rows at all. Give elements a non-zero box so virtualized lists
-// render in tests. A ResizeObserver stub is not needed: virtual-core reads the
-// rect synchronously and already guards the missing-observer case.
+// render in tests. virtual-core itself needs no observer stub: it reads the rect
+// synchronously and already guards the missing-observer case (the stub at the
+// bottom of this file is for the note cell's width refit).
 const VIEWPORT_HEIGHT = 900
 const VIEWPORT_WIDTH = 1280
 
@@ -48,3 +49,16 @@ Element.prototype.releasePointerCapture = function releasePointerCapture() {}
 Element.prototype.hasPointerCapture = function hasPointerCapture() {
   return false
 }
+
+// jsdom 没有 ResizeObserver，而备注格的自动长高用它响应列宽拖拽，组件一挂载就会抛。
+// 给一个永不触发的空实现即可：jsdom 不算布局，触发与否都改变不了测试断言的提交语义。
+// 回调不收进构造函数——多传的参数在 JS 里本来就被忽略，声明了反而是未使用的形参。
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): ResizeObserverEntry[] {
+    return []
+  }
+}
+globalThis.ResizeObserver = ResizeObserverStub

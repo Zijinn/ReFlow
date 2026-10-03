@@ -9,7 +9,7 @@
    直接编辑、字数多了自动换行调行高"——96px 里 13px 正文一行只排得下五个汉字，
    换行等于竖排。176 与期刊/研究领域那两列（.wb-col-text）同档：左右 20 衬＋
    textarea 12 衬之后还剩 144，一行十二个汉字，三五行备注读起来是一段话而不是一根线。
-   标题列让出来的宽度由收列档位兜底（见下面 ≤1240 档）。 */
+   标题列让出来的宽度由收列档位兜底（两张表各一档，见下面）。 */
 .wb-col-notes {
   width: var(--wb-col-w, 176px);
   --wb-col-min: 96px;
@@ -22,32 +22,48 @@
   padding-left: calc(10px + 1px + var(--space-3));
 }
 
-/* ── 窄档让位：备注列在 ≤1240 档收起 ────────────────────────────────────
-   顺序原来写的是"备注排在日期（≤880）与优先级（≤740）之后"，那是这一列只有
-   96→176px 一档、且表里还没有截止日期列时的算术。加了截止日期（+112）之后实测：
-   容器 1118（视口 1440）标题只剩 54px，用户常用窗口容器 837（视口 1143）标题 135px
-   而截止日期被 ≤880 那档收成 0 宽——最该看的两个字段一个比附注窄、一个看不见，
-   而备注这一格谁都没在看（它全文在展开详情里始终可编辑）。所以现在备注排在
-   .wb-col-note（下一步行动）同一档一起让位，两列合计还给标题 344px；
-   日期列的让位改由 styles.css ≤880 档只收"更新日期"那一条负责。
+/* ── 窄档让位：两张表各走一档，在研比在投多撑 600px ──────────────────────
+   在投留在 ≤1240 这一档：那张表比在研多一颗投稿次数、一颗状态和两颗日期，
+   备注一留下标题就被挤到 135px（实测容器 837），而它那一格本来也排在最右。
+   在研的备注不再在这一档让位——更新日期整列已经从表上拿掉，98px 直接还给标题，
+   而这一格用户要的是"就在行里读完整段"（行高不封顶，见 phase3-research.css）。
+   它真正撑不住的是 ≤640：那一档衬宽降到 6、拖拽柄 58、阶段 116、操作 114，
+   容器 575 时标题只剩 111px，所以让位线画在那儿。
    收法照抄 styles.css 容器档的配方：0 宽而不是 display:none，宽度还给唯一的
    弹性列；nowrap 保证 0 宽格子里不是一行一个字。
-   组件给 textarea 写了内联 height（scrollHeight 自动长高套路），0 宽的格子里它
-   仍会按全文高度撑行——行高取各格最大值，visibility:hidden 不代表不占高（实测
-   一条 140 字备注把隐藏列的行顶到 523px）。max-height 压得住内联 height，配
-   border/padding 归零，这一格才真的不占行高。
+   组件给 textarea 写内联 height（scrollHeight 自动长高套路），并在内容盒排不出字时
+   拒绝量（shared.tsx 的 fit），可这一档仍要靠 max-height 收尾：宽列拖进窄档时那一格
+   已经按旧宽度量出几行高，收列只改宽度改不动那条内联 height，而行高取各格最大值——
+   visibility:hidden 不代表不占高（实测一条 140 字备注把隐藏列的行顶到 523px）。
+   max-height 压得住内联 height，配 border/padding 归零，这一格才真的不占行高。
    th 要一起写进来：fixed 布局的列宽取自第一行，表头那 17px 缩进若不在这一档
    归零，border-box 下 width:0 会被 padding 顶回 17px，留下一条死带宽。 */
 @container wbtable (max-width: 1240px) {
-  .wb-table .wb-col-notes,
-  .wb-table th.wb-col-notes {
+  .wb-table--submitted .wb-col-notes,
+  .wb-table--submitted th.wb-col-notes {
     width: 0;
     padding-inline: 0;
     visibility: hidden;
     overflow: hidden;
     white-space: nowrap;
   }
-  .wb-table .wb-col-notes .wb-notes-input {
+  .wb-table--submitted .wb-col-notes .wb-notes-input {
+    max-height: 0;
+    min-height: 0;
+    padding-block: 0;
+    border-width: 0;
+  }
+}
+@container wbtable (max-width: 640px) {
+  .wb-table--research .wb-col-notes,
+  .wb-table--research th.wb-col-notes {
+    width: 0;
+    padding-inline: 0;
+    visibility: hidden;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .wb-table--research .wb-col-notes .wb-notes-input {
     max-height: 0;
     min-height: 0;
     padding-block: 0;
