@@ -98,6 +98,7 @@ import { Toaster } from "./Toaster"
 import { WorkspaceHeader } from "./WorkspaceHeader"
 import { AIWorkbench } from "./AIWorkbench"
 import type { EditAIProfileInput } from "./AIProfileDialog"
+import type { PreferenceTab } from "./PreferencesDialog"
 
 const AddFeedDialog = lazy(() =>
   import("./AddFeedDialog").then((module) => ({ default: module.AddFeedDialog })),
@@ -175,6 +176,9 @@ export function AppShell() {
   const deferredSearch = useDeferredValue(search)
   const [addOpen, setAddOpen] = useState(false)
   const [preferencesOpen, setPreferencesOpen] = useState(false)
+  // 偏好的当前栏位存在这里而不是面板里：从面板打开二级对话框会让面板卸载，
+  // 保存后 `closeSecondaryDialog` 再把它挂载回来，本地 state 会被重置成界面栏。
+  const [preferencesTab, setPreferencesTab] = useState<PreferenceTab>("interface")
   const [commandOpen, setCommandOpen] = useState(false)
   const [syncAccountOpen, setSyncAccountOpen] = useState(false)
   const [syncAccountProvider, setSyncAccountProvider] = useState<SyncProviderID>()
@@ -766,6 +770,8 @@ export function AppShell() {
     onSuccess: async () => {
       await queryClient.invalidateQueries()
       setPreferencesOpen(false)
+      // 这是真的关闭（不是二级对话框的往返），所以沿用旧行为：下次打开回界面栏。
+      setPreferencesTab("interface")
     },
   })
   const pairMutation = useMutation({
@@ -1406,6 +1412,7 @@ export function AppShell() {
           <Suspense fallback={null}>
             <PreferencesDialog
               open={preferencesOpen}
+              activeTab={preferencesTab}
               theme={theme}
               status={status.data}
               restorePending={restoreMutation.isPending}
@@ -1431,8 +1438,12 @@ export function AppShell() {
               pairingCodePending={pairingCodeMutation.isPending}
               onOpenChange={(open) => {
                 setPreferencesOpen(open)
-                if (!open) setDialogReturnTarget(null)
+                if (!open) {
+                  setDialogReturnTarget(null)
+                  setPreferencesTab("interface")
+                }
               }}
+              onTabChange={setPreferencesTab}
               onRestore={(file) => restoreMutation.mutate(file)}
               onCreatePairingCode={() => pairingCodeMutation.mutate()}
               onRevokeDevice={(deviceID) => revokeDeviceMutation.mutate(deviceID)}

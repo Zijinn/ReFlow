@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { AIProfile } from "../api/types"
 import { useReaderStore } from "../store/reader"
-import { PreferencesDialog } from "./PreferencesDialog"
+import { PreferencesDialog, type PreferenceTab } from "./PreferencesDialog"
 
 // 提供商行的编辑入口是这一份测试的重点，面板内部自带的标签查询全部替掉，
 // 测试永远碰不到 fetch。
@@ -67,13 +67,16 @@ const handlers = {
   onDeleteAIProfile: vi.fn(),
 }
 
-// 真实调用方（AppShell）把 open 放在 state 里，onOpenChange 负责关。
+// 真实调用方（AppShell）把 open 和当前栏位放在 state 里，onOpenChange 负责关。
 function Harness() {
   const [open, setOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState<PreferenceTab>("interface")
   return (
     <PreferencesDialog
       open={open}
+      activeTab={activeTab}
       onOpenChange={setOpen}
+      onTabChange={setActiveTab}
       theme="light"
       restorePending={false}
       error={null}

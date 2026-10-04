@@ -80,6 +80,7 @@ import {
 
 interface PreferencesDialogProps {
   open: boolean
+  activeTab: PreferenceTab
   theme: ThemeMode
   status?: ServerStatus
   restorePending: boolean
@@ -94,6 +95,7 @@ interface PreferencesDialogProps {
   pairingCode?: { code: string; expires_at: string }
   pairingCodePending: boolean
   onOpenChange: (open: boolean) => void
+  onTabChange: (tab: PreferenceTab) => void
   onRestore: (file: File) => void
   onCreatePairingCode: () => void
   onRevokeDevice: (deviceID: string) => void
@@ -110,7 +112,7 @@ interface PreferencesDialogProps {
   onDeleteAIProfile: (profileID: string) => void
 }
 
-type PreferenceTab = "interface" | "tags" | "ai" | "sync" | "library" | "devices"
+export type PreferenceTab = "interface" | "tags" | "ai" | "sync" | "library" | "devices"
 
 const tabs: Array<{
   id: PreferenceTab
@@ -211,7 +213,6 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
   const setAutoAcademicTags = useReaderStore((state) => state.setAutoAcademicTags)
   const setAutoAcademicTagFolderIDs = useReaderStore((state) => state.setAutoAcademicTagFolderIDs)
   const setAutoAcademicTagFeedIDs = useReaderStore((state) => state.setAutoAcademicTagFeedIDs)
-  const [activeTab, setActiveTab] = useState<PreferenceTab>("interface")
   const [conflict, setConflict] = useState("")
   const [autoTagSearch, setAutoTagSearch] = useState("")
   const [pendingConfirmation, setPendingConfirmation] = useState<{
@@ -230,7 +231,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
   const setRenaming = useCallback((active: boolean) => {
     renameGuard.current = active
   }, [])
-  const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0]!
+  const active = tabs.find((tab) => tab.id === props.activeTab) ?? tabs[0]!
   const serviceAccounts = props.syncAccounts.filter(
     (account) => account.provider !== "webdav" && account.provider !== "icloud",
   )
@@ -346,14 +347,14 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     return (
                       <button
                         className={
-                          activeTab === tab.id
+                          props.activeTab === tab.id
                             ? "preferences-nav__item preferences-nav__item--active"
                             : "preferences-nav__item"
                         }
                         type="button"
                         key={tab.id}
-                        aria-current={activeTab === tab.id ? "page" : undefined}
-                        onClick={() => setActiveTab(tab.id)}
+                        aria-current={props.activeTab === tab.id ? "page" : undefined}
+                        onClick={() => props.onTabChange(tab.id)}
                       >
                         <Icon />
                         <span>{t(tab.labelKey)}</span>
@@ -382,7 +383,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                   </Dialog.Close>
                 </div>
                 <div className="preferences-scroll">
-                  {activeTab === "interface" && (
+                  {props.activeTab === "interface" && (
                     <>
                       <section className="preference-section preference-section--row">
                         <div>
@@ -607,7 +608,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     </>
                   )}
 
-                  {activeTab === "tags" && (
+                  {props.activeTab === "tags" && (
                     <TagsSection
                       t={t}
                       onRenaming={setRenaming}
@@ -615,7 +616,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     />
                   )}
 
-                  {activeTab === "ai" && (
+                  {props.activeTab === "ai" && (
                     <>
                       <section className="preference-section preference-section--automation">
                         <div className="preference-heading preference-heading--intro">
@@ -910,7 +911,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     </>
                   )}
 
-                  {activeTab === "sync" && (
+                  {props.activeTab === "sync" && (
                     <>
                       <CloudProviderGrid
                         accounts={cloudAccounts}
@@ -949,7 +950,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     </>
                   )}
 
-                  {activeTab === "library" && (
+                  {props.activeTab === "library" && (
                     <>
                       <section className="preference-section preference-section--row">
                         <div>
@@ -1029,7 +1030,7 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                     </>
                   )}
 
-                  {activeTab === "devices" && (
+                  {props.activeTab === "devices" && (
                     <section className="preference-section preference-section--flush">
                       <div className="preference-heading preference-heading--intro">
                         <div>

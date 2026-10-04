@@ -7,7 +7,7 @@ import type { ResearchTag } from "../api/types"
 import { APIError } from "../api/client"
 import { useReaderStore } from "../store/reader"
 import { useToastStore } from "../store/toast"
-import { PreferencesDialog } from "./PreferencesDialog"
+import { PreferencesDialog, type PreferenceTab } from "./PreferencesDialog"
 
 // 标签管理独立成偏好设置里的一栏（用户的原始要求：「这些标签应该在设置里面单独设一个
 // 标签栏，可以在里面进行标签管理」）。这一栏是整份面板里唯一会写 research 调色板的
@@ -56,10 +56,13 @@ import * as api from "../api/client"
 // 常量 open={true} 下根本暴露不出来。
 function Harness() {
   const [open, setOpen] = useState(true)
+  const [activeTab, setActiveTab] = useState<PreferenceTab>("interface")
   return (
     <PreferencesDialog
       open={open}
+      activeTab={activeTab}
       onOpenChange={setOpen}
+      onTabChange={setActiveTab}
       theme="light"
       restorePending={false}
       error={null}
