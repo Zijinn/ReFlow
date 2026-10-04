@@ -4645,6 +4645,31 @@ button:disabled {
   }
 }
 
+/* 工作台的对话面板：宽度不够时浮在表上，而不是从表里切走一整条 380px。
+   上面那一档（901–1365）是给阅读器定的，量的是正文——minmax(360px,1fr) 就够排版；
+   九列固定几何的工作台表格要的多得多，所以这一档比阅读器早得多。算法按在研表宽档推：
+   除标题外各列确定宽之和 1120（68 拖拽柄 +168 阶段 +152 标签 +168 期刊 +168 下一步
+   +98 截止 +176 备注 +122 操作），其中 .wb-col-note 在 ≤1240、.wb-col-text 在 ≤1040
+   两档已经让位，剩 784；标题要读到 240px 就得给容器 1024。容器 = .wb-main 减左右
+   40 内衬再减 10 滚动槽，.wb-shell = .wb-main + 面板 380，再加默认侧栏 232 → 1726，
+   取整 1720。侧栏可拖（下限 210）、面板宽度也可拖，所以这一档在 ±22px 内是近似——
+   真正的判据是"表格读不读得动"，不是视口数字。
+   这里用 position: fixed 而不是给 .wb-shell 加 position: relative：面板现在就是
+   .wb-shell 这个 flex 行的最后一个子项，而 .wb-shell 通过 grid-row: 1 / -1 顶到窗口
+   右缘和上下缘，所以 fixed 的 right/top/bottom:0 复现的是同一块矩形，却不会给 .wb-shell
+   里所有绝对定位的后代换一个新的包含块。代价是它不再跟随侧栏拖动——而侧栏在左边，
+   面板贴的是右缘，两者不相干。 */
+@media (min-width: 901px) and (max-width: 1720px) {
+  .wb-shell > .ai-workbench.ai-workbench--open {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    height: auto;
+    box-shadow: -18px 0 48px rgb(20 22 26 / 0.12);
+  }
+}
+
 /* Refined source list and full-width reading canvas. */
 .sidebar {
   padding: max(var(--space-7), env(safe-area-inset-top)) var(--space-6) var(--space-7) max(var(--space-6), env(safe-area-inset-left));
