@@ -38,3 +38,6 @@ jobs:
       - run: pnpm --dir web lint
       - run: pnpm --dir web test
       - run: pnpm --dir web build
+      # The release workflow is the only other place build:desktop runs, so without this the
+      # Wails-compatible HTML rewrite first gets checked at tag time.
+      - run: pnpm --dir web build:desktop

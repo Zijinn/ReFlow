@@ -25,6 +25,10 @@ grep -q "Version = \"$version\"" internal/version/version.go
 grep -q "<string>$version</string>" build/darwin/Info.plist
 test "$(grep -c "<string>$version</string>" build/darwin/Info.plist)" = "2"
 
+# The contract document is labelled with the release it describes. Its paths are already proven
+# current by the OpenAPI route coverage test, so a pinned placeholder version is pure drift.
+grep -q "^  version: $version$" api/openapi.yaml
+
 ruby -ryaml -rjson -rrexml/document -e '
   workflow = YAML.load_file(".github/workflows/release.yml")
   expected_jobs = ["license-inventory", "macos-universal", "publish-release", "windows-x64"]
