@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ReFlow API
-  version: 2.1.0
+  version: 2.2.0
   description: Versioned API shared by ReFlow desktop, PWA, and future mobile clients.
   license:
     name: GPL-3.0-only
