@@ -16,6 +16,7 @@ ReFlow 是一款本地优先的 RSS 阅读器，支持 macOS、Windows、iPad �
 - 可选的外语标题双语展示，以及打开文章时自动翻译内容
 - FreshRSS、Google Reader、Miniflux、Fever、Feedbin 和 Nextcloud News 同步
 - WebDAV 与 iCloud Drive 资料库同步，支持冲突检测和明确恢复
+- `reflow` 命令行工具，让 AI 代理或脚本在应用外操作科研工作台：创建在投论文、维护标签、从订阅文章识别文献
 - 中英文界面、浅色/深色主题和五种时间线视图
 
 ## 截图
@@ -63,7 +64,14 @@ make check
 bash scripts/check-release-config.sh
 ```
 
-REST 接口定义见 [api/openapi.yaml](api/openapi.yaml)，架构与安全说明见 [docs](docs)。
+`reflow` 命令行工具只依赖 Go，无需打包前端资源，它通过 REST API 操作正在运行的服务：
+
+```bash
+make cli
+./bin/reflow describe
+```
+
+[docs/cli.md](docs/cli.md) 说明它的代理调用约定：JSON 返回结构、退出码、字段规则与文献识别的判定阈值。REST 接口定义见 [api/openapi.yaml](api/openapi.yaml)，架构与安全说明见 [docs](docs)，阅读器交互的研究底稿见 [research_rss_reader_references](research_rss_reader_references)。
 
 ## AI 与隐私
 

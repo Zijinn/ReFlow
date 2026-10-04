@@ -1,10 +1,16 @@
-.PHONY: build check dev dev-server dev-web format test
+.PHONY: build check cli dev dev-server dev-web format test
 
 build:
 	pnpm --dir web build
 	go build -o bin/reflow-server ./cmd/reflow-server
+	go build -o bin/reflow ./cmd/reflow
+
+# The CLI is Go-only, so it builds without the web bundle or the desktop chain.
+cli:
+	go build -o bin/reflow ./cmd/reflow
 
 check:
+	@test -z "$$(gofmt -l cmd internal)" || { echo "gofmt needed:"; gofmt -l cmd internal; exit 1; }
 	go test ./...
 	go vet ./...
 	pnpm --dir web typecheck

@@ -17,6 +17,7 @@ ReFlow is a local-first personal RSS reader for macOS, Windows, iPad, and the we
 - Optional bilingual foreign-title display and automatic article translation when opened
 - FreshRSS, Google Reader compatible services, Miniflux, Fever, Feedbin, and Nextcloud News adapters
 - Concurrent WebDAV and iCloud Drive library synchronization with conflict detection and explicit recovery choices
+- `reflow` command-line interface for AI agents: working papers, tags, literature identification from subscribed entries, and a machine-readable command catalog
 - Chinese and English interfaces, light and dark themes, and five timeline views
 
 ## Screenshots
@@ -80,7 +81,14 @@ Desktop release assets use the Wails-compatible classic-script build:
 pnpm --dir web build:desktop
 ```
 
-The REST contract is documented in [api/openapi.yaml](api/openapi.yaml). Architecture and security decisions are in [docs](docs).
+The `reflow` CLI lets an AI agent or a script drive the same REST API. It is Go-only, so it builds without the web bundle:
+
+```bash
+make cli
+./bin/reflow describe
+```
+
+[docs/cli.md](docs/cli.md) is its agent contract: the JSON envelope, exit codes, field rules, and the literature-identification thresholds. The REST contract itself is in [api/openapi.yaml](api/openapi.yaml), architecture and security decisions are in [docs](docs), and the interaction research behind the reader is in [research_rss_reader_references](research_rss_reader_references).
 
 ## Data And Security
 
