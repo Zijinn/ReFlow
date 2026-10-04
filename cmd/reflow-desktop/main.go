@@ -4,10 +4,13 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/Zijinn/ReFlow/internal/config"
 	"github.com/Zijinn/ReFlow/internal/httpapi"
@@ -47,6 +50,38 @@ func main() {
 		logger.Error("start application services", "error", err)
 		os.Exit(1)
 	}
+
+	// The same handler the webview is served from, also on a TCP listener, so a
+	// `reflow` client or a browser on this machine can reach the library the app has
+	// open. Binding is not fatal: a dev server may already hold the address, and the
+	// window must still work.
+	apiServer := &http.Server{
+		Addr:              cfg.Address,
+		Handler:           handler.Handler(),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      310 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+	defer func() {
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		if err := apiServer.Shutdown(shutdownCtx); err != nil {
+			logger.Error("graceful API shutdown failed", "error", err)
+		}
+	}()
+	go func() {
+		var serveErr error
+		if cfg.TLSCertPath != "" {
+			serveErr = apiServer.ListenAndServeTLS(cfg.TLSCertPath, cfg.TLSKeyPath)
+		} else {
+			serveErr = apiServer.ListenAndServe()
+		}
+		if serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			logger.Error("API listener stopped", "address", cfg.Address, "error", serveErr)
+		}
+	}()
+	logger.Info("API listener starting", "address", cfg.Address, "lan_mode", cfg.LANMode)
 	app := application.New(application.Options{
 		Name:        "ReFlow",
 		Description: "A private reading home for the open web",
