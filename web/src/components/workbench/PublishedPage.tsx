@@ -25,6 +25,7 @@ import {
   InlineText,
   MenuSelect,
   Row,
+  WbTableWrap,
 } from "./shared"
 import { displayID, matchesPaperQuery, reorderList } from "./utils"
 
@@ -548,7 +549,7 @@ export function PublishedPage(props: {
         </button>
       </div>
       {view === "table" ? (
-        <div className="wb-table-wrap">
+        <WbTableWrap table="published">
           <table className="wb-table wb-table--published">
             <thead>
               <tr>
@@ -598,7 +599,7 @@ export function PublishedPage(props: {
               )}
             </tbody>
           </table>
-        </div>
+        </WbTableWrap>
       ) : (
         <div className="wb-reference-layout">
           {renderReferenceColumn(t("chinesePublications"), "zh", sortZh, setSortZh)}

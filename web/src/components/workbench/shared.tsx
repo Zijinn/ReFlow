@@ -1,4 +1,6 @@
 import {
+  createContext,
+  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -718,6 +720,96 @@ function parsePx(value: string | null | undefined) {
   return Number.isFinite(px) ? px : null
 }
 
+// ── 列宽上限：把表按回它的卡片里 ──────────────────────────────────────────
+// fixed 布局的表听列宽而不听表宽：各列现宽之和一旦大过容器，表就自己变宽。行的
+// 标签淡染画在 <tr> 上，行有多宽它就涂多宽，于是染色从表头那圈卡片边缘继续往右
+// 涂进 .wb-main 的槽里，操作列的删除键也被推到表外。
+// 落库的列宽是在"当时"的容器上量出来的（ColumnHead 的 measure() 保证拖的那一下
+// 不超出），可容器后来会自己变窄：侧栏一收、AI 面板一开、窗口一拖小。列宽不会
+// 跟着让回来，就留下这道溢出。
+// WbTableWrap 负责按当前容器给每一列算一个"最多这么宽"的上限，交给 ColumnHead 去
+// 接。上限只活在视图层——存储里的列宽一个字都不改，所以容器一放宽，用户拖出来的
+// 宽度自动回来，不会被一次暂时的变窄永久吃掉。
+const noFit: Record<string, number> = {}
+
+const columnFit = createContext<Record<string, number>>(noFit)
+
+function sameFit(a: Record<string, number>, b: Record<string, number>) {
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every((key) => a[key] === b[key])
+}
+
+export function WbTableWrap(props: { table: string; children: ReactNode }) {
+  const boxRef = useRef<HTMLDivElement | null>(null)
+  const [fit, setFit] = useState<Record<string, number>>(noFit)
+  // 拖完一列也要重算上限：松手写进存储的那个数可能比容器允许的还宽。
+  const widths = useReaderStore((state) => state.workbenchColumnWidths[props.table])
+  // 容器宽度变了就重算：observer 负责发信号并在变宽时撤掉上限，"写上限→表变窄→
+  // 还超不超"则由下面的 effect 再看一眼才定。
+  const [resized, setResized] = useState(0)
+
+  useEffect(() => {
+    const box = boxRef.current
+    if (!box) return
+    let width = box.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (box.clientWidth === width) return
+      // 变宽先撤上限，让每一列回到自己要的宽度，下一轮再按新的余量决定还要不要让。
+      // 这一步只能挂在"容器变宽"这个方向上，不能由 effect 里的余量去判断：fixed 布局
+      // 的表在列宽之和小于容器时会被浏览器拉开补满（多余空间按比例分给各列），所以
+      // 表的现宽永远不小于内容宽，余量那一栏只会读到 0，撤不掉上一轮收窄的上限。
+      if (box.clientWidth > width) setFit(noFit)
+      width = box.clientWidth
+      setResized((tick) => tick + 1)
+    })
+    observer.observe(box)
+    return () => observer.disconnect()
+  }, [])
+
+  useLayoutEffect(() => {
+    const box = boxRef.current
+    const table = box?.querySelector("table")
+    const head = box?.querySelector("thead tr")
+    if (!box || !table || !head) return
+    const style = getComputedStyle(box)
+    const room =
+      box.clientWidth - (parsePx(style.paddingLeft) ?? 0) - (parsePx(style.paddingRight) ?? 0)
+    // 只有"表比容器宽"才要收：小于等于就放着不管（见上面那条，浏览器会把表拉满到
+    // 容器宽，这里量到的负余量没有意义，放宽由 observer 的方向信号负责）。
+    const over = table.getBoundingClientRect().width - room
+    if (over <= 1) return
+    const slack: { key: string; width: number; give: number }[] = []
+    let total = 0
+    for (const cell of Array.from(head.children)) {
+      const key = (cell as HTMLElement).dataset.wbColumn
+      if (!key) continue
+      const width = cell.getBoundingClientRect().width
+      // 收列档写的是 width:0 + padding-inline:0，量回来就是 0；下限取"现宽与自己
+      // 下限的较小值"，这样已经被收到 0 的列不会反过来贡献余量。
+      const floor = Math.min(
+        width,
+        parsePx(getComputedStyle(cell).getPropertyValue("--wb-col-min")) ?? COLUMN_MIN,
+      )
+      const give = Math.max(0, width - floor)
+      slack.push({ key, width, give })
+      total += give
+    }
+    if (total <= 0) return
+    const ratio = Math.min(1, over / total)
+    const next: Record<string, number> = {}
+    for (const cell of slack) {
+      if (cell.give > 0) next[cell.key] = Math.round(cell.width - cell.give * ratio)
+    }
+    setFit((current) => (sameFit(current, next) ? current : next))
+  }, [fit, resized, widths])
+
+  return (
+    <div className="wb-table-wrap" ref={boxRef}>
+      <columnFit.Provider value={fit}>{props.children}</columnFit.Provider>
+    </div>
+  )
+}
+
 // ColumnHead 是三张论文表唯一的可拖表头格。
 //
 // 宽度写成 `--wb-col-w` 这个自定义属性、由 styles.css 的
@@ -734,6 +826,9 @@ export function ColumnHead(props: {
   const stored = useReaderStore(
     (state) => state.workbenchColumnWidths[props.table]?.[props.column],
   )
+  // 容器给这一列的上限（见 WbTableWrap）。拖拽中的 live 不接它：measure() 已经按
+  // 当时的现宽和余量算过闸，再套一层会让手刚拖出去就被弹回来。
+  const cap = useContext(columnFit)[props.column]
   const setWidth = useReaderStore((state) => state.setWorkbenchColumnWidth)
   const clearWidth = useReaderStore((state) => state.clearWorkbenchColumnWidth)
   // live 只在拖拽期间有值：它让这一格自己重渲染，指针移动不惊动整张表。
@@ -802,7 +897,7 @@ export function ColumnHead(props: {
     const { from, min, max } = measure()
     setWidth(props.table, props.column, clamp(from + direction * COLUMN_STEP, { min, max }))
   }
-  const width = live ?? stored
+  const width = live ?? (cap === undefined ? stored : Math.min(stored ?? cap, cap))
   // 表头格的可见文字同时写进 aria-label：columnheader 的默认命名方式是"由内容算"，
   // 把手那颗按钮的名字会被拼进去，读屏每读到一格就念一遍"拖动调整列宽…"。
   // 显式 label 把它钉回列名本身，把手自己的名字留在按钮上。
@@ -813,6 +908,7 @@ export function ColumnHead(props: {
     <th
       ref={cellRef}
       className={props.className}
+      data-wb-column={props.column}
       aria-label={name ?? undefined}
       style={width ? ({ "--wb-col-w": `${width}px` } as CSSProperties) : undefined}
     >

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { useReaderStore } from "../../store/reader"
@@ -10,6 +10,7 @@ import {
   InlineText,
   MenuSelect,
   Row,
+  WbTableWrap,
 } from "./shared"
 import { formatDeadline } from "./utils"
 
@@ -489,5 +490,150 @@ describe("ColumnHead", () => {
     fireEvent.doubleClick(screen.getByRole("separator", { name: /Notes/ }))
     expect(useReaderStore.getState().workbenchColumnWidths.submitted?.notes).toBeUndefined()
     expect(cell()?.style.getPropertyValue("--wb-col-w")).toBe("")
+  })
+})
+
+describe("WbTableWrap", () => {
+  // jsdom 不做布局，"表比卡片宽"这件事得自己搭出来：卡片给一个 clientWidth，表的矩形
+  // 按它所有列的现宽之和算（fixed 布局在浏览器里就是这个式子），每一列读自己身上的
+  // --wb-col-w、没写过就退回 styles.css 那批默认宽度的替身。于是"写下上限 → 表变窄 →
+  // 再量一次"这条收敛路在测试里走的是和浏览器里同一个算式，而不是把结果硬编码进去。
+  const gripWidth = 24
+  const defaults: Record<string, number> = { title: 300, notes: 176 }
+
+  const box = (width: number): DOMRect => ({
+    x: 0,
+    y: 0,
+    top: 0,
+    left: 0,
+    right: width,
+    bottom: 40,
+    width,
+    height: 40,
+    toJSON: () => ({}),
+  })
+
+  let wrapWidth: number
+  let triggerResize: () => void
+
+  function renderWrap() {
+    return render(
+      <WbTableWrap table="research">
+        <table className="wb-table wb-table--research">
+          <thead>
+            <tr>
+              <th className="wb-col-grip" aria-label="Code" />
+              <ColumnHead table="research" column="title" className="wb-col-title">
+                Title
+              </ColumnHead>
+              <ColumnHead table="research" column="notes" className="wb-col-notes">
+                Notes
+              </ColumnHead>
+            </tr>
+          </thead>
+        </table>
+      </WbTableWrap>,
+    )
+  }
+
+  const declared = (column: string) =>
+    document.querySelector<HTMLElement>(`.wb-col-${column}`)?.style.getPropertyValue("--wb-col-w")
+
+  beforeEach(() => {
+    useReaderStore.setState({ workbenchColumnWidths: {} })
+    wrapWidth = 500
+
+    // setup.ts 那把 ResizeObserver 永不触发，而"卡片自己变窄/变宽"正是这道闸要接的
+    // 事件，所以这一组要一把能把回调叫出来的替身。
+    const callbacks: ResizeObserverCallback[] = []
+    class TrackingObserver {
+      constructor(callback: ResizeObserverCallback) {
+        callbacks.push(callback)
+      }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords(): ResizeObserverEntry[] {
+        return []
+      }
+    }
+    vi.stubGlobal("ResizeObserver", TrackingObserver)
+    triggerResize = () => callbacks.forEach((callback) => callback([], {} as ResizeObserver))
+
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("wb-table-wrap") ? wrapWidth : 1280
+    })
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.classList.contains("wb-table-wrap")) return box(wrapWidth)
+      if (this.classList.contains("wb-col-grip")) return box(gripWidth)
+      if (this.tagName === "TABLE") {
+        const row = this.querySelector("thead tr")
+        if (!row) return box(wrapWidth)
+        const sum = Array.from(row.children).reduce(
+          (total, child) => total + child.getBoundingClientRect().width,
+          0,
+        )
+        // 列宽之和装不满容器时，浏览器会把 fixed 布局的表按比例拉开补满，所以表的
+        // 现宽永远不会小于内容宽。这把尺要照这个行为做，否则"容器变宽"会读成一个
+        // 假负余量，放宽的闸门就白测了。
+        return box(Math.max(sum, wrapWidth))
+      }
+      const key = this.dataset.wbColumn
+      if (!key) return box(0)
+      const own = Number.parseFloat(this.style.getPropertyValue("--wb-col-w"))
+      return box(Number.isFinite(own) ? own : (defaults[key] ?? 0))
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it("brings a table wider than its card back to the edge", () => {
+    // 24 + 400 + 176 = 600，卡片只有 500。多出的 100 按各列 own 下限之上的余量摊：
+    // 标题 336、备注 112，于是 75 与 25，收完正好 500。
+    useReaderStore.setState({ workbenchColumnWidths: { research: { title: 400 } } })
+    renderWrap()
+    expect(declared("title")).toBe("325px")
+    expect(declared("notes")).toBe("151px")
+  })
+
+  it("takes the shortfall only from the columns that still have slack", () => {
+    // 备注已被拖到 40，它自己就是下限（收无可收），44 的缺口全落在标题上。
+    wrapWidth = 420
+    useReaderStore.setState({ workbenchColumnWidths: { research: { title: 400, notes: 40 } } })
+    renderWrap()
+    expect(declared("title")).toBe("356px")
+    expect(declared("notes")).toBe("40px")
+  })
+
+  it("leaves a table that fits the card alone", () => {
+    wrapWidth = 900
+    useReaderStore.setState({ workbenchColumnWidths: { research: { title: 400 } } })
+    renderWrap()
+    expect(declared("title")).toBe("400px")
+    expect(declared("notes")).toBe("")
+  })
+
+  it("caps in the view only, so a dragged width survives in storage", () => {
+    useReaderStore.setState({ workbenchColumnWidths: { research: { title: 400 } } })
+    renderWrap()
+    expect(declared("title")).toBe("325px")
+    expect(useReaderStore.getState().workbenchColumnWidths.research).toEqual({ title: 400 })
+  })
+
+  it("releases the cap when the card widens", () => {
+    useReaderStore.setState({ workbenchColumnWidths: { research: { title: 400 } } })
+    renderWrap()
+    expect(declared("title")).toBe("325px")
+    wrapWidth = 900
+    act(triggerResize)
+    expect(declared("title")).toBe("400px")
+    expect(declared("notes")).toBe("")
   })
 })

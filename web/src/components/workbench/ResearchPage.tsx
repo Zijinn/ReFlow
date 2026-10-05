@@ -34,6 +34,7 @@ import {
   MenuSelect,
   NotesCell,
   Row,
+  WbTableWrap,
 } from "./shared"
 import {
   daysUntil,
@@ -559,7 +560,7 @@ export function ResearchPage(props: {
           {t("addPaper")}
         </button>
       </div>
-      <div className="wb-table-wrap">
+      <WbTableWrap table="research">
         <table className="wb-table wb-table--research">
           <thead>
             <tr>
@@ -849,7 +850,7 @@ export function ResearchPage(props: {
             )}
           </tbody>
         </table>
-      </div>
+      </WbTableWrap>
     </div>
   )
 }

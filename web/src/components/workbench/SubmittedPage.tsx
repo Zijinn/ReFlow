@@ -19,6 +19,7 @@ import {
   MenuSelect,
   NotesCell,
   Row,
+  WbTableWrap,
 } from "./shared"
 import {
   daysUntil,
@@ -174,7 +175,7 @@ export function SubmittedPage(props: {
           {t("addSubmission")}
         </button>
       </div>
-      <div className="wb-table-wrap">
+      <WbTableWrap table="submitted">
         <table className="wb-table wb-table--submitted">
           <thead>
             <tr>
@@ -541,7 +542,7 @@ export function SubmittedPage(props: {
             )}
           </tbody>
         </table>
-      </div>
+      </WbTableWrap>
     </div>
   )
 }
