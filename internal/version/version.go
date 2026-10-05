@@ -1,5 +1,5 @@
 package version
 
-var Version = "2.2.0"
+var Version = "2.3.0"
 
 const APIVersion = "v1"
