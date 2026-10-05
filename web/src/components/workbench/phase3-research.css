@@ -356,26 +356,24 @@
    元数据更该留在表上，见那边那段注释）。原来这里配过一条同档的 0 宽规则，是为了
    避开"两列日期只收一颗留下的死带宽"，现在截止日期整档留下，那条也就不需要了。 */
 
-/* ── 行的标签色：淡染 + 前缘色条 ──────────────────────────────────────────
-   一行挂了几枚标签时取调色板里最靠前的那一枚（与"标签顺序"排序同一口径）。
-   组件把那枚的色相以 --wb-row-hue 挂在 <tr> 上，值是 var(--wb-hue-*) 这条引用
-   本身：CSS 自定义属性允许持有 var()，于是浅深两档跟着既有令牌自动分档，
-   这里不新增一个颜色字面量、也不新造一档色板。没挂标签的行不带这个类。 */
+/* ── 行的标签色：只留行首那一块 ────────────────────────────────────────────
+   一行挂了几枚标签时取调色板里最靠前的那一枚（与"标签顺序"排序同一口径）。组件把
+   那枚的色相以 --wb-row-hue 挂在 <tr> 上，值是 var(--wb-hue-*) 这条引用本身：CSS
+   自定义属性允许持有 var()，于是浅深两档跟着既有令牌自动分档，这里不新增一个颜色
+   字面量、也不新造一档色板。没挂标签的行不带这个类。
+   原来这一层之外还给整行铺了一层 6% 淡染，2026-10-05 去掉：淡染跟着行宽走、行宽跟
+   着列宽之和走，表一比卡片宽它就继续往卡片外的槽里涂，读起来像表格坏了；而"这几行
+   属于同一组"这件事行首这一条就够说了。3px 撑不起"色块"，放到 8px。 */
 .wb-row.wb-row--tinted {
-  /* 必须是 background-image：.wb-row:hover 写的是 background-color，两层各自独立，
-     悬停才会"叠在染色之上"而不是把染色顶掉（行是玻璃面，涂实色会盖住它）。
-     6% 是"扫一眼能分组、盯两秒不觉得脏"那一档，和表头鬓发线同一个浓度量级。 */
+  /* 画在 <tr> 自己的背景上，而不是第一格的内侧阴影上：手机档（容器 ≤430）会把
+     .wb-col-grip 收成 width:0 + visibility:hidden，挂在格子里的那一条会跟着一起消失，
+     而行盒的左缘一直都在。用 background-image 不用 background-color：.wb-row:hover
+     写的是 background-color，两层各自独立，悬停才会垫在色块底下而不是把它顶掉。 */
   background-image: linear-gradient(
-    color-mix(in srgb, var(--wb-row-hue, transparent) 6%, transparent),
-    color-mix(in srgb, var(--wb-row-hue, transparent) 6%, transparent)
+    to right,
+    color-mix(in srgb, var(--wb-row-hue, transparent) 55%, transparent) 0 8px,
+    transparent 8px
   );
-}
-/* 3px 前缘色条画在第一格的内侧阴影上：不动盒模型（不加边框、不改 padding、
-   不缩不放），所以列宽与别的行逐像素一致，也不会因为多一层描边把行撑高。
-   55% 是淡染的浓度上限：条纹要读得出"这是那一枚标签的颜色"，但仍留在行内，
-   不越过 wb-col-grip 的编号。 */
-.wb-row.wb-row--tinted > td:first-child {
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--wb-row-hue, transparent) 55%, transparent);
 }
 
 /* ── 偏好设置「研究标签」行：自选色那一排 ────────────────────────────────
