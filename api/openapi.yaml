@@ -1785,10 +1785,11 @@ paths:
                 color_enabled:
                   type: boolean
                   description: >
-                    Whether the label paints at all: false renders its chip
-                    neutral and leaves its rows untinted. It is a separate field
-                    from color so muting a label does not erase the shade it
-                    will come back to.
+                    Whether the label claims the block of colour at the head of
+                    the rows that wear it. False hands that block to the next
+                    label while the chip and its dot keep their colour. It is a
+                    separate field from color so switching off does not erase the
+                    shade it will come back to.
       responses:
         "200":
           description: Updated tag.
@@ -2708,9 +2709,10 @@ components:
         color_enabled:
           type: boolean
           description: >
-            Whether that tint is painted at all. False keeps color as it was and
-            renders the chip neutral with no row tint, which is what lets a label
-            group papers without ranking them.
+            Whether that tint claims the block at the head of the rows wearing
+            the label. False keeps color as it was, colors the chip and dot as
+            before, and only drops the row's leading block — which is what lets
+            a label group papers without ranking them.
     Rule:
       type: object
       required: [id, name, enabled, priority, conditions, actions, created_at, updated_at]

@@ -529,11 +529,11 @@ const messages: Record<Locale, Record<string, string>> = {
     tagDeleteFailed: "标签删除失败，请重试。",
     tagReorderFailed: "标签顺序没保存成功，请重试。",
     tagColorAuto: "自动",
-    tagColorEnabled: "启用颜色",
+    tagColorEnabled: "行首色块",
     tagColorFailed: "标签颜色没保存成功，请重试。",
-    // 开关的说明只讲它真正管到的东西：染色，不是这枚标签本身。
+    // 开关的说明只讲它真正管到的那一格：行首那块色，不是这枚标签自己的颜色。
     tagColorEnabledHint:
-      "关掉后这枚标签不再染色：药丸和整行都回到中性，标签照样能挂。选好的颜色仍然保留，重新打开就回到原样。",
+      "关掉后这枚标签不再给所在的行上那一块色。药丸和色点照旧带着它选好的颜色，标签也照样能挂上去；选中的那一档仍然留着，重新打开就回到原样。",
     // 调色板只有八档（沿用 wb-badge 家族既有色相），名字给色块的 aria-label 用。
     colorRed: "红",
     colorAmber: "琥珀",
@@ -1261,11 +1261,12 @@ const messages: Record<Locale, Record<string, string>> = {
     tagDeleteFailed: "Could not delete the tag. Please try again.",
     tagReorderFailed: "Could not save the tag order. Please try again.",
     tagColorAuto: "Auto",
-    tagColorEnabled: "Use color",
+    tagColorEnabled: "Row tint",
     tagColorFailed: "Could not save the tag color. Please try again.",
-    // The hint only claims what the switch actually governs: the painting, not the tag.
+    // The switch governs one thing only: the block at the row's head. The tag's own
+    // color is never switched off, so the hint says exactly that.
     tagColorEnabledHint:
-      "Off stops this tag coloring anything: the chip and its row go neutral, and the tag still attaches. The color you picked stays saved, so switching back on returns it.",
+      "Off stops this tag coloring the block at its row's head. Its chip and dot keep the color you picked and the tag still attaches — the shade stays saved, so switching back on returns it.",
     // The palette has exactly eight tints (the existing wb-badge families); these
     // names are what the swatch buttons expose to a screen reader.
     colorRed: "Red",

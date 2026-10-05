@@ -30,7 +30,8 @@ const COLOURED_TAGS: ResearchTag[] = [
   { id: "t-odd", name: "Odd", position: 3, color: "chartreuse", color_enabled: true },
 ]
 
-// 染色开关各关一半的一版：t-field 仍存着 teal，只是当前不涂；t-high 照旧在染。
+// 行首开关各关一半的一版：t-field 的 teal 照旧涂在药丸和色点上，只是不再占行首那块色；
+// t-high 仍留着行首。
 const PARTLY_MUTED_TAGS: ResearchTag[] = [
   { id: "t-high", name: "High", position: 0, color: "violet", color_enabled: true },
   { id: "t-field", name: "Fieldwork", position: 1, color: "teal", color_enabled: false },
@@ -710,7 +711,7 @@ describe("ResearchPage", () => {
     expect(hue("Ghost only")).toBe("")
   })
 
-  it("renders a muted tag neutral without giving up the label", () => {
+  it("keeps a switched-off tag coloured and hands over its row head", () => {
     render(
       <ResearchPage
         papers={[
@@ -722,25 +723,24 @@ describe("ResearchPage", () => {
       />,
     )
     const chip = tagCell("Muted only").querySelector<HTMLElement>(".wb-tag-chip")!
-    // 药丸整体回到中性：没有色相修饰符，色点也不显色。
-    expect(chip).not.toHaveClass("wb-badge--teal")
-    expect(chip.querySelector(".wb-dot")).not.toHaveClass("wb-dot--teal")
-    // 关掉的是颜色，不是这枚标签：名字照旧显示，✕ 照旧能摘。
+    // 开关关掉的是行首那块色，不是颜色本身：药丸和色点仍带着自选的 teal。
+    expect(chip).toHaveClass("wb-badge--teal")
+    expect(chip.querySelector(".wb-dot")).toHaveClass("wb-dot--teal")
     expect(chip.querySelector(".wb-tag-chip-label")!.textContent).toBe("Fieldwork")
     expect(chip.querySelector(".wb-tag-chip-del")).not.toBeNull()
 
     const muted = rowOf("Muted only")
     expect(muted).not.toHaveClass("wb-row--tinted")
     expect(muted.style.getPropertyValue("--wb-row-hue")).toBe("")
-    // 同一行上还有一枚在染的标签：色相来自它——被关掉的那枚不参与比较，
-    // 而不是把整行染色的决定权扣在自己手里。
+    // 同一行上还有一枚留着行首的标签：色相来自它——让出去的那枚不参与比较，
+    // 而不是把整行那块色的决定权扣在自己手里。
     expect(rowOf("Muted plus painted")).toHaveClass("wb-row--tinted")
     expect(rowOf("Muted plus painted").style.getPropertyValue("--wb-row-hue")).toBe(
       "var(--wb-hue-violet)",
     )
   })
 
-  it("keeps a muted tag assignable and filterable", () => {
+  it("keeps a switched-off tag assignable and filterable", () => {
     render(
       <ResearchPage
         papers={[paper({ id: "r-1", title: "Muted only", tag_ids: [] })]}
@@ -750,11 +750,11 @@ describe("ResearchPage", () => {
     )
     const cell = tagCell("Muted only")
     fireEvent.click(within(cell).getByRole("button", { name: "Add tag" }))
-    // 菜单里的这一行仍是可勾选项，只是那颗点是中性的。
+    // 菜单里的这一行仍是可勾选项，那颗点也仍是它自己的颜色。
     const item = within(cell)
       .getByRole("menuitemcheckbox", { name: /Fieldwork/ })
       .querySelector(".wb-dot")!
-    expect(item).not.toHaveClass("wb-dot--teal")
+    expect(item).toHaveClass("wb-dot--teal")
   })
 })
 

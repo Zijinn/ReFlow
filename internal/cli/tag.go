@@ -76,7 +76,7 @@ func tagCommands() []Command {
 		},
 		{
 			Path:     "tag set",
-			Summary:  "rename, recolour, or switch a research label's colour painting on and off",
+			Summary:  "rename, recolour, or switch the row-head colour of a research label",
 			Args:     "<tag-id>",
 			Endpoint: "PATCH " + researchTagsPath + "/{tagID}",
 			Flags: []Flag{
@@ -84,8 +84,8 @@ func tagCommands() []Command {
 				{Name: "name", Kind: KindString, Description: "new label name"},
 				{Name: "color", Kind: KindString, Description: "new colour, from the research palette"},
 				{Name: "color-enabled", Kind: KindChoice, Choices: []string{"on", "off"},
-					Description: "research only: paint papers with this label's colour (on) or keep the " +
-						"colour on record while rendering the chip neutral (off)"},
+					Description: "research only: let this label color the head of the rows it wears (on), " +
+						"or hand that block to the next label while its chip keeps the colour (off)"},
 			},
 			Handler: func(ctx context.Context, app *App, v *Values, args []string) error {
 				id, err := requireOneArg(args, "tag set")

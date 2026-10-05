@@ -296,9 +296,10 @@ describe("PreferencesDialog research tags", () => {
     expect(api.updateResearchTag).not.toHaveBeenCalled()
   })
 
-  it("switches the colour off without losing the pick", async () => {
-    // 开关管的是"涂不涂"，不是"存了哪一档"：关掉后色点回中性、色块排淡一档，
-    // 但选中那颗仍是按下态，所以重新打开回到原样。写回的 PATCH 只有开关这一个字段。
+  it("switches the row head off without losing the pick", async () => {
+    // 开关管的是"这一行行首的色块归谁"，不是"存了哪一档"、也不是"涂不涂"：关掉后色点
+    // 仍是 teal、色块排不再淡一档，选中那颗仍是按下态，所以重新打开回到原样。写回的
+    // PATCH 只有开关这一个字段。
     // 三枚一组的数量与 ready() 一致：这份 mock 的返回值会留到后面的用例（afterEach
     // 只 clear 调用记录，不 reset 实现），少一枚就会把后面几条一起拖成超时。
     vi.mocked(api.listResearchTags).mockResolvedValue({
@@ -312,15 +313,18 @@ describe("PreferencesDialog research tags", () => {
     await ready()
     const muted = rowOfName("Fieldwork")
     expect(rowOfName("High").querySelector(".wb-dot")).toHaveClass("wb-dot--violet")
-    expect(muted.querySelector(".wb-dot")).not.toHaveClass("wb-dot--teal")
-    expect(muted.querySelector(".pref-tag-color-group")).toHaveClass("pref-tag-color-group--off")
-    expect(within(muted).getByRole("checkbox", { name: "Use color: Fieldwork" })).not.toBeChecked()
+    // 标签自己的颜色不跟着开关走：这一行关掉的是行首那块色。
+    expect(muted.querySelector(".wb-dot")).toHaveClass("wb-dot--teal")
+    expect(muted.querySelector(".pref-tag-color-group")).not.toHaveClass(
+      "pref-tag-color-group--off",
+    )
+    expect(within(muted).getByRole("checkbox", { name: "Row tint: Fieldwork" })).not.toBeChecked()
     expect(within(muted).getByRole("button", { name: "Tag color: Teal" })).toHaveAttribute(
       "aria-pressed",
       "true",
     )
 
-    fireEvent.click(within(rowOfName("High")).getByRole("checkbox", { name: "Use color: High" }))
+    fireEvent.click(within(rowOfName("High")).getByRole("checkbox", { name: "Row tint: High" }))
     await waitFor(() =>
       expect(api.updateResearchTag).toHaveBeenCalledWith("t-high", { color_enabled: false }),
     )

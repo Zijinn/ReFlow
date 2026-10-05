@@ -389,9 +389,9 @@ type ResearchTag struct {
 	Name     string `json:"name"`
 	Position int    `json:"position"`
 	Color    string `json:"color"`
-	// ColorEnabled is the user's "paint with this tag's colour" switch: false
-	// keeps the picked colour on record but renders the chip neutral and leaves
-	// the row untinted.
+	// ColorEnabled is the user's "color the head of my rows" switch: false hands
+	// that block to the next label, while the chip and its dot keep the colour
+	// stored in Color.
 	ColorEnabled bool `json:"color_enabled"`
 }
 

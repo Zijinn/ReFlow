@@ -130,9 +130,9 @@ func ListResearchTags(ctx context.Context, db *sql.DB, profileID string) ([]doma
 
 // CreateResearchTag appends a label to the end of the palette. An empty color
 // stores "no colour chosen", which is what lets the client keep tinting by
-// index for palettes the user never recoloured. A new tag paints with its colour
-// (color_enabled defaults to 1): the switch belongs to the settings pane, which
-// PATCHes it, and a tag created without one would be invisible in the palette.
+// index for palettes the user never recoloured. A new label starts out claiming
+// its row head (color_enabled defaults to 1): the switch belongs to the settings
+// pane, which PATCHes it, and one created off would look like a dead control.
 func CreateResearchTag(ctx context.Context, db *sql.DB, profileID, name, color string) (domain.ResearchTag, error) {
 	name = strings.TrimSpace(name)
 	if err := validateResearchTagName(name); err != nil {

@@ -168,8 +168,8 @@ func TestUpdateResearchTagColorRoute(t *testing.T) {
 	if err := json.NewDecoder(created.Body).Decode(&createBody); err != nil {
 		t.Fatalf("decode create body: %v", err)
 	}
-	// A label the palette just gained has to answer painted: the settings pane
-	// shows a switch, and one that starts off reads as a broken control.
+	// A label the palette just gained has to start with its row head claimed: the
+	// settings pane shows a switch, and one that starts off reads as a broken control.
 	if !createBody.Tag.ColorEnabled {
 		t.Fatalf("a created tag should come back colour-enabled, got %s", created.Body.String())
 	}

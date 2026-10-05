@@ -330,10 +330,11 @@ export interface SubmissionRecord {
  * explicit colour", in which case the tint falls back to the palette index (see
  * `tagBadgeClass` in the workbench utils).
  *
- * `color_enabled` says whether to paint with that colour at all. A grouping tag
- * ("合作者", "实证") organises papers rather than ranking them, and it should not
- * wash its row red. Turning it off keeps `color` on record, so switching back on
- * returns the exact shade the user picked.
+ * `color_enabled` says whether this tag claims the block of colour at the head of
+ * the rows that wear it. A grouping tag ("合作者", "实证") organises papers rather
+ * than ranking them, and it need not speak for the row. The chip and its dot ignore
+ * this flag — turning it off keeps `color` painted on them, and returns the row head
+ * to whichever label still claims it.
  */
 export interface ResearchTag {
   id: string

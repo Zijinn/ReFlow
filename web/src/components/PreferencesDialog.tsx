@@ -1378,7 +1378,7 @@ function TagsSection(props: {
     onSuccess: () => invalidateAll(),
     onError: (error) => toast(failure(error, props.t("tagColorFailed"))),
   })
-  // 染色开关单立一条 mutation：它只写 color_enabled，pending 时不该把整排色块一起
+  // 行首色块开关单立一条 mutation：它只写 color_enabled，pending 时不该把整排色块一起
   // 禁掉——用户点完开关往往紧接着就要点色。
   const paintMutation = useMutation({
     mutationFn: ({ tagID, enabled }: { tagID: string; enabled: boolean }) =>
@@ -1534,12 +1534,9 @@ function TagsSection(props: {
                   ⠿
                 </span>
                 {/* 色点与工作台同一套：先取标签自己存的颜色，没有自选色才回落到
-                    调色板下标推出来的那一档。它同时是染色开关的预览——开关关掉这里就
-                    变中性灰，所以这一栏里"涂不涂"看一眼就知道。 */}
-                <i
-                  className={`wb-dot ${tagDotClass(index, tag.color, tag.color_enabled)}`}
-                  aria-hidden="true"
-                />
+                    调色板下标推出来的那一档。它不反映右边那个开关——开关管的是行首
+                    那块色，标签自己的颜色永远在，这里看一眼就是它真正的样子。 */}
+                <i className={`wb-dot ${tagDotClass(index, tag.color)}`} aria-hidden="true" />
                 {/* 显示的是存进库的那个名字（不是工作台对旧优先级名的本地化显示），
                     因为这一格要写的就是它。 */}
                 <TagNameField
@@ -1548,10 +1545,11 @@ function TagsSection(props: {
                   onRenaming={props.onRenaming}
                   onCommit={(tagName) => renameMutation.mutate({ tagID: tag.id, tagName })}
                 />
-                {/* 第二行：染色开关 + 颜色本身。
-                    开关管的是"这枚标签的颜色要不要真的涂上去"，不是标签本身——关掉之后
-                    名字照样能挂到论文上，下面这排选中的色块也照旧留着主色环，所以重新
-                    打开回到原样。归类的标签（合作者、实证）不该把整行染红，这才是它的用途。
+                {/* 第二行：行首色块开关 + 颜色本身。
+                    开关管的是这块颜色要不要替它所在的行说话——在研表每行行首那一块色
+                    取自这一行最靠前的那枚标签，关掉就是把它让出去。标签自己的颜色不掺和：
+                    药丸、色点、下面这排选中那颗的主色环都照旧，重新打开仍是原样。归类的
+                    标签（合作者、实证）不该把整行说成很急，这才是这个开关的用途。
                     颜色：八档既有淡底 +「自动」。自动写回空串，意思是"跟随调色板
                     下标"——所以下面这排在拖动顺序之后仍会整体换色；自选色则钉住不动。
                     色块自己不写颜色字面量：底色读同行的 wb-badge--* 挂上来的
@@ -1570,9 +1568,7 @@ function TagsSection(props: {
                     <span>{props.t("tagColorEnabled")}</span>
                   </label>
                   <span
-                    className={`pref-tag-color-group ${
-                      tag.color_enabled ? "" : "pref-tag-color-group--off"
-                    }`}
+                    className="pref-tag-color-group"
                     role="group"
                     aria-label={props.t("tagColor")}
                   >

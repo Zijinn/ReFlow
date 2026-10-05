@@ -145,7 +145,8 @@ There are two label namespaces, stored apart, and `--scope` picks one. The defau
 
 - `research` is the 工作台 palette: position is the priority order, colour comes from
   the eight named tints the badges ship (`amber blue gray green orange red teal violet`),
-  and `color_enabled` is the "paint papers with this colour" switch. Full CRUD plus
+  and `color_enabled` is the "color the head of my rows" switch — off keeps the
+  chip's colour and only hands the row head to the next label. Full CRUD plus
   `tag reorder`.
 - `reader` labels RSS entries. Only create and delete exist, so `tag set --scope
   reader` and `tag reorder --scope reader` are refused with exit 2; delete and

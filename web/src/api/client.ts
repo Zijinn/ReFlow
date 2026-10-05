@@ -484,7 +484,7 @@ export async function createResearchTag(name: string, color?: string): Promise<R
 /**
  * 404 for an unknown id; 409 on a duplicate name. Every field follows the PATCH
  * contract: omitted leaves the stored value alone. `color: ""` puts the tag back
- * on the index-derived tint; `color_enabled` is the paint switch. The server's
+ * on the index-derived tint; `color_enabled` is the row-head switch. The server's
  * duplicate check excludes the tag itself, so a colour-only write that re-sends
  * the current name is a no-op rename.
  */
