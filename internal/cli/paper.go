@@ -24,7 +24,7 @@ func paperCommands() []Command {
 	setFlag := Flag{
 		Name: "set", Kind: KindStrings,
 		Description: "paper field assignment, repeatable: --set doi=10.1234/x --set 'authors=A,B'" +
-			" | fields: " + fieldHint(),
+			" | fields: " + patchHint(paperFields),
 	}
 	return []Command{
 		{
@@ -169,7 +169,7 @@ func paperCreate(ctx context.Context, app *App, v *Values, args []string) error 
 	}
 	// The field list is validated before the row is created: a typo in --set should
 	// refuse at exit 2 and leave nothing behind, not half-write a paper.
-	patch, err := buildPatch(v.Strings("set"))
+	patch, err := buildPatch(paperFields, "paper", v.Strings("set"))
 	if err != nil {
 		return err
 	}
@@ -207,7 +207,7 @@ func paperSet(ctx context.Context, app *App, v *Values, args []string) error {
 	if err != nil {
 		return err
 	}
-	patch, err := buildPatch(v.Strings("set"))
+	patch, err := buildPatch(paperFields, "paper", v.Strings("set"))
 	if err != nil {
 		return err
 	}

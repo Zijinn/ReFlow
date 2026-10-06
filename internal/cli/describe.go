@@ -92,7 +92,7 @@ func catalog(commands []Command) catalogSpec {
 			{Name: "yes", Kind: KindBool,
 				Description: "confirm a destructive command; without it delete answers exit 2"},
 		},
-		PaperFields:   fieldHintList(),
+		PaperFields:   patchHintList(paperFields),
 		ResearchKinds: researchKinds,
 		TagScopes: map[string]string{
 			tagScopeResearch: "workbench labels; ordered palette, doubles as priority; create/update/reorder all exist",

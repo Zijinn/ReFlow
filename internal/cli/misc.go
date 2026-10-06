@@ -4,12 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 )
 
 // stdin is what `ai fill --raw -` reads. A variable so a test can feed it.
 var stdin io.Reader = os.Stdin
+
+const jobsPath = "/api/v1/jobs"
 
 func statusCommands() []Command {
 	return []Command{
@@ -19,6 +22,40 @@ func statusCommands() []Command {
 			Endpoint: "GET /api/v1/status",
 			Handler: func(ctx context.Context, app *App, v *Values, args []string) error {
 				raw, err := app.client.Get(ctx, "/api/v1/status", nil)
+				if err != nil {
+					return err
+				}
+				return app.Emit(json.RawMessage(raw))
+			},
+		},
+		{
+			Path:     "job get",
+			Summary:  "read one job's state and progress, which is how a queued feed refresh or OPML import is followed",
+			Args:     "<job-id>",
+			Endpoint: "GET /api/v1/jobs/{jobID}",
+			Handler: func(ctx context.Context, app *App, v *Values, args []string) error {
+				id, err := requireOneArg(args, "job get")
+				if err != nil {
+					return err
+				}
+				raw, err := app.client.Get(ctx, jobsPath+"/"+url.PathEscape(id), nil)
+				if err != nil {
+					return err
+				}
+				return app.Emit(json.RawMessage(raw))
+			},
+		},
+		{
+			Path:     "job cancel",
+			Summary:  "drop a job that is still queued or running; anything finished answers 409 job_not_cancellable",
+			Args:     "<job-id>",
+			Endpoint: "POST /api/v1/jobs/{jobID}/cancel",
+			Handler: func(ctx context.Context, app *App, v *Values, args []string) error {
+				id, err := requireOneArg(args, "job cancel")
+				if err != nil {
+					return err
+				}
+				raw, err := app.client.Call(ctx, "POST", jobsPath+"/"+url.PathEscape(id)+"/cancel", nil, nil)
 				if err != nil {
 					return err
 				}

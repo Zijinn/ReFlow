@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// fieldKind is how a paper field's --set value is read.
+// fieldKind is how a --set value is read.
 type fieldKind uint8
 
 const (
@@ -23,7 +23,18 @@ const (
 	fieldList
 	// fieldJSON accepts exactly one JSON value, kept verbatim.
 	fieldJSON
+	// fieldNullableString takes text, or the literal `null` to hand the value back.
+	// A subscription's folder and its title override are the two columns whose PATCH
+	// body distinguishes "absent" from "explicit null": clearing one is the edit an
+	// agent wants, and there is no other value that means it.
+	fieldNullableString
+	// fieldBool takes `true` or `false`. An empty value is a mistake, not a false.
+	fieldBool
 )
+
+// patchTable is one endpoint's set of writable fields, keyed by the JSON name the
+// PATCH handler decodes.
+type patchTable map[string]fieldKind
 
 // paperFields mirrors the PATCH /api/v1/research/papers/{id} body one-for-one.
 //
@@ -31,7 +42,7 @@ const (
 // not recognise: a misspelled field would be accepted with a 200 while writing
 // nothing. That is the worst possible failure for an agent, so the table below is
 // checked before the request leaves the CLI.
-var paperFields = map[string]fieldKind{
+var paperFields = patchTable{
 	"title":            fieldString,
 	"authors":          fieldList,
 	"keywords":         fieldList,
@@ -63,19 +74,46 @@ var paperFields = map[string]fieldKind{
 	"citation_source":  fieldString,
 }
 
-func paperFieldNames() []string {
-	out := make([]string, 0, len(paperFields))
-	for name := range paperFields {
+// feedFields mirrors PATCH /api/v1/feeds/{feedID}, which writes the subscription
+// row rather than the feed document. `url` is absent on purpose: the server never
+// repoints a subscription, so a feed whose address changed is an add plus a delete.
+// view_mode and refresh_policy are left as plain strings — the handler checks them
+// against a fixed set and answers with the list it wanted, which the caller reads
+// more usefully than a second copy of that list in here.
+var feedFields = patchTable{
+	"folder_id":                fieldNullableString,
+	"title_override":           fieldNullableString,
+	"view_mode":                fieldString,
+	"refresh_policy":           fieldString,
+	"refresh_interval_minutes": fieldInt,
+	"hide_from_timeline":       fieldBool,
+	"position":                 fieldInt,
+}
+
+// folderFields mirrors PATCH /api/v1/folders/{folderID}.
+var folderFields = patchTable{
+	"name":      fieldString,
+	"parent_id": fieldNullableString,
+	"position":  fieldInt,
+}
+
+// tableFieldNames lists one table's writable fields, sorted for help text and errors.
+func tableFieldNames(table patchTable) []string {
+	out := make([]string, 0, len(table))
+	for name := range table {
 		out = append(out, name)
 	}
 	sort.Strings(out)
 	return out
 }
 
-// buildPatch turns `field=value` assignments into one PATCH body. Later
-// assignments to the same field win, which lets `--set notes= --set doi=10.` read
-// as a sequence of edits rather than a merge puzzle.
-func buildPatch(assignments []string) (map[string]any, error) {
+// buildPatch turns `field=value` assignments into one PATCH body against `table`.
+// `noun` names the thing being edited, because a caller that typed
+// `feed set --set title=...` needs to be told a feed has no such field rather than
+// reading a list of paper columns. Later assignments to the same field win, which
+// lets `--set notes= --set doi=10.` read as a sequence of edits rather than a merge
+// puzzle.
+func buildPatch(table patchTable, noun string, assignments []string) (map[string]any, error) {
 	if len(assignments) == 0 {
 		return nil, nil
 	}
@@ -86,10 +124,10 @@ func buildPatch(assignments []string) (map[string]any, error) {
 		if !found || name == "" {
 			return nil, usage(`--set expects field=value, got %q`, raw)
 		}
-		kind, known := paperFields[name]
+		kind, known := table[name]
 		if !known {
-			return nil, usage("--set field %q is not a paper field, want one of: %s",
-				name, strings.Join(paperFieldNames(), ", "))
+			return nil, usage("--set field %q is not a %s field, want one of: %s",
+				name, noun, strings.Join(tableFieldNames(table), ", "))
 		}
 		converted, err := convertField(kind, name, value)
 		if err != nil {
@@ -143,17 +181,28 @@ func convertField(kind fieldKind, name, value string) (any, error) {
 			return nil, usage("--set %s: %v", name, err)
 		}
 		return out, nil
+	case fieldNullableString:
+		if strings.EqualFold(strings.TrimSpace(value), "null") {
+			return nil, nil
+		}
+		return value, nil
+	case fieldBool:
+		parsed, err := strconv.ParseBool(strings.TrimSpace(value))
+		if err != nil {
+			return nil, usage("--set %s expects true or false, got %q", name, value)
+		}
+		return parsed, nil
 	default:
 		return value, nil
 	}
 }
 
-// fieldHintList renders the field table as `name=<shape>` entries, for
-// help text and for `describe`.
-func fieldHintList() []string {
-	out := make([]string, 0, len(paperFields))
-	for _, name := range paperFieldNames() {
-		switch paperFields[name] {
+// patchHintList renders one field table as `name=<shape>` entries, for help text
+// and for `describe`.
+func patchHintList(table patchTable) []string {
+	out := make([]string, 0, len(table))
+	for _, name := range tableFieldNames(table) {
+		switch table[name] {
 		case fieldInt:
 			out = append(out, name+"=<int>")
 		case fieldNullableInt:
@@ -162,6 +211,10 @@ func fieldHintList() []string {
 			out = append(out, name+"=<a,b|json-array>")
 		case fieldJSON:
 			out = append(out, name+"=<json>")
+		case fieldNullableString:
+			out = append(out, name+"=<text|null>")
+		case fieldBool:
+			out = append(out, name+"=<true|false>")
 		default:
 			out = append(out, name+"=<text>")
 		}
@@ -169,7 +222,9 @@ func fieldHintList() []string {
 	return out
 }
 
-func fieldHint() string { return strings.Join(fieldHintList(), ", ") }
+// patchHint renders one field table as the `--set` field list a caller reads in
+// help and in `describe`.
+func patchHint(table patchTable) string { return strings.Join(patchHintList(table), ", ") }
 
 func requireOneArg(args []string, what string) (string, error) {
 	if len(args) != 1 {

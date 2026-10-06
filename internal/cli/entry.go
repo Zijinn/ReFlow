@@ -8,10 +8,7 @@ import (
 	"time"
 )
 
-const (
-	entriesPath = "/api/v1/entries"
-	feedsPath   = "/api/v1/feeds"
-)
+const entriesPath = "/api/v1/entries"
 
 // contentKinds are the timeline's source categories. A literature feed is one the
 // server classified from its site URL and its DOI density.
@@ -67,36 +64,6 @@ func entryCommands() []Command {
 					query.Set("ai_language", language)
 				}
 				raw, err := app.client.Get(ctx, entriesPath+"/"+url.PathEscape(id), query)
-				if err != nil {
-					return err
-				}
-				return app.Emit(json.RawMessage(raw))
-			},
-		},
-		{
-			Path:     "feed list",
-			Summary:  "list subscriptions with their content category and last fetch outcome",
-			Endpoint: "GET " + feedsPath,
-			Handler: func(ctx context.Context, app *App, v *Values, args []string) error {
-				raw, err := app.client.Get(ctx, feedsPath, nil)
-				if err != nil {
-					return err
-				}
-				return app.Emit(json.RawMessage(raw))
-			},
-		},
-		{
-			Path:     "feed refresh",
-			Summary:  "queue a fetch for one feed, then read the job it returns",
-			Args:     "<feed-id>",
-			Endpoint: "POST " + feedsPath + "/{feedID}/refresh",
-			Handler: func(ctx context.Context, app *App, v *Values, args []string) error {
-				id, err := requireOneArg(args, "feed refresh")
-				if err != nil {
-					return err
-				}
-				raw, err := app.client.Call(ctx, "POST",
-					feedsPath+"/"+url.PathEscape(id)+"/refresh", nil, nil)
 				if err != nil {
 					return err
 				}

@@ -99,31 +99,68 @@ func (c *Client) GetInto(ctx context.Context, path string, query url.Values, out
 	return decode(raw, path, out)
 }
 
-// Call performs one request. A nil body sends no payload, and 204 returns nil.
+// Call performs one JSON request. A nil body sends no payload, and 204 returns nil.
 func (c *Client) Call(ctx context.Context, method, path string, query url.Values, body any) (json.RawMessage, error) {
-	if c.err != nil {
-		return nil, c.err
-	}
-	var payload io.Reader
+	var payload []byte
+	contentType := ""
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
 			return nil, &TransportError{Reason: fmt.Sprintf("encode request for %s %s: %v", method, path, err)}
 		}
-		payload = bytes.NewReader(encoded)
+		payload, contentType = encoded, "application/json"
+	}
+	raw, responded, err := c.exchange(ctx, method, path, query, payload, contentType, jsonAccept)
+	if err != nil {
+		return nil, err
+	}
+	return jsonAnswer(method, path, responded, raw)
+}
+
+// SendDocument posts a document instead of a JSON object. The OPML import takes the
+// file's own bytes — an XML body wrapped in a JSON string would make the server's
+// parser reject a file the app imports fine — and still answers with a job.
+func (c *Client) SendDocument(ctx context.Context, method, path string, query url.Values, document []byte, contentType string) (json.RawMessage, error) {
+	raw, responded, err := c.exchange(ctx, method, path, query, document, contentType, jsonAccept)
+	if err != nil {
+		return nil, err
+	}
+	return jsonAnswer(method, path, responded, raw)
+}
+
+// ReceiveDocument reads an endpoint whose answer is a document, not JSON. The OPML
+// export serves text/xml, and Call would fail it on exactly the content type the
+// caller asked for.
+func (c *Client) ReceiveDocument(ctx context.Context, path string, query url.Values) ([]byte, error) {
+	raw, _, err := c.exchange(ctx, http.MethodGet, path, query, nil, "", anyAccept)
+	return raw, err
+}
+
+// exchange is one HTTP round trip with the payload already encoded. It maps every
+// 4xx/5xx onto the server's problem document and hands back the body plus the
+// content type it arrived with; the JSON rules live in jsonAnswer, on the side of
+// the call that expects JSON.
+func (c *Client) exchange(ctx context.Context, method, path string, query url.Values,
+	payload []byte, contentType, accept string) ([]byte, string, error) {
+	if c.err != nil {
+		return nil, "", c.err
+	}
+	var reader io.Reader
+	if len(payload) > 0 {
+		reader = bytes.NewReader(payload)
 	}
 	target := *c.endpoint
 	target.Path = strings.TrimSuffix(c.endpoint.Path, "/") + path
 	if len(query) > 0 {
 		target.RawQuery = query.Encode()
 	}
-	request, err := http.NewRequestWithContext(ctx, method, target.String(), payload)
+	request, err := http.NewRequestWithContext(ctx, method, target.String(), reader)
 	if err != nil {
-		return nil, &TransportError{Reason: fmt.Sprintf("build request: %v", err)}
+		return nil, "", &TransportError{Reason: fmt.Sprintf("build request: %v", err)}
 	}
-	request.Header.Set("Accept", "application/json")
-	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", accept)
+	if contentType != "" {
+		request.Header.Set("Content-Type", contentType)
 	}
 	// A loopback peer needs no token: the server treats it as the machine's own
 	// traffic. Off-machine calls run against REFLOW_LAN_MODE=true and must carry a
@@ -133,28 +170,42 @@ func (c *Client) Call(ctx context.Context, method, path string, query url.Values
 	}
 	response, err := c.http.Do(request)
 	if err != nil {
-		return nil, &TransportError{
+		return nil, "", &TransportError{
 			Reason: fmt.Sprintf("%s %s: %v (is ReFlow Server running, and does --url point at it?)", method, path, err),
 		}
 	}
 	defer response.Body.Close()
 	raw, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, &TransportError{Reason: fmt.Sprintf("%s %s: read response: %v", method, path, err)}
+		return nil, "", &TransportError{Reason: fmt.Sprintf("%s %s: read response: %v", method, path, err)}
 	}
 	if response.StatusCode >= http.StatusBadRequest {
-		return nil, problemError(method, path, response, raw)
+		return nil, "", problemError(method, path, response, raw)
 	}
-	if response.StatusCode == http.StatusNoContent || len(bytes.TrimSpace(raw)) == 0 {
+	if response.StatusCode == http.StatusNoContent {
+		return nil, response.Header.Get("Content-Type"), nil
+	}
+	return raw, response.Header.Get("Content-Type"), nil
+}
+
+const (
+	jsonAccept = "application/json"
+	anyAccept  = "*/*"
+)
+
+// jsonAnswer holds a JSON endpoint to its contract: an empty body is no data, and a
+// body that arrived as something else is not what the command claimed to send.
+func jsonAnswer(method, path, contentType string, raw []byte) (json.RawMessage, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 {
 		return nil, nil
 	}
-	if contentType := response.Header.Get("Content-Type"); contentType != "" &&
-		!strings.Contains(contentType, "json") {
+	if contentType != "" && !strings.Contains(contentType, "json") {
 		return nil, &TransportError{
 			Reason: fmt.Sprintf("%s %s: expected JSON, got content type %q", method, path, contentType),
 		}
 	}
-	return json.RawMessage(bytes.TrimSpace(raw)), nil
+	return json.RawMessage(trimmed), nil
 }
 
 // CallInto performs one request and decodes the answer into out.

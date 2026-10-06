@@ -7,6 +7,7 @@ func AllCommands() []Command {
 	out = append(out, paperCommands()...)
 	out = append(out, tagCommands()...)
 	out = append(out, entryCommands()...)
+	out = append(out, subscriptionCommands()...)
 	out = append(out, literatureCommands()...)
 	out = append(out, aiCommands()...)
 	out = append(out, statusCommands()...)

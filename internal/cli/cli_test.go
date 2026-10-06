@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -20,12 +22,19 @@ type call struct {
 	Query  url.Values
 	Body   map[string]any
 	Raw    string
-	Auth   string
+	// Type is the request's Content-Type, which is how a test tells a JSON object
+	// from a document body.
+	Type string
+	Auth string
 }
 
 type reply struct {
 	status int
 	body   string
+	// ctype overrides the JSON content type, for the endpoints whose answer is a
+	// document: `opml export` serves text/xml, and the CLI has to accept that rather
+	// than fail it as "expected JSON".
+	ctype string
 }
 
 // fakeServer stands in for ReFlow Server. It answers from a route table and keeps
@@ -51,6 +60,14 @@ func (f *fakeServer) answer(key string, status int, body string) {
 	f.routes[key] = append(f.routes[key], reply{status: status, body: body})
 }
 
+// answerType queues a reply with its content type, for the endpoints whose answer is
+// a document rather than JSON.
+func (f *fakeServer) answerType(key string, status int, ctype, body string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.routes[key] = append(f.routes[key], reply{status: status, body: body, ctype: ctype})
+}
+
 // seen copies the call log, newest last.
 func (f *fakeServer) seen() []call {
 	f.mu.Lock()
@@ -73,14 +90,29 @@ func (f *fakeServer) callsTo(method, path string) []call {
 	return out
 }
 
+// lastTo is the newest call to one endpoint. A command that reads back what it just
+// wrote still gets asserted on the write.
+func (f *fakeServer) lastTo(t *testing.T, method, path string) call {
+	t.Helper()
+	calls := f.callsTo(method, path)
+	if len(calls) == 0 {
+		t.Fatalf("no %s %s call in %v", method, path, f.seen())
+	}
+	return calls[len(calls)-1]
+}
+
 func newFake(t *testing.T) (*fakeServer, string) {
 	t.Helper()
 	fake := &fakeServer{routes: map[string][]reply{}, answers: map[string]int{}}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := new(bytes.Buffer)
 		_, _ = raw.ReadFrom(r.Body)
+		requestType := r.Header.Get("Content-Type")
 		body := map[string]any{}
-		if strings.TrimSpace(raw.String()) != "" {
+		// A JSON body must be JSON, because an endpoint that speaks JSON drops keys it
+		// cannot decode. A document body (the OPML import) is not JSON by design, so it
+		// is only checked by the command that sent it.
+		if strings.TrimSpace(raw.String()) != "" && strings.Contains(requestType, "json") {
 			if err := json.Unmarshal(raw.Bytes(), &body); err != nil {
 				t.Errorf("command sent a body that is not JSON: %q", raw.String())
 			}
@@ -95,7 +127,8 @@ func newFake(t *testing.T) (*fakeServer, string) {
 			}
 		}
 		fake.calls = append(fake.calls, call{Method: r.Method, Path: r.URL.Path,
-			Query: r.URL.Query(), Body: body, Raw: raw.String(), Auth: r.Header.Get("Authorization")})
+			Query: r.URL.Query(), Body: body, Raw: raw.String(), Type: requestType,
+			Auth: r.Header.Get("Authorization")})
 		accepted := reply{status: http.StatusOK, body: `{}`}
 		if queue := fake.routes[key]; len(queue) > 0 {
 			accepted = queue[min(fake.answers[key], len(queue)-1)]
@@ -107,6 +140,8 @@ func newFake(t *testing.T) (*fakeServer, string) {
 		fake.mu.Unlock()
 		if accepted.status >= http.StatusBadRequest {
 			w.Header().Set("Content-Type", "application/problem+json")
+		} else if accepted.ctype != "" {
+			w.Header().Set("Content-Type", accepted.ctype)
 		} else {
 			w.Header().Set("Content-Type", "application/json")
 		}
@@ -466,13 +501,23 @@ func TestTokenOnlySentWhenGiven(t *testing.T) {
 	fake, base := newFake(t)
 	code, body, _ := runCLI(t, base, "feed", "list")
 	mustOK(t, code, body)
-	if fake.seen()[0].Auth != "" {
-		t.Fatalf("loopback needs no credential, got %q", fake.seen()[0].Auth)
-	}
 	code, body, _ = runCLI(t, base, "--token", "dev-token", "feed", "list")
 	mustOK(t, code, body)
-	if fake.seen()[1].Auth != "Bearer dev-token" {
-		t.Fatalf("a token should become a bearer header, got %q", fake.seen()[1].Auth)
+	// `feed list` also reads the subscription join, so assert on the calls that carry
+	// the listing rather than on a fixed slot in the log.
+	listed := fake.callsTo("GET", "/api/v1/feeds")
+	if len(listed) != 2 {
+		t.Fatalf("want two listings, got %v", fake.seen())
+	}
+	if listed[0].Auth != "" {
+		t.Fatalf("loopback needs no credential, got %q", listed[0].Auth)
+	}
+	if listed[1].Auth != "Bearer dev-token" {
+		t.Fatalf("a token should become a bearer header, got %q", listed[1].Auth)
+	}
+	join := fake.callsTo("GET", "/api/v1/subscriptions")
+	if len(join) != 2 || join[1].Auth != "Bearer dev-token" {
+		t.Fatalf("the join is a request too, so it carries the token: %v", join)
 	}
 }
 
@@ -1061,5 +1106,281 @@ func TestGlobalsMayFollowTheCommandPath(t *testing.T) {
 	}
 	if len(fake.seen()) != 1 {
 		t.Fatalf("a bad --format must refuse first, got %v", fake.seen())
+	}
+}
+
+// ── RSS subscriptions ───────────────────────────────────────────────────────
+
+func TestFeedAddPostsOnlyWhatWasGiven(t *testing.T) {
+	fake, base := newFake(t)
+	fake.answer("POST /api/v1/feeds", http.StatusCreated, `{"id":"f-1","url":"https://example.com/feed"}`)
+	code, body, _ := runCLI(t, base, "feed", "add", "https://example.com/feed")
+	mustOK(t, code, body)
+	first := fake.lastTo(t, "POST", "/api/v1/feeds")
+	if first.Path != "/api/v1/feeds" || first.Body["url"] != "https://example.com/feed" {
+		t.Fatalf("feed add = %+v", first)
+	}
+	// An absent folder means unfiled and an absent title means the feed's own. Either
+	// one sent as "" would store a blank override.
+	if _, present := first.Body["folder_id"]; present {
+		t.Fatalf("an unset folder should be left out, got %v", first.Body)
+	}
+	if _, present := first.Body["title_override"]; present {
+		t.Fatalf("an unset title should be left out, got %v", first.Body)
+	}
+
+	fake.answer("POST /api/v1/feeds", http.StatusCreated, `{"id":"f-2"}`)
+	code, body, _ = runCLI(t, base, "feed", "add", "rsshub://caixin/bio", "--folder", "fo-1", "--title", "财新")
+	mustOK(t, code, body)
+	last := fake.lastTo(t, "POST", "/api/v1/feeds")
+	if last.Body["folder_id"] != "fo-1" || last.Body["title_override"] != "财新" {
+		t.Fatalf("both extras should travel, got %v", last.Body)
+	}
+
+	fake.answer("POST /api/v1/feeds/discover", http.StatusOK, `{"items":[{"title":"A"}]}`)
+	code, body, _ = runCLI(t, base, "feed", "discover", "https://example.com")
+	mustOK(t, code, body)
+	found := fake.last()
+	if found.Path != "/api/v1/feeds/discover" || found.Body["url"] != "https://example.com" {
+		t.Fatalf("feed discover = %+v", found)
+	}
+}
+
+func TestFeedSetChecksTheFieldTableBeforeSending(t *testing.T) {
+	fake, base := newFake(t)
+	code, body, _ := runCLI(t, base, "feed", "set", "f-1", "--set", "color=red")
+	if code != ExitUsage || !strings.Contains(messageOf(t, body), "feed field") {
+		t.Fatalf("a paper field name must not pass for a feed one, got %d: %v", code, body)
+	}
+	if len(fake.seen()) != 0 {
+		t.Fatalf("a refused --set must not touch the server, got %v", fake.seen())
+	}
+	if !strings.Contains(messageOf(t, body), "hide_from_timeline") {
+		t.Fatalf("the refusal should list what a feed does accept, got %q", messageOf(t, body))
+	}
+
+	fake.answer("PATCH /api/v1/feeds/f-1", http.StatusOK,
+		`{"id":"s-1","feed_id":"f-1","folder_id":null,"refresh_policy":"never"}`)
+	fake.answer("GET /api/v1/feeds/f-1", http.StatusOK,
+		`{"id":"f-1","url":"https://example.com/feed","content_kind":"literature"}`)
+	code, body, _ = runCLI(t, base, "feed", "set", "f-1",
+		"--set", "folder_id=null", "--set", "hide_from_timeline=true", "--set", "refresh_interval_minutes=60")
+	data := mustOK(t, code, body)
+	sent := fake.lastTo(t, "PATCH", "/api/v1/feeds/f-1").Body
+	// `null` is the only way to take a subscription out of its folder, and it has to
+	// arrive as JSON null rather than the four-letter string.
+	encoded, _ := json.Marshal(sent)
+	if !strings.Contains(string(encoded), `"folder_id":null`) {
+		t.Fatalf("folder_id=null should send an explicit null, got %s", encoded)
+	}
+	if sent["hide_from_timeline"] != true {
+		t.Fatalf("hide_from_timeline should be a bool, got %#v", sent["hide_from_timeline"])
+	}
+	if sent["refresh_interval_minutes"] != float64(60) {
+		t.Fatalf("refresh_interval_minutes should be a number, got %#v", sent["refresh_interval_minutes"])
+	}
+	// The answer is the feed view: `id` stays the handle the other feed commands expect,
+	// and the row the server wrote comes back attached to it.
+	if data["id"] != "f-1" {
+		t.Fatalf("feed set should answer in feed ids, got %v", data)
+	}
+	written, _ := data["subscription"].(map[string]any)
+	if written["id"] != "s-1" || written["refresh_policy"] != "never" {
+		t.Fatalf("the subscription row should come back attached, got %v", data["subscription"])
+	}
+
+	code, body, _ = runCLI(t, base, "feed", "set", "f-1", "--set", "hide_from_timeline=maybe")
+	if code != ExitUsage || !strings.Contains(messageOf(t, body), "true or false") {
+		t.Fatalf("a non-bool is caller-fixable, got %d: %v", code, body)
+	}
+}
+
+// TestFeedListViewCarriesTheFiling pins the join: the server keeps a subscription's
+// folder, display title and unread count on its own record, so a CLI that read only
+// GET /api/v1/feeds could file a feed into a folder and never show the filing.
+func TestFeedListViewCarriesTheFiling(t *testing.T) {
+	fake, base := newFake(t)
+	fake.answer("GET /api/v1/feeds", http.StatusOK,
+		`{"items":[{"id":"f-1","url":"https://example.com/a","content_kind":"literature"},`+
+			`{"id":"f-2","url":"https://example.com/b","content_kind":"general"}]}`)
+	fake.answer("GET /api/v1/subscriptions", http.StatusOK,
+		`{"items":[{"id":"s-1","feed_id":"f-1","folder_id":"fo-1","title":"经济学","unread_count":7}]}`)
+
+	code, body, _ := runCLI(t, base, "feed", "list")
+	data := mustOK(t, code, body)
+	items, _ := data["items"].([]any)
+	if len(items) != 2 {
+		t.Fatalf("want both feeds, got %v", data["items"])
+	}
+	first, _ := items[0].(map[string]any)
+	if first["id"] != "f-1" || first["content_kind"] != "literature" {
+		t.Fatalf("the feed record should stay itself, got %v", first)
+	}
+	filed, _ := first["subscription"].(map[string]any)
+	if filed["folder_id"] != "fo-1" || filed["title"] != "经济学" || filed["unread_count"] != float64(7) {
+		t.Fatalf("the filing should be readable, got %v", first["subscription"])
+	}
+	// A feed with no subscription row answers null, not a missing key and not another
+	// feed's subscription.
+	second, _ := items[1].(map[string]any)
+	if sub, present := second["subscription"]; !present || sub != nil {
+		t.Fatalf("an unfiled feed should answer subscription:null, got %#v present=%v", sub, present)
+	}
+	if len(fake.seen()) != 2 {
+		t.Fatalf("the join is one extra request, not one per feed: %v", fake.seen())
+	}
+
+	fake.answer("GET /api/v1/feeds/f-1", http.StatusOK, `{"id":"f-1","url":"https://example.com/a"}`)
+	code, body, _ = runCLI(t, base, "feed", "get", "f-1")
+	one := mustOK(t, code, body)
+	if one["id"] != "f-1" {
+		t.Fatalf("feed get should key by the feed id, got %v", one)
+	}
+	if row, _ := one["subscription"].(map[string]any); row["folder_id"] != "fo-1" {
+		t.Fatalf("feed get should carry the filing, got %v", one["subscription"])
+	}
+}
+
+func TestFeedDeleteRefusesWithoutYes(t *testing.T) {
+	fake, base := newFake(t)
+	code, body, _ := runCLI(t, base, "feed", "delete", "f-1")
+	if code != ExitUsage || !strings.Contains(messageOf(t, body), "--yes") {
+		t.Fatalf("unsubscribing without --yes must refuse, got %d: %v", code, body)
+	}
+	if len(fake.seen()) != 0 {
+		t.Fatalf("a refusal must not touch the server, got %v", fake.seen())
+	}
+	fake.answer("DELETE /api/v1/feeds/f-1", http.StatusNoContent, "")
+	code, body, _ = runCLI(t, base, "feed", "delete", "f-1", "--yes")
+	data := mustOK(t, code, body)
+	if data["deleted"] != "f-1" {
+		t.Fatalf("feed delete = %v", data)
+	}
+	if len(fake.seen()) != 1 || fake.seen()[0].Method != http.MethodDelete {
+		t.Fatalf("--yes should unsubscribe, got %v", fake.seen())
+	}
+}
+
+func TestFolderAddAndDelete(t *testing.T) {
+	fake, base := newFake(t)
+	fake.answer("POST /api/v1/folders", http.StatusCreated, `{"id":"fo-1","name":"文献"}`)
+	code, body, _ := runCLI(t, base, "folder", "add", "文献")
+	mustOK(t, code, body)
+	if _, present := fake.last().Body["parent_id"]; present {
+		t.Fatalf("no --parent should mean a top-level folder, got %v", fake.last().Body)
+	}
+
+	fake.answer("POST /api/v1/folders", http.StatusCreated, `{"id":"fo-2","name":"子目录"}`)
+	code, body, _ = runCLI(t, base, "folder", "add", "子目录", "--parent", "fo-1")
+	mustOK(t, code, body)
+	if fake.last().Body["parent_id"] != "fo-1" {
+		t.Fatalf("--parent should be sent, got %v", fake.last().Body)
+	}
+
+	before := len(fake.seen())
+	code, body, _ = runCLI(t, base, "folder", "delete", "fo-1")
+	if code != ExitUsage || len(fake.seen()) != before {
+		t.Fatalf("folder delete needs --yes, got %d: %v", code, body)
+	}
+	fake.answer("DELETE /api/v1/folders/fo-1", http.StatusNoContent, "")
+	code, body, _ = runCLI(t, base, "folder", "delete", "fo-1", "--yes")
+	data := mustOK(t, code, body)
+	if data["deleted"] != "fo-1" {
+		t.Fatalf("folder delete = %v", data)
+	}
+}
+
+func TestOPMLImportSendsTheDocumentVerbatim(t *testing.T) {
+	fake, base := newFake(t)
+	document := `<?xml version="1.0"?><opml version="2.0"><body>` +
+		`<outline text="A" xmlUrl="https://example.com/a"/>` +
+		`</body></opml>`
+	fake.answer("POST /api/v1/imports/opml", http.StatusAccepted, `{"id":"j-1","state":"queued"}`)
+	path := filepath.Join(t.TempDir(), "subs.opml")
+	if err := os.WriteFile(path, []byte(document), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	code, body, _ := runCLI(t, base, "opml", "import", "--file", path)
+	data := mustOK(t, code, body)
+	// The answer is a job, not a count: the import runs behind the server's queue.
+	if data["id"] != "j-1" {
+		t.Fatalf("opml import = %v", data)
+	}
+	seen := fake.last()
+	if seen.Raw != document {
+		t.Fatalf("the document must travel byte for byte, got %q", seen.Raw)
+	}
+	if !strings.Contains(seen.Type, "xml") {
+		t.Fatalf("an OPML body is not a JSON object, got content type %q", seen.Type)
+	}
+
+	// `-` reads the document off a pipe, the way `ai fill --raw -` does.
+	original := stdin
+	stdin = strings.NewReader(document)
+	t.Cleanup(func() { stdin = original })
+	fake.answer("POST /api/v1/imports/opml", http.StatusAccepted, `{"id":"j-2"}`)
+	code, body, _ = runCLI(t, base, "opml", "import", "--file", "-")
+	mustOK(t, code, body)
+	if fake.last().Raw != document {
+		t.Fatalf("stdin document should arrive whole, got %q", fake.last().Raw)
+	}
+
+	// A path that does not resolve is the caller's typo: exit 2, no request.
+	code, body, _ = runCLI(t, base, "opml", "import", "--file", filepath.Join(t.TempDir(), "gone.opml"))
+	if code != ExitUsage || !strings.Contains(messageOf(t, body), "no such file") {
+		t.Fatalf("a missing file should be usage, got %d: %v", code, body)
+	}
+}
+
+func TestOPMLExportAcceptsXML(t *testing.T) {
+	fake, base := newFake(t)
+	document := `<?xml version="1.0"?><opml version="2.0"><body/></opml>`
+	fake.answerType("GET /api/v1/exports/opml", http.StatusOK, "text/xml; charset=utf-8", document)
+	out := filepath.Join(t.TempDir(), "export.opml")
+	code, body, _ := runCLI(t, base, "opml", "export", "--out", out)
+	data := mustOK(t, code, body)
+	if data["path"] != out || data["bytes"] != float64(len(document)) {
+		t.Fatalf("opml export = %v", data)
+	}
+	written, err := os.ReadFile(out)
+	if err != nil || string(written) != document {
+		t.Fatalf("the file should hold the document verbatim: %q (%v)", written, err)
+	}
+
+	// Without --out the document comes back inside the envelope, so a caller that only
+	// wants to read the list never touches the disk.
+	fake.answerType("GET /api/v1/exports/opml", http.StatusOK, "text/xml; charset=utf-8", document)
+	code, body, _ = runCLI(t, base, "opml", "export")
+	data = mustOK(t, code, body)
+	if data["document"] != document {
+		t.Fatalf("inline export = %v", data)
+	}
+}
+
+func TestJobFollowsAQueuedFeedRefresh(t *testing.T) {
+	fake, base := newFake(t)
+	fake.answer("POST /api/v1/feeds/f-1/refresh", http.StatusAccepted, `{"id":"j-9","state":"queued"}`)
+	code, body, _ := runCLI(t, base, "feed", "refresh", "f-1")
+	data := mustOK(t, code, body)
+	jobID, _ := data["id"].(string)
+	if jobID != "j-9" {
+		t.Fatalf("feed refresh = %v", data)
+	}
+
+	fake.answer("GET /api/v1/jobs/j-9", http.StatusOK,
+		`{"id":"j-9","state":"succeeded","progress_current":12,"progress_total":12}`)
+	code, body, _ = runCLI(t, base, "job", "get", jobID)
+	data = mustOK(t, code, body)
+	if data["state"] != "succeeded" || data["progress_current"] != float64(12) {
+		t.Fatalf("job get = %v", data)
+	}
+
+	fake.answer("POST /api/v1/jobs/j-9/cancel", http.StatusConflict,
+		`{"code":"job_not_cancellable","title":"Job cannot be cancelled",`+
+			`"detail":"Only queued or running jobs can be cancelled."}`)
+	code, body, _ = runCLI(t, base, "job", "cancel", jobID)
+	rejected, _ := body["error"].(map[string]any)
+	if code != ExitAPI || rejected["code"] != "job_not_cancellable" {
+		t.Fatalf("a finished job is the server's call, got %d: %v", code, body)
 	}
 }
