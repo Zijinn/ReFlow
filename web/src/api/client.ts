@@ -33,6 +33,11 @@ import type {
   ResearchPaper,
   ResearchPaperPatch,
   ResearchTag,
+  TaskAssignment,
+  TaskItem,
+  TaskLayer,
+  TaskStep,
+  TaskThread,
 } from "./types"
 import { entryDetailCacheKey, entryPageCacheKey, readCache, writeCache } from "../offline/database"
 import type { ReaderAnnotation } from "../lib/annotations"
@@ -890,4 +895,161 @@ export function startOfToday(): Date {
   const value = new Date()
   value.setHours(0, 0, 0, 0)
   return value
+}
+
+/* ── 长任务（/api/v1/tasks）────────────────────────────────────────────
+   读只有一把：`listTaskThreads` 一次返回整棵嵌套树，每个派生字段（层的
+   `unlocked`、任务的 `progress`/`status`、五档 `stats`）都在服务端算好。
+   写之后一律让 ["task-threads"] 失效重取，不在前端拼这棵树——派生口径只有
+   一份才不会漂。 */
+
+/** 整棵长任务树：每条主线带着它的层、任务（含全部指派与步）和统计。 */
+export function listTaskThreads(signal?: AbortSignal): Promise<ListResponse<TaskThread>> {
+  return request<ListResponse<TaskThread>>("/api/v1/tasks/threads", { signal })
+}
+
+export function createTaskThread(input: { name: string }): Promise<TaskThread> {
+  return request<TaskThread>("/api/v1/tasks/threads", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateTaskThread(
+  threadID: string,
+  patch: { name?: string; position?: number; archived?: boolean },
+): Promise<void> {
+  return request<void>(`/api/v1/tasks/threads/${encodeURIComponent(threadID)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteTaskThread(threadID: string): Promise<void> {
+  return request<void>(`/api/v1/tasks/threads/${encodeURIComponent(threadID)}`, {
+    method: "DELETE",
+  })
+}
+
+/** 新建层：名字可以不给，服务端按第几层落默认名。 */
+export function createTaskLayer(threadID: string, name?: string): Promise<TaskLayer> {
+  return request<TaskLayer>(`/api/v1/tasks/threads/${encodeURIComponent(threadID)}/layers`, {
+    method: "POST",
+    body: JSON.stringify(name === undefined ? {} : { name }),
+  })
+}
+
+export function updateTaskLayer(
+  layerID: string,
+  patch: { name?: string; position?: number; forced_unlock?: boolean },
+): Promise<void> {
+  return request<void>(`/api/v1/tasks/layers/${encodeURIComponent(layerID)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteTaskLayer(layerID: string): Promise<void> {
+  return request<void>(`/api/v1/tasks/layers/${encodeURIComponent(layerID)}`, { method: "DELETE" })
+}
+
+/** 收口这一层：这一层的每颗卡一并收口，并解开下一层。 */
+export function closeTaskLayer(layerID: string): Promise<TaskLayer> {
+  return request<TaskLayer>(`/api/v1/tasks/layers/${encodeURIComponent(layerID)}/close`, {
+    method: "POST",
+  })
+}
+
+/** 新建任务：`layer_id` 决定它先落在哪一层；不给由服务端挑第一个未锁的层。 */
+export function createTaskItem(
+  threadID: string,
+  input: { title?: string; layer_id?: string },
+): Promise<TaskItem> {
+  return request<TaskItem>(`/api/v1/tasks/threads/${encodeURIComponent(threadID)}/items`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+/**
+ * `paper_id: null` 是显式取消关联，必须原样发出去（省略字段才是"不碰它"），
+ * 所以调用方传 `null` 时这里不能过滤掉。
+ */
+export function updateTaskItem(
+  itemID: string,
+  patch: { title?: string; notes?: string; position?: number; paper_id?: string | null },
+): Promise<void> {
+  return request<void>(`/api/v1/tasks/items/${encodeURIComponent(itemID)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteTaskItem(itemID: string): Promise<void> {
+  return request<void>(`/api/v1/tasks/items/${encodeURIComponent(itemID)}`, { method: "DELETE" })
+}
+
+/** 主线内任务顺序：数组下标就是新的 position。 */
+export function reorderTaskItems(threadID: string, itemIDs: string[]): Promise<void> {
+  return request<void>(
+    `/api/v1/tasks/threads/${encodeURIComponent(threadID)}/items/reorder`,
+    { method: "POST", body: JSON.stringify({ item_ids: itemIDs }) },
+  )
+}
+
+/** 把一条已有任务再放进一层——这就是卡上那颗「跨 N 层」药丸的来源。 */
+export function createTaskAssignment(
+  itemID: string,
+  input: { layer_id: string; start_date?: string; due_date?: string },
+): Promise<TaskAssignment> {
+  return request<TaskAssignment>(`/api/v1/tasks/items/${encodeURIComponent(itemID)}/assignments`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateTaskAssignment(
+  assignmentID: string,
+  patch: { start_date?: string; due_date?: string; position?: number },
+): Promise<void> {
+  return request<void>(`/api/v1/tasks/assignments/${encodeURIComponent(assignmentID)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
+}
+
+/** 删掉一条指派＝把这一颗卡从这一层摘走；任务本身还在别的层里。 */
+export function deleteTaskAssignment(assignmentID: string): Promise<void> {
+  return request<void>(`/api/v1/tasks/assignments/${encodeURIComponent(assignmentID)}`, {
+    method: "DELETE",
+  })
+}
+
+/** 一键收口这一颗卡：本层指派的步全部完成。 */
+export function completeTaskAssignment(assignmentID: string): Promise<TaskAssignment> {
+  return request<TaskAssignment>(
+    `/api/v1/tasks/assignments/${encodeURIComponent(assignmentID)}/complete`,
+    { method: "POST" },
+  )
+}
+
+export function createTaskStep(assignmentID: string, name: string): Promise<TaskStep> {
+  return request<TaskStep>(`/api/v1/tasks/assignments/${encodeURIComponent(assignmentID)}/steps`, {
+    method: "POST",
+    body: JSON.stringify({ name }),
+  })
+}
+
+export function updateTaskStep(
+  stepID: string,
+  patch: { name?: string; done?: boolean; position?: number },
+): Promise<void> {
+  return request<void>(`/api/v1/tasks/steps/${encodeURIComponent(stepID)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteTaskStep(stepID: string): Promise<void> {
+  return request<void>(`/api/v1/tasks/steps/${encodeURIComponent(stepID)}`, { method: "DELETE" })
 }

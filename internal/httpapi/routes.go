@@ -98,6 +98,25 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/research/tags/reorder", s.reorderResearchTags)
 	mux.HandleFunc("PATCH /api/v1/research/tags/{tagID}", s.updateResearchTag)
 	mux.HandleFunc("DELETE /api/v1/research/tags/{tagID}", s.deleteResearchTag)
+	mux.HandleFunc("GET /api/v1/tasks/threads", s.listTaskThreads)
+	mux.HandleFunc("POST /api/v1/tasks/threads", s.createTaskThread)
+	mux.HandleFunc("PATCH /api/v1/tasks/threads/{threadID}", s.updateTaskThread)
+	mux.HandleFunc("DELETE /api/v1/tasks/threads/{threadID}", s.deleteTaskThread)
+	mux.HandleFunc("POST /api/v1/tasks/threads/{threadID}/items/reorder", s.reorderTaskItems)
+	mux.HandleFunc("POST /api/v1/tasks/threads/{threadID}/layers", s.createTaskLayer)
+	mux.HandleFunc("POST /api/v1/tasks/threads/{threadID}/items", s.createTaskItem)
+	mux.HandleFunc("PATCH /api/v1/tasks/layers/{layerID}", s.updateTaskLayer)
+	mux.HandleFunc("DELETE /api/v1/tasks/layers/{layerID}", s.deleteTaskLayer)
+	mux.HandleFunc("POST /api/v1/tasks/layers/{layerID}/close", s.closeTaskLayer)
+	mux.HandleFunc("PATCH /api/v1/tasks/items/{itemID}", s.updateTaskItem)
+	mux.HandleFunc("DELETE /api/v1/tasks/items/{itemID}", s.deleteTaskItem)
+	mux.HandleFunc("POST /api/v1/tasks/items/{itemID}/assignments", s.createTaskAssignment)
+	mux.HandleFunc("PATCH /api/v1/tasks/assignments/{assignmentID}", s.updateTaskAssignment)
+	mux.HandleFunc("DELETE /api/v1/tasks/assignments/{assignmentID}", s.deleteTaskAssignment)
+	mux.HandleFunc("POST /api/v1/tasks/assignments/{assignmentID}/complete", s.completeTaskAssignment)
+	mux.HandleFunc("POST /api/v1/tasks/assignments/{assignmentID}/steps", s.createTaskStep)
+	mux.HandleFunc("PATCH /api/v1/tasks/steps/{stepID}", s.updateTaskStep)
+	mux.HandleFunc("DELETE /api/v1/tasks/steps/{stepID}", s.deleteTaskStep)
 	mux.HandleFunc("GET /api/v1/integrations/zotero/status", s.getZoteroStatus)
 	mux.HandleFunc("GET /api/v1/entries/{entryID}/zotero", s.getEntryZoteroStatus)
 	mux.HandleFunc("POST /api/v1/entries/{entryID}/zotero", s.saveEntryToZotero)
@@ -782,6 +801,20 @@ func (s *Server) storageError(w http.ResponseWriter, r *http.Request, err error)
 	var tagValidation *storage.ResearchTagValidationError
 	if errors.As(err, &tagValidation) {
 		writeProblem(w, r, http.StatusBadRequest, "invalid_research_tag", "Invalid research tag", tagValidation.Reason)
+		return
+	}
+	// The board's validation error names the entity it rejected, so a card editor
+	// and a layer pill get different codes from the same handler.
+	var taskValidation *storage.TaskValidationError
+	if errors.As(err, &taskValidation) {
+		writeProblem(w, r, http.StatusBadRequest, taskValidation.Code(), "Invalid long task", taskValidation.Reason)
+		return
+	}
+	// Placing one card in one layer twice is a state the board cannot show, and the
+	// client's drop handler can undo it, so it is a conflict rather than a fault.
+	if errors.Is(err, storage.ErrTaskAssignmentExists) {
+		writeProblem(w, r, http.StatusConflict, "assignment_exists", "Task already in this layer",
+			"This task is already placed in that layer.")
 		return
 	}
 	s.internalError(w, r, err)

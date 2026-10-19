@@ -1818,6 +1818,546 @@ paths:
           description: Tag deleted and removed from every paper.
         "404":
           $ref: "#/components/responses/Problem"
+  /api/v1/tasks/threads:
+    get:
+      operationId: listTaskThreads
+      tags: [tasks]
+      description: >
+        The whole 长任务 board in one document: every 主线 with its 层, its task
+        cards, and each card's placements with their steps. There is no second
+        read endpoint, because none of the board's state is stored — whether a
+        layer is unlocked, what status a card carries, its percentage and the
+        five-cell stats are all recomputed from the step rows on every read.
+        One document keeps that derived vocabulary in exactly one place, so a
+        client can never disagree with the board it is drawing. Archived
+        threads are included; the client hides them with the archived flag.
+      responses:
+        "200":
+          description: Every thread of the profile, in position order, fully nested.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TaskThread"
+    post:
+      operationId: createTaskThread
+      tags: [tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+      responses:
+        "201":
+          description: >
+            The new 主线, empty. A thread with no layer is an ordinary state
+            rather than an error, and the first layer added to it is unlocked
+            because it has no predecessor to wait for.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskThread"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/threads/{threadId}:
+    parameters:
+      - name: threadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateTaskThread
+      tags: [tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 1, maxLength: 500 }
+                position: { type: integer, minimum: 0 }
+                archived: { type: boolean }
+      responses:
+        "200":
+          description: Updated thread, re-read through the board.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskThread"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteTaskThread
+      tags: [tasks]
+      description: >
+        Deletes the 主线 and, with it, its layers, cards, placements and steps.
+        Referential cascade is the only deletion gate the board has.
+      responses:
+        "204":
+          description: Thread and everything under it deleted.
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/threads/{threadId}/layers:
+    parameters:
+      - name: threadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: createTaskLayer
+      tags: [tasks]
+      description: >
+        Appends a sequential gate to the thread. Omit name entirely to let the
+        server label the layer by its own ordering rule (第1层, 第2层, ...), which
+        is what the board's one-click 加层 sends. An explicitly blank name is a
+        400 — the default exists for the absent field, not for an empty one.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "201":
+          description: The new layer with its unlock state already resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskLayer"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/threads/{threadId}/items:
+    parameters:
+      - name: threadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: createTaskItem
+      tags: [tasks]
+      description: >
+        Appends a task card to the thread. With layer_id the card is also placed
+        in that layer in the same call, because dropping a card onto a 层 block
+        is one user action and two round trips would let a half-created card
+        show up in between. Without layer_id the card exists on the board with
+        no placement, which reads as unstarted. Omit title to get the 未命名任务
+        placeholder — the board adds the card first and lets the owner name it
+        after; an explicitly blank title is a 400.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                layer_id: { type: string }
+      responses:
+        "201":
+          description: The new card, with its placement if one was requested.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskItem"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/threads/{threadId}/items/reorder:
+    parameters:
+      - name: threadId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: reorderTaskItems
+      tags: [tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_ids]
+              properties:
+                item_ids:
+                  type: array
+                  maxItems: 500
+                  items: { type: string }
+      responses:
+        "204":
+          description: Order updated; the array index becomes the new position.
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/layers/{layerId}:
+    parameters:
+      - name: layerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateTaskLayer
+      tags: [tasks]
+      description: >
+        forced_unlock is the escape hatch: it opens a layer whose predecessor is
+        stuck without touching that predecessor's work. Clearing it re-shuts the
+        layer, since an unlock is read from the checklists and not latched.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 1, maxLength: 500 }
+                position: { type: integer, minimum: 0 }
+                forced_unlock: { type: boolean }
+      responses:
+        "200":
+          description: Updated layer, with the whole chain re-resolved.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskLayer"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteTaskLayer
+      tags: [tasks]
+      description: >
+        Deletes the layer and lifts its placements; the cards themselves stay on
+        the board, and a card whose only placement was here returns to
+        unstarted. Removing the only layer of a thread needs no special case.
+      responses:
+        "204":
+          description: Layer deleted.
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/layers/{layerId}/close:
+    parameters:
+      - name: layerId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: closeTaskLayer
+      tags: [tasks]
+      description: >
+        The layer-wide 完成: ticks every step of every placement of this layer,
+        which closes those placements and opens the next layer through the
+        chain. Steps already ticked keep the done_at they were originally
+        stamped with.
+      responses:
+        "200":
+          description: The layer as it now reads, pill included.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskLayer"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/items/{itemId}:
+    parameters:
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateTaskItem
+      tags: [tasks]
+      description: >
+        paper_id is tri-state, like a research paper's citations: omit the field
+        to leave the link alone, send null to unlink the card, send a paper id
+        to re-point it. An unknown paper id is a 400 with code
+        invalid_task_item.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title: { type: string, minLength: 1, maxLength: 500 }
+                notes: { type: string, maxLength: 2000 }
+                position: { type: integer, minimum: 0 }
+                paper_id:
+                  type: [string, "null"]
+                  description: >
+                    A research paper id, or null to clear the link. Null is the
+                    unlink signal and is not the same as leaving the field out.
+      responses:
+        "200":
+          description: Updated card, re-derived across every layer it sits in.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskItem"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteTaskItem
+      tags: [tasks]
+      description: Deletes the card with its placements and their steps.
+      responses:
+        "204":
+          description: Card deleted.
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/items/{itemId}/assignments:
+    parameters:
+      - name: itemId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: createTaskAssignment
+      tags: [tasks]
+      description: >
+        Places an existing card in an existing layer — this is what makes the
+        跨 N 层 chip grow. A locked layer accepts the placement: the board lets
+        the owner queue work for a layer that has not opened yet, so a lock is
+        never a permission and this call does not answer 409 for it. The only
+        409 here is a duplicate placement of the same card in the same layer.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [layer_id]
+              properties:
+                layer_id: { type: string }
+                start_date:
+                  type: string
+                  pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                due_date:
+                  type: string
+                  pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                  description: >
+                    Both ends are optional and blank means unset; a date that is
+                    not a real calendar day, and a due date earlier than the
+                    start date, are 400 with code invalid_task_assignment.
+      responses:
+        "201":
+          description: The new placement, empty of steps.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAssignment"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/assignments/{assignmentId}:
+    parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateTaskAssignment
+      tags: [tasks]
+      description: >
+        One placement's own window and order. The date range is re-checked
+        across both ends even when the patch mentions only one, so a card
+        already due on 10-31 cannot accept a start date of 11-02.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                start_date:
+                  type: string
+                  pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                due_date:
+                  type: string
+                  pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+                position: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Updated placement.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAssignment"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteTaskAssignment
+      tags: [tasks]
+      description: >
+        Takes the card out of this layer only. Removing the placement that made
+        a card closed brings the card and its remaining stamps back open.
+      responses:
+        "204":
+          description: Placement deleted.
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/assignments/{assignmentId}/complete:
+    parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: completeTaskAssignment
+      tags: [tasks]
+      description: >
+        The card-level 完成 button: ticks the whole checklist of this placement
+        in one click. A placement with no steps has nothing to close and stays
+        open, because 本层已收口 means the checklist ran out, not the button.
+      responses:
+        "200":
+          description: The placement as it now reads, with its steps ticked.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskAssignment"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/assignments/{assignmentId}/steps:
+    parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      operationId: createTaskStep
+      tags: [tasks]
+      description: >
+        Appends one checkbox to a placement. Adding an undone step to a closed
+        placement takes its 本层已收口 chip away, and the card's percentage is
+        recomputed across every layer it sits in.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 1, maxLength: 500 }
+      responses:
+        "201":
+          description: The new step, undone.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskStep"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/steps/{stepId}:
+    parameters:
+      - name: stepId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateTaskStep
+      tags: [tasks]
+      description: >
+        done_at is stamped when the step flips to done and cleared when it flips
+        back. A patch that repeats the value already stored leaves the original
+        stamp alone, so closing a layer in one click does not rewrite when work
+        finished last week. Flipping the last undone step closes the placement
+        and stamps its card.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                name: { type: string, minLength: 1, maxLength: 500 }
+                done: { type: boolean }
+                position: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Updated step.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TaskStep"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteTaskStep
+      tags: [tasks]
+      description: >
+        Drops one checkbox. Removing the only undone step closes the placement
+        by subtraction, so the stamps are reconciled like any other step change.
+      responses:
+        "204":
+          description: Step deleted.
+        "404":
+          $ref: "#/components/responses/Problem"
 components:
   securitySchemes:
     deviceToken:
@@ -2713,6 +3253,246 @@ components:
             the label. False keeps color as it was, colors the chip and dot as
             before, and only drops the row's leading block — which is what lets
             a label group papers without ranking them.
+    TaskThread:
+      type: object
+      description: >
+        One 主线 of the 长任务 board and the whole tree under it. The board is a
+        personal tool with tens of rows, so the read endpoint hands over every
+        thread already assembled rather than asking the client to walk it.
+      required: [id, name, position, archived, layers, items, stats]
+      properties:
+        id:
+          type: string
+          description: Opaque thread id.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+        position:
+          type: integer
+          minimum: 0
+          description: Order of the threads on the board.
+        archived:
+          type: boolean
+          description: >
+            Archived threads stay in the document; the client filters them out
+            rather than the server hiding them.
+        layers:
+          type: array
+          description: The 层 blocks in unlock order, never null.
+          items:
+            $ref: "#/components/schemas/TaskLayer"
+        items:
+          type: array
+          description: The task cards in board order, never null.
+          items:
+            $ref: "#/components/schemas/TaskItem"
+        stats:
+          $ref: "#/components/schemas/TaskStats"
+    TaskLayer:
+      type: object
+      description: >
+        One 层: a sequential gate. It is unlocked when it is the thread's first
+        layer, when every placement of the previous layer closed, or when it is
+        forced open. A locked layer is still writable — the lock is a status the
+        pill paints, never a permission.
+      required: [id, name, position, unlocked, forced_unlock, item_count, closed_count]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: >
+            Defaults to 第N层 by the layer's own 1-based position when a create
+            omits the name.
+        position:
+          type: integer
+          minimum: 0
+          description: >
+            Order within the thread, and the gate's place in the chain: a layer
+            is gated by the layer one position lower.
+        unlocked:
+          type: boolean
+          description: Derived on read, never stored.
+        forced_unlock:
+          type: boolean
+          description: >
+            The stored escape hatch behind unlocked. Clearing it re-shuts a layer
+            whose predecessor is still open.
+        item_count:
+          type: integer
+          minimum: 0
+          description: Placements in this layer — the pill's denominator.
+        closed_count:
+          type: integer
+          minimum: 0
+          description: >
+            Placements of this layer whose every step is done, the numerator. A
+            layer with no placement counts as fully closed, so the chain does
+            not deadlock on an empty predecessor.
+    TaskItem:
+      type: object
+      description: >
+        One board card. A card is placed in one or more layers; its status,
+        percentage and step tally are computed across all of those placements,
+        because it is one task and not one task per layer.
+      required: [id, title, notes, position, paper_id, closed_at, closed, layer_count, progress, status, stats, assignments]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        notes:
+          type: string
+          maxLength: 2000
+        position:
+          type: integer
+          minimum: 0
+        paper_id:
+          type: [string, "null"]
+          description: >
+            The 科研工作台 paper this card is linked to, or null when it is not.
+            The status strip and the cards are separate concerns, so linking is
+            optional in both directions.
+        closed_at:
+          type: string
+          description: >
+            Display stamp for 已收口, written when the last placement closed and
+            cleared when any of them reopens. Empty when the card is open.
+        closed:
+          type: boolean
+          description: >
+            Derived: the card has at least one placement and every one of them
+            is closed.
+        layer_count:
+          type: integer
+          minimum: 0
+          description: How many layers hold this card; above 1 draws 跨 N 层.
+        progress:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: >
+            Done steps over total steps across every placement, rounded, and 0
+            when the card has no steps. Two cards of one task always print the
+            same number.
+        status:
+          type: string
+          enum: [active, locked, unstarted, overdue, closed]
+          description: >
+            Exactly one applies, tested in the order closed, locked, overdue,
+            unstarted, active. A card that is both late and sitting behind a
+            shut layer reports locked, because late work nobody can reach is not
+            yet actionable; a card whose checklist ran out is 已收口 even while
+            its layer stays shut.
+        stats:
+          $ref: "#/components/schemas/TaskItemStats"
+        assignments:
+          type: array
+          description: >
+            This card's placements, ordered by their layer's position, never
+            null. An empty list means the card is on the board but queued into
+            no layer yet.
+          items:
+            $ref: "#/components/schemas/TaskAssignment"
+    TaskItemStats:
+      type: object
+      required: [total_steps, done_steps]
+      properties:
+        total_steps:
+          type: integer
+          minimum: 0
+          description: Steps across every placement of the card, the 1/1 步 line.
+        done_steps:
+          type: integer
+          minimum: 0
+    TaskAssignment:
+      type: object
+      description: >
+        One card placed in one layer, with its own date window and its own
+        checklist. This is the row the 本层已收口 chip and the 完成 button act on.
+      required: [id, layer_id, layer_position, position, start_date, due_date, closed, closed_at, steps]
+      properties:
+        id:
+          type: string
+        layer_id:
+          type: string
+        layer_position:
+          type: integer
+          minimum: 0
+          description: >
+            The owning layer's position, carried so a client can sort a card's
+            placements without a second lookup into the layer list.
+        position:
+          type: integer
+          minimum: 0
+          description: Order of this card's placements among its siblings.
+        start_date:
+          type: string
+          description: YYYY-MM-DD, or empty when unset.
+        due_date:
+          type: string
+          description: YYYY-MM-DD, or empty when unset; never before start_date.
+        closed:
+          type: boolean
+          description: >
+            Derived: the placement has at least one step and all of them are
+            done. A stepless placement is never closed.
+        closed_at:
+          type: string
+          description: Stamp written with that last flip, cleared on the flip back.
+        steps:
+          type: array
+          description: The checklist, in order, never null.
+          items:
+            $ref: "#/components/schemas/TaskStep"
+    TaskStep:
+      type: object
+      required: [id, name, done, position, done_at]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          minLength: 1
+          maxLength: 500
+        done:
+          type: boolean
+        position:
+          type: integer
+          minimum: 0
+        done_at:
+          type: string
+          description: Empty while the box is unticked.
+    TaskStats:
+      type: object
+      description: >
+        The five-cell strip and the header fraction. The status counts are over
+        distinct cards and always sum to total; slots counts placements, so a
+        card sitting in two layers occupies two slots.
+      required: [active, locked, unstarted, overdue, closed, total, slots, slots_closed]
+      properties:
+        active: { type: integer, minimum: 0 }
+        locked: { type: integer, minimum: 0 }
+        unstarted: { type: integer, minimum: 0 }
+        overdue: { type: integer, minimum: 0 }
+        closed: { type: integer, minimum: 0 }
+        total:
+          type: integer
+          minimum: 0
+          description: Cards on the thread, the 13 of 主线任务（论文+项目）3/13.
+        slots:
+          type: integer
+          minimum: 0
+          description: Placements on the thread.
+        slots_closed:
+          type: integer
+          minimum: 0
+          description: Closed placements, the numerator of the header fraction.
     Rule:
       type: object
       required: [id, name, enabled, priority, conditions, actions, created_at, updated_at]

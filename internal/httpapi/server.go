@@ -246,7 +246,7 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 	if s.ai != nil {
 		capabilities = append(capabilities, "ai")
 	}
-	capabilities = append(capabilities, "zotero_connector", "research_workspace")
+	capabilities = append(capabilities, "zotero_connector", "research_workspace", "task_board")
 	writeJSON(w, http.StatusOK, map[string]any{
 		"status":               state,
 		"version":              version.Version,

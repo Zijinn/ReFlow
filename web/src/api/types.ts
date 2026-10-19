@@ -427,3 +427,97 @@ export type LibraryScope =
   | { kind: "folder"; id: string; title: string }
   | { kind: "tag"; id: string; title: string }
   | { kind: "filter"; id: string; title: string; query: Record<string, unknown> }
+
+/* ── 长任务（个人工作台的第二个模块）─────────────────────────────────────
+   模型：主线 thread → 层 layer（顺序解锁闸）→ 任务 item（与层多对多）→ 步 step。
+   派生字段（`unlocked` / `progress` / `status` / `stats` / `closed`）全部由服务端
+   算好：`GET /tasks/threads` 一次返回整棵树，前端不做任何本地推导，否则客户端的
+   补丁迟早和后端那份口径漂开。 */
+
+/** 一条任务在整块板子上的状态；`locked` 是"所在层还没解锁"，不是"没开始"。 */
+export type TaskItemStatus = "active" | "locked" | "unstarted" | "overdue" | "closed"
+
+/** 步：任务里最小的一颗勾。 */
+export interface TaskStep {
+  id: string
+  name: string
+  done: boolean
+  position: number
+  done_at: string
+}
+
+/**
+ * 指派：一个任务落在某一层里的那一份。同一个任务可以同时落在几层里，
+ * 每层一颗独立的日子区间与一套步；卡面（card）就是这条指派。
+ */
+export interface TaskAssignment {
+  id: string
+  layer_id: string
+  layer_position: number
+  position: number
+  start_date: string
+  due_date: string
+  closed: boolean
+  closed_at: string
+  steps: TaskStep[]
+}
+
+/** 这条任务在全部层里的步数合计（卡面上那一行按本层指派自己算）。 */
+export interface TaskItemStats {
+  total_steps: number
+  done_steps: number
+}
+
+export interface TaskItem {
+  id: string
+  title: string
+  notes: string
+  position: number
+  /** 可选的论文关联；`null` 是没挂，取消关联要显式写回 `null`。 */
+  paper_id: string | null
+  closed_at: string
+  closed: boolean
+  /** 这条任务落在几层里；> 1 时卡面才挂「跨 N 层」那颗药丸。 */
+  layer_count: number
+  /** 跨全部层的总进度 0-100，服务端算的：同一个任务的两张卡读同一个数。 */
+  progress: number
+  status: TaskItemStatus
+  stats: TaskItemStats
+  assignments: TaskAssignment[]
+}
+
+export interface TaskLayer {
+  id: string
+  name: string
+  position: number
+  /** 上一层收口（或这一层被强制解锁）之后为 true。 */
+  unlocked: boolean
+  forced_unlock: boolean
+  item_count: number
+  closed_count: number
+}
+
+/**
+ * 一条主线的五档计数。`slots` / `slots_closed` 数的是"卡"（指派）而不是任务：
+ * 挂在两层里的任务算两个槽位，所以抬头那一行 `3/13` 是槽位收口数。
+ */
+export interface TaskStats {
+  active: number
+  locked: number
+  unstarted: number
+  overdue: number
+  closed: number
+  total: number
+  slots: number
+  slots_closed: number
+}
+
+export interface TaskThread {
+  id: string
+  name: string
+  position: number
+  archived: boolean
+  layers: TaskLayer[]
+  items: TaskItem[]
+  stats: TaskStats
+}

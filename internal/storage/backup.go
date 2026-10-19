@@ -43,6 +43,7 @@ var backupTables = []string{
 	"ai_usage",
 	"processed_mutations", "saved_filters", "preferences", "zotero_exports",
 	"research_papers", "research_tags", "research_paper_tags",
+	"task_threads", "task_layers", "task_items", "task_assignments", "task_steps",
 }
 
 func ExportBackup(ctx context.Context, db *sql.DB) (BackupDocument, error) {

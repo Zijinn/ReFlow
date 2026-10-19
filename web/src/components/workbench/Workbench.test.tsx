@@ -475,7 +475,9 @@ describe("Workbench navigation", () => {
     renderWorkbench()
     const nav = await screen.findByRole("navigation", { name: "Research Workspace" })
     expect(nav.querySelectorAll(".wb-nav-item")).toHaveLength(5)
-    expect(document.querySelector(".wb-main")?.firstElementChild).toBe(nav)
+    // 它上面只剩模块切换那一排（长任务 / 科研工作台）。那一排是 role="group"
+    // 而不是第二条导航，所以"内容之上第一条导航"这条断言仍然成立。
+    expect(document.querySelector(".wb-main nav")).toBe(nav)
   })
 
   it("jumps from a calendar deadline to the expanded submission row", async () => {

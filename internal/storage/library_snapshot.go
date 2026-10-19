@@ -19,6 +19,7 @@ var librarySnapshotTables = []string{
 	"folders", "feeds", "subscriptions", "entries", "entry_contents", "entry_states",
 	"entry_annotations", "tags", "feed_tags", "entry_tags", "rules", "saved_filters", "preferences",
 	"research_papers", "research_tags", "research_paper_tags",
+	"task_threads", "task_layers", "task_items", "task_assignments", "task_steps",
 }
 
 // ExportLibrarySnapshot intentionally excludes device tokens, background jobs,
@@ -251,10 +252,14 @@ func sanitizeFeedsForFingerprint(table BackupTable) *BackupTable {
 	return &BackupTable{Name: table.Name, Columns: table.Columns, Rows: rows}
 }
 
+// LibrarySnapshotIsEmpty reports whether the local library holds nothing a
+// first-ever sync would miss. The task tables count: a reader with only a
+// 长任务 board and no subscriptions still has work here, and treating that as
+// empty would let the remote snapshot replace it without asking.
 func LibrarySnapshotIsEmpty(document BackupDocument) bool {
 	for _, table := range document.Tables {
 		switch table.Name {
-		case "feeds", "subscriptions", "entries", "research_papers":
+		case "feeds", "subscriptions", "entries", "research_papers", "task_threads", "task_items":
 			if len(table.Rows) > 0 {
 				return false
 			}

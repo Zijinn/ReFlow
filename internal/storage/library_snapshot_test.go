@@ -242,3 +242,154 @@ func TestLibrarySnapshotIsEmptyCountsResearchPapers(t *testing.T) {
 		t.Fatal("a lone research paper must keep the snapshot non-empty")
 	}
 }
+
+func TestLibrarySnapshotRoundTripsTaskBoard(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	thread, err := CreateTaskThread(ctx, db, domain.DefaultProfileID, "主线任务（论文+项目）")
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := CreateTaskLayer(ctx, db, domain.DefaultProfileID, thread.ID, strPointer("第一层"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := CreateTaskLayer(ctx, db, domain.DefaultProfileID, thread.ID, strPointer("第二层"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, err := CreateTaskItem(ctx, db, domain.DefaultProfileID, thread.ID, "任务管理器产品开发", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// One card placed in two layers, 2 of 2 steps done in the first and 0 of 3 in
+	// the second. The board prints 40 on both of its cells, so a snapshot missing
+	// either placement, either date, or any of the five steps reads a different
+	// number after a restore — progress is the assertion that covers all of them
+	// at once.
+	early, err := CreateTaskAssignment(ctx, db, domain.DefaultProfileID, item.ID, first.ID, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	late, err := CreateTaskAssignment(ctx, db, domain.DefaultProfileID, item.ID, second.ID, "2026-10-12", "2026-11-07")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"收集意见", "整理需求"} {
+		created, err := CreateTaskStep(ctx, db, domain.DefaultProfileID, early.ID, name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := UpdateTaskStep(ctx, db, domain.DefaultProfileID, created.ID,
+			domain.TaskStepPatch{Done: boolPointer(true)}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, name := range []string{"排期", "交付", "验收"} {
+		if _, err := CreateTaskStep(ctx, db, domain.DefaultProfileID, late.ID, name); err != nil {
+			t.Fatal(err)
+		}
+	}
+	before, err := GetTaskThread(ctx, db, domain.DefaultProfileID, thread.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(before.Items) != 1 || before.Items[0].Progress != 40 {
+		t.Fatalf("expected the seeded card to read 40 before the snapshot, got %+v", before.Items)
+	}
+
+	document, err := ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Churn every tier the snapshot has to carry: the thread name, a whole card,
+	// and a step on a card that survives.
+	if _, err := UpdateTaskThread(ctx, db, domain.DefaultProfileID, thread.ID,
+		domain.TaskThreadPatch{Name: strPointer("本地改名")}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := CreateTaskStep(ctx, db, domain.DefaultProfileID, late.ID, "本地多出来的一步"); err != nil {
+		t.Fatal(err)
+	}
+	spare, err := CreateTaskItem(ctx, db, domain.DefaultProfileID, thread.ID, "本地新建又删掉的任务", second.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := DeleteTaskItem(ctx, db, domain.DefaultProfileID, spare.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RestoreLibrarySnapshot(ctx, db, document); err != nil {
+		t.Fatal(err)
+	}
+
+	restored, err := GetTaskThread(ctx, db, domain.DefaultProfileID, thread.ID)
+	if err != nil {
+		t.Fatalf("task thread missing after snapshot restore: %v", err)
+	}
+	if restored.Name != "主线任务（论文+项目）" {
+		t.Fatalf("snapshot restore lost the thread name: %+v", restored)
+	}
+	if len(restored.Layers) != 2 {
+		t.Fatalf("snapshot restore lost a layer: %+v", restored.Layers)
+	}
+	if len(restored.Items) != 1 || restored.Items[0].LayerCount != 2 {
+		t.Fatalf("snapshot restore lost the card or its second placement: %+v", restored.Items)
+	}
+	card := restored.Items[0]
+	if card.Progress != 40 || card.Stats.TotalSteps != 5 || card.Stats.DoneSteps != 2 {
+		t.Fatalf("snapshot restore changed the checklist: %+v", card)
+	}
+	// The dates ride on the placement, not the card, so this is the assertion that
+	// the (task, layer) row itself came back rather than being re-created blank.
+	var window *domain.TaskAssignment
+	for index := range card.Assignments {
+		if card.Assignments[index].LayerID == second.ID {
+			window = &card.Assignments[index]
+		}
+	}
+	if window == nil || window.StartDate != "2026-10-12" || window.DueDate != "2026-11-07" {
+		t.Fatalf("snapshot restore lost the placement's dates: %+v", card.Assignments)
+	}
+	if restored.Stats.Active != 1 || restored.Stats.Slots != 2 || restored.Stats.SlotsClosed != 1 {
+		t.Fatalf("snapshot restore changed the derived counts: %+v", restored.Stats)
+	}
+	if !restored.Layers[0].Unlocked || !restored.Layers[1].Unlocked {
+		t.Fatalf("a fully closed first layer must leave the second unlocked: %+v", restored.Layers)
+	}
+}
+
+func TestLibrarySnapshotIsEmptyCountsTaskThreads(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	document, err := ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !LibrarySnapshotIsEmpty(document) {
+		t.Fatal("empty database snapshot should be considered empty")
+	}
+	// A reader who only uses 长任务 has work in the library. Counting nothing here
+	// would let a first-ever sync pull the cloud copy over their board without
+	// asking.
+	if _, err := CreateTaskThread(ctx, db, domain.DefaultProfileID, "只有主线"); err != nil {
+		t.Fatal(err)
+	}
+	document, err = ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if LibrarySnapshotIsEmpty(document) {
+		t.Fatal("a lone task thread must keep the snapshot non-empty")
+	}
+}

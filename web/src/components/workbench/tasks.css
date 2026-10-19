@@ -1,0 +1,553 @@
+/* 长任务板（个人工作台的第二个模块）。
+   main.tsx 那一串 styles.css / phase*.css 里没有这份：它跟着 TaskBoard 自己
+   import，跟在研页那份 submitted-picker.css 同一个做法。类名一律 wb-task-*。
+
+   配色只有一条规矩：一个十六进制也不写，全部从 styles.css 已有的令牌里取。
+   · 文字级的强调色走 --accent-strong（--accent 只做填充、描边和色点）；
+   · 悬停/按压铺 --fill-hover / --fill-pressed 这两层半透明蒙，不铺实心的
+     --surface-muted（灰底填充在这套系统里是否掉的）；
+   · 状态色沿用工作台既有的语义色相族 --wb-hue-*（本体做淡底与色条，-ink 做墨色）
+     与 --warning / --danger，深浅两档由令牌自己在 :root[data-theme="dark"] 分档，
+     所以这份文件不需要任何深色分支；
+   · 按压不动几何（transform: none）——一屏卡片里任何缩放都读成整块板子在抖。 */
+
+.wb-task-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-13);
+}
+.wb-task-thread {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-7);
+}
+
+/* ── 模块切换条：两条带里靠下这条（五格表导航）才是主导航 ─────────────── */
+/* .wb-nav 是粘顶的分段玻璃条，同屏粘两条就成上下两层 chrome 了。这一排只有
+   两个去处，所以按 Modifier 的写法把粘性和高度收掉，材质仍用 .wb-nav 那份玻璃、
+   选中态仍用 .wb-nav-item--active 的主色档，不新立任何颜色。 */
+.wb-task-module-nav {
+  position: static;
+  height: auto;
+  gap: var(--space-1);
+  margin-top: 0;
+  margin-bottom: var(--space-6);
+}
+.wb-task-module-nav .wb-nav-item {
+  flex: 0 0 auto;
+  justify-content: flex-start;
+  font-size: var(--text-sm);
+}
+
+/* ── 主线抬头：● 名字 · 收口卡位数 · 每层一颗药丸 · ＋任务 · ••• ─────────── */
+.wb-task-thread-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+.wb-task-thread-dot {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-full);
+  /* 这一颗是"这条主线还活着"的图形记号，不是文字，所以可以用填充档的 --accent。 */
+  background: var(--accent);
+}
+.wb-task-thread-name {
+  min-width: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-ui);
+}
+.wb-task-thread-name .wb-editable {
+  display: inline-block;
+  max-width: 100%;
+}
+.wb-task-slots {
+  flex: none;
+  font-size: var(--text-md);
+  font-weight: var(--fw-bold);
+  /* 计数走 title 档字距，和抬头右边那行数字同轴（见 styles.css 的按字号分档那段）。 */
+  letter-spacing: var(--tracking-title);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-strong);
+}
+.wb-task-layer-pills {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-left: auto;
+}
+.wb-task-pill {
+  gap: var(--space-2);
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.wb-task-pill-count {
+  opacity: 0.85;
+}
+.wb-task-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: none;
+}
+
+/* ── 五档统计：大数字压在小标签上，最后一档非零时读绿 ─────────────────── */
+.wb-task-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  border: 0.5px solid var(--sheet-edge);
+  border-radius: var(--radius-xl);
+  background: var(--card-glass);
+  box-shadow: var(--elev-raised);
+  overflow: hidden;
+}
+.wb-task-stat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-6) var(--space-7);
+  border-left: 1px solid var(--border);
+}
+.wb-task-stat:first-child {
+  border-left: 0;
+}
+.wb-task-stat-number {
+  font-size: var(--text-3xl);
+  font-weight: var(--fw-bold);
+  line-height: var(--leading-metric);
+  letter-spacing: var(--tracking-metric);
+  font-variant-numeric: tabular-nums;
+}
+.wb-task-stat-label {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+/* 只有"非零才上色"：0 已经收口读成绿色反而是误导，所以绿色由 JS 挂modifier，
+   这里只定义绿色长什么样——色相族里现成的绿墨（深档另有取值）。 */
+.wb-task-stat--green .wb-task-stat-number {
+  color: var(--wb-hue-green-ink);
+}
+.wb-task-stat--warning .wb-task-stat-number {
+  color: var(--warning-strong);
+}
+
+/* ── 层块 ─────────────────────────────────────────────────────────────── */
+.wb-task-layer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-7) var(--space-8);
+  border: 0.5px solid var(--sheet-edge);
+  border-radius: var(--radius-xl);
+  background: var(--card-glass);
+  box-shadow: var(--elev-raised);
+}
+.wb-task-layer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.wb-task-layer-badge {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--wb-check-h);
+  height: var(--wb-check-h);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.wb-task-layer-name {
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+}
+.wb-task-layer-state {
+  gap: var(--space-2);
+  flex: none;
+}
+.wb-task-layer-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex: 1 1 160px;
+  min-width: 120px;
+  max-width: 220px;
+  margin-left: auto;
+}
+/* .wb-progress-track 全局没有 flex 基准（它本来是块级独占一行），坐进这一行的
+   右半边时得自己伸缩，不然宽度是 0，只剩右边那两个数字。 */
+.wb-task-layer-progress .wb-progress-track {
+  flex: 1 1 auto;
+}
+.wb-task-layer-count {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 卡面横排 + 末尾那颗虚线新建位 */
+.wb-task-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--space-5);
+}
+.wb-task-card {
+  --wb-task-edge: var(--border-strong);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1 1 300px;
+  min-width: 0;
+  max-width: 420px;
+  padding: var(--space-6) var(--space-7) var(--space-6) var(--space-8);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--ring-hairline);
+  transition: box-shadow var(--dur-base) var(--ease);
+}
+/* 状态色只画在左缘这三像素上：整张卡涂色会让一排卡变成一块色板，
+   而这一块板子要读的是"哪一颗还没收口"。 */
+.wb-task-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  background: var(--wb-task-edge);
+}
+.wb-task-card:hover {
+  box-shadow: var(--ring-hairline), var(--elev-raised);
+}
+.wb-task-card--closed {
+  --wb-task-edge: var(--wb-hue-green);
+}
+.wb-task-card--active {
+  --wb-task-edge: var(--accent);
+}
+.wb-task-card--overdue {
+  --wb-task-edge: var(--wb-hue-red);
+}
+.wb-task-card--idle {
+  --wb-task-edge: var(--wb-hue-gray);
+}
+.wb-task-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.wb-task-card-title {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--leading-ui);
+}
+.wb-task-card-title .wb-editable {
+  overflow-wrap: anywhere;
+}
+.wb-task-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.wb-task-chip {
+  gap: var(--space-2);
+  max-width: 100%;
+}
+.wb-task-chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-task-card-meta {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+.wb-task-card-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+.wb-task-summary {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wb-task-next {
+  /* 下一步是这一颗卡上唯一的动词提示，走主色深档而不是 --accent 本身。 */
+  color: var(--accent-strong);
+  font-weight: var(--fw-medium);
+}
+.wb-task-done {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--wb-icon-h);
+  padding: 0 var(--space-5);
+  border: 1px solid transparent;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.wb-task-done:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 17%, transparent);
+}
+.wb-task-done:active:not(:disabled) {
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.wb-task-done:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.wb-task-done:disabled {
+  opacity: 0.5;
+}
+
+/* ── 环形进度：数字是服务端算的总进度，同一任务的两颗卡读到同一个数 ────── */
+.wb-task-ring {
+  --wb-task-ring-value: 0%;
+  --wb-task-ring-hue: var(--accent);
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-full);
+  background: conic-gradient(
+    var(--wb-task-ring-hue) var(--wb-task-ring-value),
+    color-mix(in srgb, var(--wb-task-ring-hue) 14%, transparent) 0
+  );
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+/* 环心要透出自己的面，不然数字坐在色环上读不出圈内的部分。 */
+.wb-task-ring::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+}
+.wb-task-ring-value {
+  position: relative;
+  z-index: 1;
+}
+.wb-task-ring--full {
+  --wb-task-ring-hue: var(--wb-hue-green);
+  color: var(--wb-hue-green-ink);
+}
+
+/* ── 展开区：日子区间 + 步列表 + 备注 ─────────────────────────────────── */
+.wb-task-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.wb-task-dates {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.wb-task-date-label {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+.wb-task-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wb-task-step {
+  gap: var(--space-4);
+}
+.wb-task-step-name {
+  flex: 1;
+  min-width: 0;
+}
+.wb-task-step-name .wb-editable {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.wb-task-notes {
+  font-size: var(--text-base);
+}
+.wb-task-empty-steps {
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+/* ── 层末那颗虚线新建位 ───────────────────────────────────────────────── */
+.wb-task-add-slot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  flex: 1 1 200px;
+  min-width: 0;
+  max-width: 320px;
+  min-height: var(--wb-field-h);
+  padding: 0 var(--space-6);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: var(--text-base);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.wb-task-add-slot:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-strong));
+}
+.wb-task-add-slot:active:not(:disabled) {
+  transform: none;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.wb-task-add-slot:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.wb-task-add-slot:disabled {
+  opacity: 0.5;
+}
+
+/* ── 层与层之间那颗解锁泡 ─────────────────────────────────────────────── */
+.wb-task-unlock {
+  display: flex;
+  justify-content: center;
+}
+.wb-task-unlock-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-6);
+}
+
+/* ── 页脚那道闸 + 归档开关 ────────────────────────────────────────────── */
+.wb-task-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--border);
+}
+.wb-task-gate {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+.wb-task-archived-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: var(--text-sm);
+  font-weight: var(--fw-semibold);
+  cursor: pointer;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-full);
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.wb-task-archived-toggle:hover {
+  background: var(--fill-hover);
+}
+.wb-task-archived-toggle:active:not(:disabled) {
+  transform: none;
+  background: var(--fill-pressed);
+}
+.wb-task-archived-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+.wb-task-archived-count {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── ••• 浮层：几何/材质继承 .wb-menu-pop，这里只把它拉到右缘内侧 ─────── */
+.wb-task-menu-pop {
+  left: auto;
+  right: 0;
+  min-width: 232px;
+}
+.wb-task-menu-heading {
+  padding: var(--space-3) var(--space-5) var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-label);
+  color: var(--text-tertiary);
+}
+.wb-task-menu-item {
+  min-height: var(--wb-field-h);
+}
+.wb-task-menu-item--danger {
+  color: var(--danger-strong);
+}
+.wb-task-menu-empty {
+  padding: var(--space-4) var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+
+/* 窄屏：解锁泡与抬头那串药丸都让出整行，卡面自己按宽度折。 */
+@media (max-width: 720px) {
+  .wb-task-layer-pills,
+  .wb-task-layer-progress {
+    margin-left: 0;
+  }
+  .wb-task-card {
+    max-width: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-task-card,
+  .wb-task-done,
+  .wb-task-add-slot,
+  .wb-task-archived-toggle {
+    transition: none;
+  }
+}

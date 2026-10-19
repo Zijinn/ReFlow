@@ -33,6 +33,7 @@ import type {
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
 import { isEnglishPaper, normalizeDoi } from "../../lib/research"
+import { useReaderStore, type WorkbenchModule } from "../../store/reader"
 import { toast } from "../../store/toast"
 import { AIWorkbench } from "../AIWorkbench"
 import { ConfirmDialog } from "../ConfirmDialog"
@@ -41,6 +42,7 @@ import { Dashboard } from "./Dashboard"
 import { PublishedPage } from "./PublishedPage"
 import { ResearchPage } from "./ResearchPage"
 import { SubmittedPage } from "./SubmittedPage"
+import { TaskBoard } from "./TaskBoard"
 import { deadlineDays, parseDeadline } from "./utils"
 
 type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
@@ -51,6 +53,14 @@ const TABS: Array<{ id: WorkbenchTab; labelKey: string; Icon: typeof Books }> = 
   { id: "submitted", labelKey: "submissions", Icon: PaperPlaneTilt },
   { id: "published", labelKey: "publications", Icon: Books },
   { id: "calendar", labelKey: "calendar", Icon: CalendarBlank },
+]
+
+// 个人工作台的两个模块。长任务是板子，科研工作台是今天这五张表原样往下挪一层，
+// 所以选中长任务时连 .wb-nav 整条都不渲染——科研那五格的可见性、顺序、无障碍
+// 语义都和改动前一致，才谈得上"其余不动"。
+const MODULES: Array<{ id: WorkbenchModule; labelKey: string }> = [
+  { id: "tasks", labelKey: "moduleTasks" },
+  { id: "research", labelKey: "moduleResearch" },
 ]
 
 // `/ai/paper-chat` accepts 1..20 ids; anything longer is a 400. The cap lives in
@@ -86,6 +96,10 @@ export function Workbench(props: WorkbenchProps) {
   const queryClient = useQueryClient()
   const online = useOnlineState()
   const [tab, setTab] = useState<WorkbenchTab>("dashboard")
+  // 模块选择存在 reader store 里（和 appView、栏宽同一条 persist 通道）：
+  // 这是"用户上次在看哪一块"，重开应用该回到同一块，而不是每次都回科研。
+  const workbenchModule = useReaderStore((state) => state.workbenchModule)
+  const setWorkbenchModule = useReaderStore((state) => state.setWorkbenchModule)
   const [focusPaperID, setFocusPaperID] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null)
   const [batchPending, setBatchPending] = useState(false)
@@ -460,23 +474,43 @@ export function Workbench(props: WorkbenchProps) {
     calendar: t("calendar"),
   }
 
+  const isTasks = workbenchModule === "tasks"
+
   return (
     <div className="wb-shell" ref={shellRef}>
       <div className="wb-main">
-        <nav className="wb-nav" aria-label={t("workbench")}>
-          {TABS.map((entry) => (
+        {/* 模块切换条。它是 role="group" 而不是第二条 <nav>：这一屏本来就有一条
+            导航（下面那五格），多一条同级 landmark 会让"这页有几条导航"变得读不出
+            来，而这一排只是在一块板子和五张表之间二选一。 */}
+        <div className="wb-nav wb-task-module-nav" role="group" aria-label={t("workbench")}>
+          {MODULES.map((entry) => (
             <button
               key={entry.id}
               type="button"
-              className={`wb-nav-item ${tab === entry.id ? "wb-nav-item--active" : ""}`}
-              aria-current={tab === entry.id ? "page" : undefined}
-              onClick={() => selectTab(entry.id)}
+              className={`wb-nav-item ${workbenchModule === entry.id ? "wb-nav-item--active" : ""}`}
+              aria-current={workbenchModule === entry.id ? "page" : undefined}
+              onClick={() => setWorkbenchModule(entry.id)}
             >
-              <entry.Icon size={15} weight={tab === entry.id ? "fill" : "regular"} />
               <span>{t(entry.labelKey)}</span>
             </button>
           ))}
-        </nav>
+        </div>
+        {!isTasks && (
+          <nav className="wb-nav" aria-label={t("moduleResearch")}>
+            {TABS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                className={`wb-nav-item ${tab === entry.id ? "wb-nav-item--active" : ""}`}
+                aria-current={tab === entry.id ? "page" : undefined}
+                onClick={() => selectTab(entry.id)}
+              >
+                <entry.Icon size={15} weight={tab === entry.id ? "fill" : "regular"} />
+                <span>{t(entry.labelKey)}</span>
+              </button>
+            ))}
+          </nav>
+        )}
         {!online && (
           <div className="offline-banner" role="status">
             {t("workbenchOfflineHint")}
@@ -485,26 +519,33 @@ export function Workbench(props: WorkbenchProps) {
         <header className="wb-header">
           <div>
             <div className="wb-eyebrow">{t("eyebrowPersonalManagement")}</div>
-            <h1>{title[tab]}</h1>
-            <p>{subtitle[tab]}</p>
+            <h1>{isTasks ? t("moduleTasks") : title[tab]}</h1>
+            <p>{isTasks ? t("tasksModuleSubtitle") : subtitle[tab]}</p>
           </div>
-          <div className="wb-status-bar">
-            <div className="wb-status-item">
-              <strong>{research.length}</strong>
-              <span>{t("researchCount")}</span>
+          {/* 抬头这一排数字只跟着当前模块走。长任务那五档统计归板子自己那一条
+              strip（它按主线给 stats，同一屏里两条不同口径的计数迟早互相打脸），
+              所以这里在 tasks 下整块不渲染，而不是再抄第二份。 */}
+          {!isTasks && (
+            <div className="wb-status-bar">
+              <div className="wb-status-item">
+                <strong>{research.length}</strong>
+                <span>{t("researchCount")}</span>
+              </div>
+              <div className="wb-status-item">
+                <strong>{submitted.length}</strong>
+                <span>{t("submittedCount")}</span>
+              </div>
+              <div className="wb-status-item">
+                <strong>{published.length}</strong>
+                <span>{t("publishedCount")}</span>
+              </div>
             </div>
-            <div className="wb-status-item">
-              <strong>{submitted.length}</strong>
-              <span>{t("submittedCount")}</span>
-            </div>
-            <div className="wb-status-item">
-              <strong>{published.length}</strong>
-              <span>{t("publishedCount")}</span>
-            </div>
-          </div>
+          )}
         </header>
         <section className="wb-content">
-          {hasError ? (
+          {isTasks ? (
+            <TaskBoard offline={!online} />
+          ) : hasError ? (
             <div className="wb-empty" role="alert">
               <p>{t("papersLoadFailed")}</p>
               <button type="button" className="wb-btn" onClick={retryAll}>
