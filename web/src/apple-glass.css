@@ -56,6 +56,66 @@ body,
   border-radius: 7px;
 }
 
+/* In workbench mode the sidebar becomes the workbench module switcher. */
+.sidebar[data-app-view="workbench"] .workspace-segment,
+.sidebar[data-app-view="workbench"] .subscription-section {
+  display: none;
+}
+
+.sidebar-workbench-nav {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.sidebar-workbench-nav__item {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.sidebar-workbench-nav__item svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
+
+.sidebar-workbench-nav__item:hover {
+  background: var(--fill-hover);
+  color: var(--text);
+}
+
+.sidebar-workbench-nav__item[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.sidebar-workbench-nav__item:active:not(:disabled) {
+  transform: none;
+}
+
+/* The workbench module switcher lives in the sidebar on desktop; keep the
+   inline one only where the sidebar is unavailable (the mobile shell). */
+@media (min-width: 900px) {
+  .wb-task-module-nav {
+    display: none;
+  }
+}
+
 /* ── Workbench chrome ───────────────────────────────────────────────────── */
 .wb-nav {
   height: 34px;

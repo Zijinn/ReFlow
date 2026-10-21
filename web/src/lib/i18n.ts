@@ -453,7 +453,7 @@ const messages: Record<Locale, Record<string, string>> = {
     copyFeedID: "复制订阅源 ID",
     changeView: "更改视图",
     unsubscribeConfirmation: "取消这个订阅？文章和阅读状态会保留在资料库中。",
-    // 这一节现在装两个模块（科研工作台 + 长任务），入口标签跟着换成上层名字。
+    // 这一节现在装两个模块（科研工作台 + 任务管理），入口标签跟着换成上层名字。
     workbench: "个人工作台",
     switchToWorkbench: "切换到个人工作台",
     switchToReader: "切换到阅读器",
@@ -705,10 +705,10 @@ const messages: Record<Locale, Record<string, string>> = {
     emailSaveFailed: "保存 Crossref 邮箱失败，请重试。",
     papersLoadFailed: "论文列表加载失败，请检查网络后重试。",
     workbenchOfflineHint: "当前离线：科研工作台需要联网后才能保存修改。",
-    // ── 个人工作台的第二个模块：长任务 ──
+    // ── 个人工作台的第二个模块：任务管理 ──
     // 抬头那一行 `3/13` 数的是卡（指派）而不是任务：挂在两层里的任务占两个槽位，
     // 这条口径由服务端的 stats.slots / stats.slots_closed 给，前端不再自己数。
-    moduleTasks: "长任务",
+    moduleTasks: "任务管理",
     moduleResearch: "科研工作台",
     tasksModuleSubtitle: "主线分层层层推进：这一层全部收口，下一层才解锁。",
     taskStatActive: "推进中",
@@ -766,7 +766,7 @@ const messages: Record<Locale, Record<string, string>> = {
     taskDeleteStepConfirm: "删除这一步？",
     taskEmptyTitle: "还没有主线",
     taskEmptyHint: "先建一条主线，再在它下面分层。",
-    taskLoadFailed: "长任务加载失败，请检查网络后重试。",
+    taskLoadFailed: "任务管理加载失败，请检查网络后重试。",
     taskCreateFailed: "新建失败，请重试。",
     taskUpdateFailed: "保存失败，请重试。",
     taskDeleteFailed: "删除失败，请重试。",
@@ -1511,7 +1511,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // The `3/13` in the thread header counts cards (assignments), not tasks: an
     // item that sits in two layers owns two slots. The server already derived it
     // (stats.slots / stats.slots_closed), so the client never re-counts.
-    moduleTasks: "Long tasks",
+    moduleTasks: "Task management",
     // The inner research module keeps the section's old label: those five tabs are
     // still a research workspace, only one level down inside the personal one.
     moduleResearch: "Research Workspace",

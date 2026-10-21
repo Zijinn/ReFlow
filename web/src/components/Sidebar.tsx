@@ -10,9 +10,11 @@ import {
   NewspaperClipping,
   Plus,
   Sparkle,
+  SquaresFour,
   Star,
   Tag as TagIcon,
   Tray,
+  TreeStructure,
   WarningCircle,
 } from "@phosphor-icons/react"
 import { useState, type DragEvent, type MouseEvent, type ReactNode } from "react"
@@ -77,6 +79,8 @@ export function Sidebar(props: SidebarProps) {
   const openFolders = useReaderStore((state) => state.openFolders)
   const toggleFolder = useReaderStore((state) => state.toggleFolder)
   const sseState = useReaderStore((state) => state.sseState)
+  const workbenchModule = useReaderStore((state) => state.workbenchModule)
+  const setWorkbenchModule = useReaderStore((state) => state.setWorkbenchModule)
   const [contextMenu, setContextMenu] = useState<
     | {
         kind: "subscription"
@@ -128,7 +132,7 @@ export function Sidebar(props: SidebarProps) {
     window.open(value, "_blank", "noopener,noreferrer")
   }
   return (
-    <aside className="sidebar" aria-label={t("primaryNavigation")}>
+    <aside className="sidebar" aria-label={t("primaryNavigation")} data-app-view={props.appView}>
       <div className="sidebar__header">
         <Brand />
       </div>
@@ -162,6 +166,36 @@ export function Sidebar(props: SidebarProps) {
           <span>{t("workbench")}</span>
         </button>
       </nav>
+      {props.appView === "workbench" && (
+        <nav className="sidebar-workbench-nav" aria-label={t("workbench")}>
+          <button
+            className="sidebar-workbench-nav__item"
+            type="button"
+            aria-current={workbenchModule === "tasks" ? "page" : undefined}
+            onClick={() => setWorkbenchModule("tasks")}
+          >
+            <TreeStructure
+              aria-hidden="true"
+              size={18}
+              weight={workbenchModule === "tasks" ? "fill" : "regular"}
+            />
+            <span>{t("moduleTasks")}</span>
+          </button>
+          <button
+            className="sidebar-workbench-nav__item"
+            type="button"
+            aria-current={workbenchModule === "research" ? "page" : undefined}
+            onClick={() => setWorkbenchModule("research")}
+          >
+            <SquaresFour
+              aria-hidden="true"
+              size={18}
+              weight={workbenchModule === "research" ? "fill" : "regular"}
+            />
+            <span>{t("moduleResearch")}</span>
+          </button>
+        </nav>
+      )}
       <nav className="workspace-segment" aria-label={t("libraryViews")}>
         {workspaceScopes.map(({ scope, icon: Icon }) => {
           const active = props.scope.kind === scope.kind
