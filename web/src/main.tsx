@@ -12,6 +12,7 @@ import "./components/workbench/phase7-notes.css"
 import "./components/workbench/phase8-shell-actions.css"
 import "./components/workbench/phase9-ai-context.css"
 import "./components/workbench/phase10-digest.css"
+import "./apple-glass.css"
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { StrictMode } from "react"
