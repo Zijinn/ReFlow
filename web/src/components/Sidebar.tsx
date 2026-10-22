@@ -1,13 +1,17 @@
 import {
   Books,
+  CalendarBlank,
   CaretDown,
   CaretRight,
+  ChartPieSlice,
   CircleNotch,
   Flask,
   Funnel,
   FolderOpen,
   FolderSimplePlus,
   NewspaperClipping,
+  NotePencil,
+  PaperPlaneTilt,
   Plus,
   Sparkle,
   SquaresFour,
@@ -81,6 +85,8 @@ export function Sidebar(props: SidebarProps) {
   const sseState = useReaderStore((state) => state.sseState)
   const workbenchModule = useReaderStore((state) => state.workbenchModule)
   const setWorkbenchModule = useReaderStore((state) => state.setWorkbenchModule)
+  const workbenchTab = useReaderStore((state) => state.workbenchTab)
+  const setWorkbenchTab = useReaderStore((state) => state.setWorkbenchTab)
   const [contextMenu, setContextMenu] = useState<
     | {
         kind: "subscription"
@@ -176,7 +182,7 @@ export function Sidebar(props: SidebarProps) {
           >
             <TreeStructure
               aria-hidden="true"
-              size={18}
+              size={19}
               weight={workbenchModule === "tasks" ? "fill" : "regular"}
             />
             <span>{t("moduleTasks")}</span>
@@ -189,11 +195,37 @@ export function Sidebar(props: SidebarProps) {
           >
             <SquaresFour
               aria-hidden="true"
-              size={18}
+              size={19}
               weight={workbenchModule === "research" ? "fill" : "regular"}
             />
             <span>{t("moduleResearch")}</span>
           </button>
+          {workbenchModule === "research" && (
+            <div className="sidebar-research-nav" role="group" aria-label={t("moduleResearch")}>
+              {[
+                { id: "dashboard" as const, labelKey: "researchOverview", Icon: ChartPieSlice },
+                { id: "research" as const, labelKey: "workingPapers", Icon: NotePencil },
+                { id: "submitted" as const, labelKey: "submissions", Icon: PaperPlaneTilt },
+                { id: "published" as const, labelKey: "publications", Icon: Books },
+                { id: "calendar" as const, labelKey: "calendar", Icon: CalendarBlank },
+              ].map((entry) => (
+                <button
+                  key={entry.id}
+                  className="sidebar-research-nav__item"
+                  type="button"
+                  aria-current={workbenchTab === entry.id ? "page" : undefined}
+                  onClick={() => setWorkbenchTab(entry.id)}
+                >
+                  <entry.Icon
+                    aria-hidden="true"
+                    size={16}
+                    weight={workbenchTab === entry.id ? "fill" : "regular"}
+                  />
+                  <span>{t(entry.labelKey)}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </nav>
       )}
       <nav className="workspace-segment" aria-label={t("libraryViews")}>

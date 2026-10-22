@@ -393,3 +393,62 @@ func TestLibrarySnapshotIsEmptyCountsTaskThreads(t *testing.T) {
 		t.Fatal("a lone task thread must keep the snapshot non-empty")
 	}
 }
+
+func TestLibrarySnapshotRoundTripsQuickTasks(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "扬州报销整理", "", "2026-10-12", "2026-10-14")
+	if err != nil {
+		t.Fatal(err)
+	}
+	document, err := ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
+		domain.QuickTaskPatch{Title: strPointer("本地改名")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := RestoreLibrarySnapshot(ctx, db, document); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := GetQuickTask(ctx, db, domain.DefaultProfileID, task.ID)
+	if err != nil {
+		t.Fatalf("quick task missing after snapshot restore: %v", err)
+	}
+	if restored.Title != "扬州报销整理" || restored.StartDate != "2026-10-12" || restored.DueDate != "2026-10-14" {
+		t.Fatalf("snapshot restore lost quick task fields: %+v", restored)
+	}
+}
+
+func TestLibrarySnapshotIsEmptyCountsQuickTasks(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	document, err := ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !LibrarySnapshotIsEmpty(document) {
+		t.Fatal("empty database snapshot should be considered empty")
+	}
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "只有即时任务", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	document, err = ExportLibrarySnapshot(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if LibrarySnapshotIsEmpty(document) {
+		t.Fatal("a lone quick task must keep the snapshot non-empty")
+	}
+}

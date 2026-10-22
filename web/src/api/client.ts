@@ -38,6 +38,7 @@ import type {
   TaskLayer,
   TaskStep,
   TaskThread,
+  QuickTask,
 } from "./types"
 import { entryDetailCacheKey, entryPageCacheKey, readCache, writeCache } from "../offline/database"
 import type { ReaderAnnotation } from "../lib/annotations"
@@ -917,7 +918,7 @@ export function createTaskThread(input: { name: string }): Promise<TaskThread> {
 
 export function updateTaskThread(
   threadID: string,
-  patch: { name?: string; position?: number; archived?: boolean },
+  patch: { name?: string; position?: number; archived?: boolean; map_markdown?: string },
 ): Promise<void> {
   return request<void>(`/api/v1/tasks/threads/${encodeURIComponent(threadID)}`, {
     method: "PATCH",
@@ -1052,4 +1053,48 @@ export function updateTaskStep(
 
 export function deleteTaskStep(stepID: string): Promise<void> {
   return request<void>(`/api/v1/tasks/steps/${encodeURIComponent(stepID)}`, { method: "DELETE" })
+}
+
+
+/* ── 即时任务（/api/v1/tasks/quick）────────────────────────────────────
+   扁平任务：只有标题、备注、日期窗口和完成时间，没有层与步。时间线和
+   即时任务列表共用这一份读模型。 */
+
+export function listQuickTasks(signal?: AbortSignal): Promise<ListResponse<QuickTask>> {
+  return request<ListResponse<QuickTask>>("/api/v1/tasks/quick", { signal })
+}
+
+export function createQuickTask(input: {
+  title: string
+  notes?: string
+  start_date?: string
+  due_date?: string
+}): Promise<QuickTask> {
+  return request<QuickTask>("/api/v1/tasks/quick", {
+    method: "POST",
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateQuickTask(
+  quickTaskID: string,
+  patch: {
+    title?: string
+    notes?: string
+    start_date?: string
+    due_date?: string
+    completed?: boolean
+    position?: number
+  },
+): Promise<QuickTask> {
+  return request<QuickTask>(`/api/v1/tasks/quick/${encodeURIComponent(quickTaskID)}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  })
+}
+
+export function deleteQuickTask(quickTaskID: string): Promise<void> {
+  return request<void>(`/api/v1/tasks/quick/${encodeURIComponent(quickTaskID)}`, {
+    method: "DELETE",
+  })
 }

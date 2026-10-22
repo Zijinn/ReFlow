@@ -55,7 +55,12 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
 }
 
 describe("Dashboard", () => {
-  it("shows counts, average progress and recent updates", () => {
+  const metric = (label: string): Element | undefined =>
+    Array.from(document.querySelectorAll(".wb-ov-metric")).find((element) =>
+      element.textContent?.includes(label),
+    )
+
+  it("shows the summary metrics and average progress", () => {
     render(
       <Dashboard
         research={[paper()]}
@@ -64,16 +69,14 @@ describe("Dashboard", () => {
         onNavigate={() => {}}
       />,
     )
-    expect(screen.getByText("Working papers")).toBeInTheDocument()
-    expect(screen.getAllByText("50%").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("A Working Paper").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("Under Review").length).toBeGreaterThan(0)
-    // Kind labels are translated at render time, not memoised into the data.
-    expect(screen.getAllByText("In progress").length).toBeGreaterThan(0)
-    expect(screen.getAllByText("In submission").length).toBeGreaterThan(0)
+    expect(metric("Working papers")).toHaveTextContent("1")
+    expect(metric("Submissions")).toHaveTextContent("1")
+    expect(metric("Publications")).toHaveTextContent("1")
+    expect(metric("Average progress")).toHaveTextContent("50%")
+    expect(document.querySelector(".wb-overview .wb-daily")).not.toBeNull()
   })
 
-  it("lists high-priority projects with the localized eyebrow", () => {
+  it("counts priority projects from the top palette tag", () => {
     // 优先项目取调色板最前的标签，与标签叫什么无关：用户改名后这一栏依旧成立。
     const tags = [
       { id: "t-high", name: "冲刺中", position: 0, color: "", color_enabled: true },
@@ -88,14 +91,11 @@ describe("Dashboard", () => {
         onNavigate={() => {}}
       />,
     )
-    const compactCards = document.querySelectorAll(".wb-card--compact")
-    expect(compactCards).toHaveLength(1)
-    expect(compactCards[0]).toHaveTextContent("A Working Paper")
-    expect(compactCards[0]!.textContent).toContain("RESEARCH PROJECT")
+    expect(metric("Priority projects")).toHaveTextContent("1")
+    expect(metric("Priority projects")).toHaveTextContent("冲刺中")
   })
 
-  it("still lists a paper that wears the top tag next to others", () => {
-    // 多选之后这一栏的判据是 includes 而不是相等：同时挂着别的标签也得进来。
+  it("counts a paper wearing the top tag next to others", () => {
     const tags = [
       { id: "t-field", name: "Fieldwork", position: 0, color: "", color_enabled: true },
       { id: "t-high", name: "High", position: 1, color: "", color_enabled: true },
@@ -109,7 +109,7 @@ describe("Dashboard", () => {
         onNavigate={() => {}}
       />,
     )
-    expect(document.querySelectorAll(".wb-card--compact")).toHaveLength(1)
+    expect(metric("Priority projects")).toHaveTextContent("1")
   })
 
   it("navigates to the matching page when a stat card is activated", () => {
@@ -122,16 +122,13 @@ describe("Dashboard", () => {
         onNavigate={onNavigate}
       />,
     )
-    fireEvent.click(screen.getByRole("button", { name: /Publications/ }))
+    fireEvent.click(metric("Publications") as Element)
     expect(onNavigate).toHaveBeenLastCalledWith("published")
-    // Average progress has no page of its own, so it gates the papers it measures.
-    fireEvent.click(screen.getByRole("button", { name: /Average progress/ }))
+    fireEvent.click(metric("Average progress") as Element)
     expect(onNavigate).toHaveBeenLastCalledWith("research")
   })
 
-  // The AI half of the daily plan must not be reachable without a configured
-  // provider, and must not shadow the stats it sits above.
-  it("leads with the daily progress card and degrades it without AI", () => {
+  it("leads with the daily progress card and hides its duplicate action", () => {
     const onConfigureAI = vi.fn()
     render(
       <Dashboard
@@ -144,13 +141,11 @@ describe("Dashboard", () => {
     )
     const card = screen.getByRole("region", { name: "Today's progress plan" })
     expect(card).toBeInTheDocument()
-    expect(document.querySelector(".wb-dashboard > .wb-daily")).toBe(card)
+    expect(document.querySelector(".wb-overview .wb-daily")).toBe(card)
     expect(card).toHaveTextContent("Configure AI to get a daily progress plan here.")
-    // The call to action only appears when the host can actually open the AI
-    // settings; without `onConfigureAI` the card degrades to text alone.
-    fireEvent.click(screen.getByRole("button", { name: "Configure AI" }))
-    expect(onConfigureAI).toHaveBeenCalled()
-    expect(screen.getByText("Working papers")).toBeInTheDocument()
+    // The overview header owns the one generate/configure action; the card must
+    // not repeat it.
+    expect(screen.queryByRole("button", { name: "Configure AI" })).toBeNull()
   })
 
   it("counts the deadline pressure of the papers it is given", () => {

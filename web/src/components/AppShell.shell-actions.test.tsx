@@ -191,9 +191,9 @@ describe("Shell actions survive the workbench view", () => {
     gear.focus()
     expect(document.activeElement).toBe(gear)
 
-    // 侧栏这一格现在叫"个人工作台"（Personal Workspace）：里面并排着长任务与
+    // 侧栏这一格现在叫"工作台"（Workspace）：里面并排着长任务与
     // 科研工作台两个模块，所以入口名跟着那一层走，而不是里面某一块表的名字。
-    fireEvent.click(screen.getByRole("button", { name: "Personal Workspace" }))
+    fireEvent.click(screen.getByRole("button", { name: "Workspace" }))
 
     await waitFor(() => expect(useReaderStore.getState().appView).toBe("workbench"))
     expect(document.activeElement).toBe(gear)

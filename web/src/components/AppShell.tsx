@@ -1251,6 +1251,11 @@ export function AppShell() {
                 onAskAI={() => setAIOpen(true)}
                 onCloseAI={() => setAIOpen(false)}
                 onConfigureAI={() => setAIProfileOpen(true)}
+                onOpenPreferences={() => {
+                  setPreferencesTab("tags")
+                  setPreferencesOpen(true)
+                }}
+                onOpenReader={() => setAppView("reader")}
               />
             </Suspense>
           ) : (

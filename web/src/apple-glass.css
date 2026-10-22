@@ -65,19 +65,20 @@ body,
 .sidebar-workbench-nav {
   display: grid;
   flex: 0 0 auto;
-  gap: 6px;
-  margin-top: 14px;
+  gap: 12px;
+  margin-top: 22px;
+  padding-inline: 4px;
 }
 
 .sidebar-workbench-nav__item {
   display: flex;
   width: 100%;
-  min-height: 40px;
+  min-height: 48px;
   align-items: center;
-  gap: 10px;
-  padding: 0 12px;
+  gap: 13px;
+  padding: 0 16px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 11px;
   background: transparent;
   color: var(--text-secondary);
   font-size: 14px;
@@ -108,11 +109,66 @@ body,
   transform: none;
 }
 
+/* Nested research views under the active 科研工作台 module. These replace the
+   wide content-top tab strip on desktop; the strip returns below 900px where
+   this whole sidebar is hidden. */
+.sidebar-research-nav {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 10px 30px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.sidebar-research-nav__item {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 13px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.sidebar-research-nav__item svg {
+  flex: none;
+}
+
+.sidebar-research-nav__item:hover {
+  background: var(--fill-hover);
+  color: var(--text);
+}
+
+.sidebar-research-nav__item[aria-current="page"] {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-weight: 600;
+}
+
+.sidebar-research-nav__item:active:not(:disabled) {
+  transform: none;
+}
+
 /* The workbench module switcher lives in the sidebar on desktop; keep the
    inline one only where the sidebar is unavailable (the mobile shell). */
 @media (min-width: 900px) {
   .wb-task-module-nav {
     display: none;
+  }
+
+  /* In workbench mode the subscription tree is hidden, so the footer cluster
+     loses the flex space that used to push it down. Pin it to the bottom. */
+  .sidebar[data-app-view="workbench"] .sidebar__actions {
+    margin-top: auto;
+    padding: 12px 16px 14px;
   }
 }
 
@@ -362,4 +418,52 @@ body,
   .workspace-header {
     height: 52px;
   }
+}
+
+/* ── Selected navigation: a white/raised pill, never an accent wash ──────
+   The owner asked for white selected backgrounds instead of the blue
+   `--accent-soft` state, which read as an "AI" accent. Keep the pill
+   distinguishable with a hairline + contact shadow; the text goes neutral. */
+.app-view-switch__item--active,
+.app-view-switch__item--active:hover,
+.app-view-switch__item--active:active:not(:disabled) {
+  background-color: var(--surface-raised);
+  background-image: none;
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.06),
+    0 1px 8px rgb(16 24 40 / 0.04);
+}
+
+.sidebar-workbench-nav__item[aria-current="page"],
+.sidebar-workbench-nav__item[aria-current="page"]:hover,
+.sidebar-research-nav__item[aria-current="page"],
+.sidebar-research-nav__item[aria-current="page"]:hover {
+  background: var(--surface-raised);
+  background-image: none;
+  color: var(--text);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.06),
+    0 0 0 1px rgb(16 24 40 / 0.04);
+}
+
+.wb-nav-item--active,
+.wb-nav-item--active:hover {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.06),
+    0 0 0 1px rgb(16 24 40 / 0.04);
+}
+
+:root[data-theme="dark"] .app-view-switch__item--active,
+:root[data-theme="dark"] .sidebar-workbench-nav__item[aria-current="page"],
+:root[data-theme="dark"] .sidebar-research-nav__item[aria-current="page"],
+:root[data-theme="dark"] .wb-nav-item--active {
+  background: var(--surface-muted);
+  color: var(--text);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.35),
+    0 0 0 1px rgb(255 255 255 / 0.06);
 }

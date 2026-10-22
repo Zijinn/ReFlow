@@ -5,6 +5,7 @@ import {
   ChartPieSlice,
   NotePencil,
   PaperPlaneTilt,
+  Sparkle,
 } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
@@ -33,7 +34,7 @@ import type {
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
 import { isEnglishPaper, normalizeDoi } from "../../lib/research"
-import { useReaderStore, type WorkbenchModule } from "../../store/reader"
+import { useReaderStore, type WorkbenchModule, type WorkbenchTab } from "../../store/reader"
 import { toast } from "../../store/toast"
 import { AIWorkbench } from "../AIWorkbench"
 import { ConfirmDialog } from "../ConfirmDialog"
@@ -42,10 +43,8 @@ import { Dashboard } from "./Dashboard"
 import { PublishedPage } from "./PublishedPage"
 import { ResearchPage } from "./ResearchPage"
 import { SubmittedPage } from "./SubmittedPage"
-import { TaskBoard } from "./TaskBoard"
+import { TaskManagement } from "./TaskManagement"
 import { deadlineDays, parseDeadline } from "./utils"
-
-type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
 
 const TABS: Array<{ id: WorkbenchTab; labelKey: string; Icon: typeof Books }> = [
   { id: "dashboard", labelKey: "researchOverview", Icon: ChartPieSlice },
@@ -89,13 +88,30 @@ export interface WorkbenchProps {
   onAskAI?: () => void
   onCloseAI?: () => void
   onConfigureAI?: () => void
+  onOpenPreferences?: () => void
+  onOpenReader?: () => void
 }
 
 export function Workbench(props: WorkbenchProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const online = useOnlineState()
-  const [tab, setTab] = useState<WorkbenchTab>("dashboard")
+  const tab = useReaderStore((state) => state.workbenchTab)
+  const setTab = useReaderStore((state) => state.setWorkbenchTab)
+  const digestRunRef = useRef<(() => void) | null>(null)
+  const [digestState, setDigestState] = useState({ running: false, hasText: false })
+  const registerDigestRun = useCallback((run: (() => void) | null) => {
+    digestRunRef.current = run
+  }, [])
+  const handleDigestState = useCallback(
+    (state: { running: boolean; hasText: boolean }) => setDigestState(state),
+    [],
+  )
+  const aiReady = (props.aiProfiles ?? []).some((profile) => profile.enabled)
+  const now = new Date()
+  const todayLabel = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(
+    now.getDate(),
+  ).padStart(2, "0")}`
   // 模块选择存在 reader store 里（和 appView、栏宽同一条 persist 通道）：
   // 这是"用户上次在看哪一块"，重开应用该回到同一块，而不是每次都回科研。
   const workbenchModule = useReaderStore((state) => state.workbenchModule)
@@ -142,7 +158,7 @@ export function Workbench(props: WorkbenchProps) {
   const selectTab = useCallback((next: WorkbenchTab) => {
     setOpenRowID(null)
     setTab(next)
-  }, [])
+  }, [setTab])
 
   useEffect(() => {
     const shell = shellRef.current
@@ -478,7 +494,7 @@ export function Workbench(props: WorkbenchProps) {
 
   return (
     <div className="wb-shell" ref={shellRef}>
-      <div className="wb-main">
+      <div className="wb-main" data-wb-tab={isTasks ? "tasks" : tab}>
         {/* 模块切换条。它是 role="group" 而不是第二条 <nav>：这一屏本来就有一条
             导航（下面那五格），多一条同级 landmark 会让"这页有几条导航"变得读不出
             来，而这一排只是在一块板子和五张表之间二选一。 */}
@@ -496,7 +512,7 @@ export function Workbench(props: WorkbenchProps) {
           ))}
         </div>
         {!isTasks && (
-          <nav className="wb-nav" aria-label={t("moduleResearch")}>
+          <nav className="wb-nav wb-research-nav" aria-label={t("moduleResearch")}>
             {TABS.map((entry) => (
               <button
                 key={entry.id}
@@ -522,29 +538,50 @@ export function Workbench(props: WorkbenchProps) {
             <h1>{isTasks ? t("moduleTasks") : title[tab]}</h1>
             <p>{isTasks ? t("tasksModuleSubtitle") : subtitle[tab]}</p>
           </div>
-          {/* 抬头这一排数字只跟着当前模块走。长任务那五档统计归板子自己那一条
-              strip（它按主线给 stats，同一屏里两条不同口径的计数迟早互相打脸），
-              所以这里在 tasks 下整块不渲染，而不是再抄第二份。 */}
-          {!isTasks && (
-            <div className="wb-status-bar">
-              <div className="wb-status-item">
-                <strong>{research.length}</strong>
-                <span>{t("researchCount")}</span>
+          {/* 总览抬头只留日期与生成按钮；三组计数已经进了总览的指标卡。
+              其他科研页仍保留原来的三格状态栏。 */}
+          {!isTasks &&
+            (tab === "dashboard" ? (
+              <div className="wb-overview-actionbar">
+                <span className="wb-overview-date">{todayLabel}</span>
+                <button
+                  type="button"
+                  className="wb-btn wb-btn--primary"
+                  disabled={digestState.running}
+                  onClick={() =>
+                    aiReady ? digestRunRef.current?.() : props.onConfigureAI?.()
+                  }
+                >
+                  <Sparkle size={14} weight="fill" aria-hidden="true" />
+                  {digestState.running
+                    ? t("overviewGenerating")
+                    : digestState.hasText
+                      ? t("overviewRegenerate")
+                      : aiReady
+                        ? t("overviewGenerate")
+                        : t("configureAI")}
+                </button>
               </div>
-              <div className="wb-status-item">
-                <strong>{submitted.length}</strong>
-                <span>{t("submittedCount")}</span>
+            ) : (
+              <div className="wb-status-bar">
+                <div className="wb-status-item">
+                  <strong>{research.length}</strong>
+                  <span>{t("researchCount")}</span>
+                </div>
+                <div className="wb-status-item">
+                  <strong>{submitted.length}</strong>
+                  <span>{t("submittedCount")}</span>
+                </div>
+                <div className="wb-status-item">
+                  <strong>{published.length}</strong>
+                  <span>{t("publishedCount")}</span>
+                </div>
               </div>
-              <div className="wb-status-item">
-                <strong>{published.length}</strong>
-                <span>{t("publishedCount")}</span>
-              </div>
-            </div>
-          )}
+            ))}
         </header>
         <section className="wb-content">
           {isTasks ? (
-            <TaskBoard offline={!online} />
+            <TaskManagement offline={!online} />
           ) : hasError ? (
             <div className="wb-empty" role="alert">
               <p>{t("papersLoadFailed")}</p>
@@ -567,6 +604,11 @@ export function Workbench(props: WorkbenchProps) {
                   onAskAI={props.onAskAI}
                   onOpenPaper={openPaperFromDigest}
                   onNavigate={selectTab}
+                  onOpenTasks={() => setWorkbenchModule("tasks")}
+                  onOpenPreferences={props.onOpenPreferences}
+                  onOpenReader={props.onOpenReader}
+                  onRegisterDigestRun={registerDigestRun}
+                  onDigestStateChange={handleDigestState}
                 />
               )}
               {tab === "research" && (

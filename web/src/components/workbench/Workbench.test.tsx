@@ -185,7 +185,7 @@ function goToTab(name: RegExp) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useReaderStore.setState({ locale: "en-US" })
+  useReaderStore.setState({ locale: "en-US", workbenchModule: "research", workbenchTab: "dashboard" })
   useToastStore.setState({ toasts: [] })
   papersByKind.research = [paper()]
   papersByKind.submitted = []
@@ -237,6 +237,7 @@ describe("Workbench load errors", () => {
 
   it("renders papers on success", async () => {
     renderWorkbench()
+    goToTab(/Working papers/)
     await waitFor(() => expect(screen.getAllByText("Growth Regression").length).toBeGreaterThan(0))
   })
 })
@@ -529,10 +530,10 @@ describe("Workbench offline policy", () => {
     })
     try {
       renderWorkbench()
+      goToTab(/Working papers/)
       await waitFor(() =>
         expect(screen.getAllByText("Growth Regression").length).toBeGreaterThan(0),
       )
-      goToTab(/Working papers/)
       expect(
         await screen.findByText(
           "Offline: the research workspace needs a connection to save edits.",

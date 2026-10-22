@@ -381,8 +381,14 @@ export function DailyDigestCard(props: {
   onAskAI?: () => void
   /** Jump to a paper's own view; only ids that exist in `papers` are honoured. */
   onOpenPaper?: (paperID: string) => void
+  /** The overview header owns the single generate action; hide the card's copy. */
+  hideAction?: boolean
+  /** Lets the overview header call the same run as the card would. */
+  onRegisterRun?: (run: (() => void) | null) => void
+  onStateChange?: (state: { running: boolean; hasText: boolean }) => void
 }) {
   const { locale, t } = useTranslation()
+  const { onRegisterRun, onStateChange } = props
   const [text, setText] = useState<string | null>(() => readCache())
   const [running, setRunning] = useState(false)
   const [failure, setFailure] = useState<DigestFailure | null>(null)
@@ -476,6 +482,17 @@ export function DailyDigestCard(props: {
     [],
   )
 
+  // The overview header is outside this component, so the run function and its
+  // state are registered upward instead of duplicating the generation logic.
+  useEffect(() => {
+    onRegisterRun?.(() => void run())
+    return () => onRegisterRun?.(null)
+  }, [onRegisterRun, run])
+
+  useEffect(() => {
+    onStateChange?.({ running, hasText: text !== null })
+  }, [onStateChange, running, text])
+
   // Structured first: any failure in parseDigest falls through to the original
   // line-splitting so prose answers keep rendering exactly as before.
   const doc = useMemo(() => (text ? parseDigest(text) : null), [text])
@@ -536,19 +553,21 @@ export function DailyDigestCard(props: {
             <dd>{stats.overdue}</dd>
           </div>
         </dl>
-        <div className="wb-daily__actions">
-          {activeProfile ? (
-            <button className="wb-btn" type="button" disabled={running} onClick={() => void run()}>
-              {running ? <CircleNotch className="spin" /> : <Sparkle />}
-              {text ? t("digestRegenerate") : t("digestGenerate")}
-            </button>
-          ) : props.onConfigure ? (
-            <button className="wb-btn" type="button" onClick={props.onConfigure}>
-              <Brain />
-              {t("configureAI")}
-            </button>
-          ) : null}
-        </div>
+        {!props.hideAction && (
+          <div className="wb-daily__actions">
+            {activeProfile ? (
+              <button className="wb-btn" type="button" disabled={running} onClick={() => void run()}>
+                {running ? <CircleNotch className="spin" /> : <Sparkle />}
+                {text ? t("digestRegenerate") : t("digestGenerate")}
+              </button>
+            ) : props.onConfigure ? (
+              <button className="wb-btn" type="button" onClick={props.onConfigure}>
+                <Brain />
+                {t("configureAI")}
+              </button>
+            ) : null}
+          </div>
+        )}
       </div>
       <div className="wb-daily__plan">
         <div className="wb-daily__plan-head">

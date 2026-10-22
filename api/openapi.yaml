@@ -1893,6 +1893,7 @@ paths:
                 name: { type: string, minLength: 1, maxLength: 500 }
                 position: { type: integer, minimum: 0 }
                 archived: { type: boolean }
+                map_markdown: { type: string, maxLength: 20000 }
       responses:
         "200":
           description: Updated thread, re-read through the board.
@@ -2356,6 +2357,98 @@ paths:
       responses:
         "204":
           description: Step deleted.
+        "404":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/quick:
+    get:
+      operationId: listQuickTasks
+      tags: [tasks]
+      description: >
+        Returns every 即时任务, open ones first, then completed ones. A quick
+        task is flat: it has no layer, no steps, and does not participate in
+        the long-task unlock chain.
+      responses:
+        "200":
+          description: Every quick task of the profile.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/QuickTask"
+    post:
+      operationId: createQuickTask
+      tags: [tasks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title]
+              properties:
+                title: { type: string, minLength: 1, maxLength: 500 }
+                notes: { type: string, maxLength: 2000 }
+                start_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+                due_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+      responses:
+        "201":
+          description: The new quick task.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickTask"
+        "400":
+          $ref: "#/components/responses/Problem"
+  /api/v1/tasks/quick/{quickTaskId}:
+    parameters:
+      - name: quickTaskId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      operationId: updateQuickTask
+      tags: [tasks]
+      description: >
+        Partial update. completed flips the stored completed_at stamp; dates are
+        '' or YYYY-MM-DD and a due date cannot precede a start date.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              minProperties: 1
+              properties:
+                title: { type: string, minLength: 1, maxLength: 500 }
+                notes: { type: string, maxLength: 2000 }
+                start_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+                due_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+                completed: { type: boolean }
+                position: { type: integer, minimum: 0 }
+      responses:
+        "200":
+          description: Updated quick task.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QuickTask"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "404":
+          $ref: "#/components/responses/Problem"
+    delete:
+      operationId: deleteQuickTask
+      tags: [tasks]
+      responses:
+        "204":
+          description: Quick task deleted.
         "404":
           $ref: "#/components/responses/Problem"
 components:
@@ -3259,7 +3352,7 @@ components:
         One 主线 of the 长任务 board and the whole tree under it. The board is a
         personal tool with tens of rows, so the read endpoint hands over every
         thread already assembled rather than asking the client to walk it.
-      required: [id, name, position, archived, layers, items, stats]
+      required: [id, name, position, archived, map_markdown, layers, items, stats]
       properties:
         id:
           type: string
@@ -3277,6 +3370,13 @@ components:
           description: >
             Archived threads stay in the document; the client filters them out
             rather than the server hiding them.
+        map_markdown:
+          type: string
+          maxLength: 20000
+          description: >
+            The Markdown outline the mind-map view imported this thread from.
+            The nested tree remains authoritative; this field is only the
+            editable source.
         layers:
           type: array
           description: The 层 blocks in unlock order, never null.
@@ -3584,6 +3684,21 @@ components:
         query:
           type: object
           additionalProperties: true
+    QuickTask:
+      type: object
+      description: >
+        One flat 即时任务. It carries its own date window and completion stamp,
+        but no layers, steps, or unlock state.
+      required: [id, title, notes, start_date, due_date, completed_at, completed, position]
+      properties:
+        id: { type: string }
+        title: { type: string, minLength: 1, maxLength: 500 }
+        notes: { type: string, maxLength: 2000 }
+        start_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        due_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        completed_at: { type: string }
+        completed: { type: boolean }
+        position: { type: integer, minimum: 0 }
     Problem:
       type: object
       required: [type, title, status, code, request_id]

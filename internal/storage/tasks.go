@@ -22,6 +22,7 @@ const (
 	taskTextLimit     = 500
 	taskLongTextLimit = 2000
 	taskReorderLimit  = 500
+	taskMapLimit      = 20000
 )
 
 // taskDateLayout is the only date form the board accepts. Dates stay TEXT exactly
@@ -100,12 +101,12 @@ func validateTaskDate(scope, field, value string) error {
 // validateTaskWindow keeps a placement's range from running backwards. It is only
 // checked when both ends are set, because the board lets the owner type the due
 // date first and add the start date later.
-func validateTaskWindow(startDate, dueDate string) error {
+func validateTaskWindow(scope, startDate, dueDate string) error {
 	if startDate == "" || dueDate == "" {
 		return nil
 	}
 	if dueDate < startDate {
-		return taskValidationf(taskScopeAssignment, "due_date %q is before start_date %q", dueDate, startDate)
+		return taskValidationf(scope, "due_date %q is before start_date %q", dueDate, startDate)
 	}
 	return nil
 }
@@ -213,7 +214,7 @@ func loadTaskBoard(ctx context.Context, db *sql.DB, profileID string, threadIDs 
 }
 
 func queryTaskThreads(ctx context.Context, db *sql.DB, profileID string, threadIDs []string) ([]domain.TaskThread, error) {
-	query := `SELECT id, name, position, archived FROM task_threads WHERE profile_id = ?`
+	query := `SELECT id, name, position, archived, map_markdown FROM task_threads WHERE profile_id = ?`
 	args := []any{profileID}
 	if len(threadIDs) > 0 {
 		query += ` AND id IN (` + taskPlaceholders(len(threadIDs)) + `)`
@@ -234,7 +235,7 @@ func queryTaskThreads(ctx context.Context, db *sql.DB, profileID string, threadI
 			thread   domain.TaskThread
 			archived int
 		)
-		if err := rows.Scan(&thread.ID, &thread.Name, &thread.Position, &archived); err != nil {
+		if err := rows.Scan(&thread.ID, &thread.Name, &thread.Position, &archived, &thread.MapMarkdown); err != nil {
 			return nil, fmt.Errorf("scan task thread: %w", err)
 		}
 		thread.Archived = archived != 0
@@ -761,8 +762,8 @@ func CreateTaskThread(ctx context.Context, db *sql.DB, profileID, name string) (
 		return domain.TaskThread{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO task_threads
-		(id, profile_id, name, position, archived, created_at, updated_at)
-		VALUES (?, ?, ?, ?, 0, ?, ?)`, id, profileID, name, position, now, now); err != nil {
+		(id, profile_id, name, position, archived, map_markdown, created_at, updated_at)
+		VALUES (?, ?, ?, ?, 0, '', ?, ?)`, id, profileID, name, position, now, now); err != nil {
 		return domain.TaskThread{}, fmt.Errorf("create task thread: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -800,6 +801,14 @@ func UpdateTaskThread(ctx context.Context, db *sql.DB, profileID, id string, pat
 	if patch.Archived != nil {
 		sets = append(sets, "archived = ?")
 		args = append(args, boolToInt(*patch.Archived))
+	}
+	if patch.MapMarkdown != nil {
+		trimmed := strings.TrimSpace(*patch.MapMarkdown)
+		if err := validateTaskText(taskScopeThread, "map_markdown", trimmed, taskMapLimit); err != nil {
+			return domain.TaskThread{}, err
+		}
+		sets = append(sets, "map_markdown = ?")
+		args = append(args, trimmed)
 	}
 	if len(sets) > 0 {
 		sets = append(sets, "updated_at = ?")
@@ -1107,7 +1116,7 @@ func CreateTaskAssignment(ctx context.Context, db *sql.DB, profileID, itemID, la
 	if err := validateTaskDate(taskScopeAssignment, "due_date", dueDate); err != nil {
 		return domain.TaskAssignment{}, err
 	}
-	if err := validateTaskWindow(startDate, dueDate); err != nil {
+	if err := validateTaskWindow(taskScopeAssignment, startDate, dueDate); err != nil {
 		return domain.TaskAssignment{}, err
 	}
 	itemThread, err := taskItemThreadID(ctx, db, profileID, itemID)
@@ -1191,7 +1200,7 @@ func UpdateTaskAssignment(ctx context.Context, db *sql.DB, profileID, id string,
 	if patch.DueDate != nil {
 		dueDate = *patch.DueDate
 	}
-	if err := validateTaskWindow(startDate, dueDate); err != nil {
+	if err := validateTaskWindow(taskScopeAssignment, startDate, dueDate); err != nil {
 		return domain.TaskAssignment{}, err
 	}
 	sets := []string{}

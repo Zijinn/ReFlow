@@ -128,6 +128,7 @@ function thread(overrides: Partial<TaskThread> & { id: string }): TaskThread {
     name: "Papers and projects",
     position: 0,
     archived: false,
+    map_markdown: "",
     layers: [],
     items: [],
     stats: stats(),

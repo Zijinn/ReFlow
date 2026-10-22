@@ -1,0 +1,543 @@
+/* 科研总览重设计（2026-10-22）。作用域 .wb-overview + 工作台容器上的
+   data-wb-tab="dashboard"；其余科研页保持原有纯白纸张。 */
+
+.wb-main[data-wb-tab="dashboard"] {
+  background-color: #f7f8fa;
+}
+
+:root[data-theme="dark"] .wb-main[data-wb-tab="dashboard"] {
+  background-color: #101215;
+}
+
+/* In the design the five research views live in the sidebar; the content-top
+   strip is now the mobile fallback only. */
+@media (min-width: 900px) {
+  .wb-research-nav {
+    display: none;
+  }
+}
+
+.wb-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+  padding-bottom: 8px;
+}
+
+.wb-ov-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wb-ov-section-label {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+}
+
+.wb-ov-section-label::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.wb-ov-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 10px 24px -18px rgb(16 24 40 / 0.18);
+  transition:
+    box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.wb-ov-card:hover {
+  border-color: var(--border-strong);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.05),
+    0 14px 30px -18px rgb(16 24 40 / 0.24);
+}
+
+:root[data-theme="dark"] .wb-ov-card {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.3),
+    0 10px 24px -18px rgb(0 0 0 / 0.55);
+}
+
+/* ── 页头动作 ─────────────────────────────────────────────────────────── */
+.wb-main[data-wb-tab="dashboard"] .wb-header {
+  padding-top: 22px;
+}
+
+.wb-overview-actionbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: none;
+}
+
+.wb-overview-date {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 八张指标卡 ───────────────────────────────────────────────────────── */
+.wb-ov-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wb-ov-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 122px;
+  padding: 16px 18px 14px;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-ov-metric-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wb-ov-metric-top > span {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.wb-ov-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.wb-ov-metric--warn .wb-ov-badge {
+  background: color-mix(in srgb, var(--wb-hue-red) 10%, transparent);
+  color: var(--wb-hue-red-ink);
+}
+
+.wb-ov-metric-value {
+  margin-top: 4px;
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-ov-metric--warn .wb-ov-metric-value {
+  color: var(--wb-hue-red-ink);
+}
+
+.wb-ov-metric-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: auto;
+  padding-top: 8px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.wb-ov-metric-foot > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wb-ov-arrow {
+  flex: none;
+  color: var(--text-faint);
+  transition: transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.wb-ov-metric:hover .wb-ov-arrow,
+.wb-ov-quick-card:hover .wb-ov-arrow {
+  transform: translateX(2px);
+}
+
+.wb-ov-metric-ghost {
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  color: var(--border);
+  pointer-events: none;
+}
+
+:root[data-theme="dark"] .wb-ov-metric-ghost {
+  color: var(--border-strong);
+  opacity: 0.6;
+}
+
+/* ── 图表卡 ───────────────────────────────────────────────────────────── */
+.wb-ov-charts {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  gap: 12px;
+}
+
+.wb-ov-chart {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 266px;
+  padding: 18px 20px 16px;
+}
+
+.wb-ov-chart-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wb-ov-chart-head h2 {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.wb-ov-chart-head p {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.wb-ov-chart-head > span {
+  flex: none;
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.wb-ov-donut-body {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: 1;
+  min-width: 0;
+  padding-top: 10px;
+}
+
+.wb-ov-donut {
+  position: relative;
+  flex: none;
+  width: 132px;
+  height: 132px;
+}
+
+.wb-ov-donut svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.wb-ov-donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.wb-ov-donut-center b {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-ov-donut-center span {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+.wb-ov-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+  flex: 1;
+}
+
+.wb-ov-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.wb-ov-legend-row i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 3px;
+}
+
+.wb-ov-legend-row b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-ov-legend-row em {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-tertiary);
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-ov-line {
+  flex: 1;
+  min-width: 0;
+  padding-top: 8px;
+}
+
+.wb-ov-line svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.wb-ov-chart-foot {
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+.wb-ov-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  padding-top: 8px;
+}
+
+.wb-ov-gauge {
+  position: relative;
+  width: 160px;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.wb-ov-gauge svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.wb-ov-gauge-center {
+  position: absolute;
+  inset: auto 0 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.wb-ov-gauge-center b {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.wb-ov-gauge-center span {
+  font-size: 10px;
+  color: var(--text-tertiary);
+}
+
+/* ── 快捷入口 ─────────────────────────────────────────────────────────── */
+.wb-ov-quick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wb-ov-quick-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 0 16px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wb-ov-quick-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+}
+
+:root[data-theme="dark"] .wb-ov-quick-icon {
+  background: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+}
+
+.wb-ov-quick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.wb-ov-quick-text b {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wb-ov-quick-text span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.wb-ov-footnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+  font-size: 10.5px;
+  color: var(--text-tertiary);
+}
+
+/* ── 今日推进：把既有 AI 卡并进一张白纸 ───────────────────────────────── */
+.wb-overview .wb-daily {
+  min-height: 0;
+  margin-bottom: 0;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface-raised);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.04),
+    0 10px 24px -18px rgb(16 24 40 / 0.18);
+  overflow: hidden;
+}
+
+.wb-overview .wb-daily.wb-daily--structured {
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+}
+
+.wb-overview .wb-daily__signal,
+.wb-overview .wb-daily__plan {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.wb-overview .wb-daily__signal {
+  padding: 22px 26px;
+}
+
+.wb-overview .wb-daily__plan {
+  padding: 20px 22px;
+  border-left: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface-muted) 55%, var(--surface-raised));
+}
+
+.wb-overview .wb-daily__heading h2 {
+  font-size: 20px;
+  line-height: 1.35;
+}
+
+.wb-overview .wb-daily--structured .wb-daily__plan-head {
+  padding: 0 0 10px;
+}
+
+/* ── 响应式 ───────────────────────────────────────────────────────────── */
+@media (max-width: 1180px) {
+  .wb-ov-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wb-ov-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wb-ov-chart--wide {
+    grid-column: 1 / -1;
+  }
+  .wb-ov-quick {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .wb-overview .wb-daily.wb-daily--structured {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wb-overview .wb-daily__plan {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 900px) {
+  .wb-overview {
+    gap: 22px;
+  }
+  .wb-ov-charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .wb-ov-chart--wide {
+    grid-column: auto;
+  }
+  .wb-ov-quick {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-ov-card,
+  .wb-ov-arrow {
+    transition: none;
+  }
+}
+
+/* 深色档：raised 令牌在这个应用里比页面更深（#0f1012 on #101215），卡片会
+   几乎糊进背景。总览需要参考图那档可读的"浮纸"，用 muted（#17181b）做卡面，
+   快捷入口的图标位再退回页面色，形成清楚的凹槽。 */
+:root[data-theme="dark"] .wb-ov-card,
+:root[data-theme="dark"] .wb-overview .wb-daily {
+  background: var(--surface-muted);
+}
+
+:root[data-theme="dark"] .wb-ov-quick-icon {
+  background: var(--surface);
+}

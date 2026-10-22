@@ -104,20 +104,48 @@ type TaskStats struct {
 // TaskThread is a 主线 and the whole tree under it. The board is a personal tool
 // with tens of rows, so GET /tasks/threads returns everything in one document.
 type TaskThread struct {
-	ID       string      `json:"id"`
-	Name     string      `json:"name"`
-	Position int         `json:"position"`
-	Archived bool        `json:"archived"`
-	Layers   []TaskLayer `json:"layers"`
-	Items    []TaskItem  `json:"items"`
-	Stats    TaskStats   `json:"stats"`
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Position int    `json:"position"`
+	Archived bool   `json:"archived"`
+	// MapMarkdown is the source the mind-map view was imported from. The tree
+	// below stays authoritative; this is only the editable outline.
+	MapMarkdown string      `json:"map_markdown"`
+	Layers      []TaskLayer `json:"layers"`
+	Items       []TaskItem  `json:"items"`
+	Stats       TaskStats   `json:"stats"`
 }
 
 // TaskThreadPatch carries optional thread updates; nil fields are untouched.
 type TaskThreadPatch struct {
-	Name     *string
-	Position *int
-	Archived *bool
+	Name        *string
+	Position    *int
+	Archived    *bool
+	MapMarkdown *string
+}
+
+// QuickTask is one 即时任务: a flat, unlayered task with its own date window.
+// It intentionally does not participate in the layer unlock chain.
+type QuickTask struct {
+	ID          string `json:"id"`
+	Title       string `json:"title"`
+	Notes       string `json:"notes"`
+	StartDate   string `json:"start_date"`
+	DueDate     string `json:"due_date"`
+	CompletedAt string `json:"completed_at"`
+	Completed   bool   `json:"completed"`
+	Position    int    `json:"position"`
+}
+
+// QuickTaskPatch carries optional quick-task updates; nil fields are untouched.
+// Completed flips the stored stamp, so a client never has to send completed_at.
+type QuickTaskPatch struct {
+	Title     *string
+	Notes     *string
+	StartDate *string
+	DueDate   *string
+	Completed *bool
+	Position  *int
 }
 
 // TaskLayerPatch carries optional layer updates; nil fields are untouched.

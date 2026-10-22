@@ -19,7 +19,7 @@ var librarySnapshotTables = []string{
 	"folders", "feeds", "subscriptions", "entries", "entry_contents", "entry_states",
 	"entry_annotations", "tags", "feed_tags", "entry_tags", "rules", "saved_filters", "preferences",
 	"research_papers", "research_tags", "research_paper_tags",
-	"task_threads", "task_layers", "task_items", "task_assignments", "task_steps",
+	"task_threads", "task_layers", "task_items", "task_assignments", "task_steps", "quick_tasks",
 }
 
 // ExportLibrarySnapshot intentionally excludes device tokens, background jobs,
@@ -259,7 +259,7 @@ func sanitizeFeedsForFingerprint(table BackupTable) *BackupTable {
 func LibrarySnapshotIsEmpty(document BackupDocument) bool {
 	for _, table := range document.Tables {
 		switch table.Name {
-		case "feeds", "subscriptions", "entries", "research_papers", "task_threads", "task_items":
+		case "feeds", "subscriptions", "entries", "research_papers", "task_threads", "task_items", "quick_tasks":
 			if len(table.Rows) > 0 {
 				return false
 			}

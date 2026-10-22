@@ -51,16 +51,17 @@ func (s *Server) createTaskThread(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updateTaskThread(w http.ResponseWriter, r *http.Request) {
 	threadID := r.PathValue("threadID")
 	var request struct {
-		Name     *string `json:"name"`
-		Position *int    `json:"position"`
-		Archived *bool   `json:"archived"`
+		Name        *string `json:"name"`
+		Position    *int    `json:"position"`
+		Archived    *bool   `json:"archived"`
+		MapMarkdown *string `json:"map_markdown"`
 	}
 	if err := decodeTaskJSON(w, r, &request); err != nil {
 		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
 		return
 	}
 	thread, err := storage.UpdateTaskThread(r.Context(), s.db, domain.DefaultProfileID, threadID,
-		domain.TaskThreadPatch{Name: request.Name, Position: request.Position, Archived: request.Archived})
+		domain.TaskThreadPatch{Name: request.Name, Position: request.Position, Archived: request.Archived, MapMarkdown: request.MapMarkdown})
 	if err != nil {
 		s.storageError(w, r, err)
 		return
@@ -376,6 +377,71 @@ func (s *Server) taskThreadID(ctx context.Context, entity, id string) string {
 		return ""
 	}
 	return threadID
+}
+
+func (s *Server) listQuickTasks(w http.ResponseWriter, r *http.Request) {
+	items, err := storage.ListQuickTasks(r.Context(), s.db, domain.DefaultProfileID)
+	if err != nil {
+		s.internalError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (s *Server) createQuickTask(w http.ResponseWriter, r *http.Request) {
+	var request struct {
+		Title     string `json:"title"`
+		Notes     string `json:"notes"`
+		StartDate string `json:"start_date"`
+		DueDate   string `json:"due_date"`
+	}
+	if err := decodeTaskJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	task, err := storage.CreateQuickTask(r.Context(), s.db, domain.DefaultProfileID,
+		request.Title, request.Notes, request.StartDate, request.DueDate)
+	if err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.publishTasksUpdated("", map[string]string{"quick_task_id": task.ID})
+	writeJSON(w, http.StatusCreated, task)
+}
+
+func (s *Server) updateQuickTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("quickTaskID")
+	var request struct {
+		Title     *string `json:"title"`
+		Notes     *string `json:"notes"`
+		StartDate *string `json:"start_date"`
+		DueDate   *string `json:"due_date"`
+		Completed *bool   `json:"completed"`
+		Position  *int    `json:"position"`
+	}
+	if err := decodeTaskJSON(w, r, &request); err != nil {
+		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
+		return
+	}
+	task, err := storage.UpdateQuickTask(r.Context(), s.db, domain.DefaultProfileID, taskID,
+		domain.QuickTaskPatch{Title: request.Title, Notes: request.Notes, StartDate: request.StartDate,
+			DueDate: request.DueDate, Completed: request.Completed, Position: request.Position})
+	if err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.publishTasksUpdated("", map[string]string{"quick_task_id": task.ID})
+	writeJSON(w, http.StatusOK, task)
+}
+
+func (s *Server) deleteQuickTask(w http.ResponseWriter, r *http.Request) {
+	taskID := r.PathValue("quickTaskID")
+	if err := storage.DeleteQuickTask(r.Context(), s.db, domain.DefaultProfileID, taskID); err != nil {
+		s.storageError(w, r, err)
+		return
+	}
+	s.publishTasksUpdated("", map[string]string{"deleted_quick_task_id": taskID})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) publishTasksUpdated(threadID string, fields map[string]string) {

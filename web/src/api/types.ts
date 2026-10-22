@@ -517,7 +517,21 @@ export interface TaskThread {
   name: string
   position: number
   archived: boolean
+  /** 脑图视图导入时保存的 Markdown 源；层级树仍是权威结构。 */
+  map_markdown: string
   layers: TaskLayer[]
   items: TaskItem[]
   stats: TaskStats
+}
+
+/** 即时任务：扁平的一条，不挂层、不参与解锁链。 */
+export interface QuickTask {
+  id: string
+  title: string
+  notes: string
+  start_date: string
+  due_date: string
+  completed_at: string
+  completed: boolean
+  position: number
 }
