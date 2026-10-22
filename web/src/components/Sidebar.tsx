@@ -1,4 +1,6 @@
 import {
+  ArrowsInLineVertical,
+  ArrowsOutLineVertical,
   Books,
   CalendarBlank,
   CaretDown,
@@ -28,6 +30,7 @@ import { localizedScopeTitle, useTranslation } from "../lib/i18n"
 import { useReaderStore, type AppView } from "../store/reader"
 import { Brand } from "./Brand"
 import { FolderContextMenu } from "./FolderContextMenu"
+import { TASK_VIEWS } from "./workbench/taskViews"
 import { PromptDialog } from "./PromptDialog"
 import { SubscriptionContextMenu } from "./SubscriptionContextMenu"
 
@@ -87,6 +90,10 @@ export function Sidebar(props: SidebarProps) {
   const setWorkbenchModule = useReaderStore((state) => state.setWorkbenchModule)
   const workbenchTab = useReaderStore((state) => state.workbenchTab)
   const setWorkbenchTab = useReaderStore((state) => state.setWorkbenchTab)
+  const taskView = useReaderStore((state) => state.taskView)
+  const setTaskView = useReaderStore((state) => state.setTaskView)
+  const sidebarDensity = useReaderStore((state) => state.sidebarDensity)
+  const setSidebarDensity = useReaderStore((state) => state.setSidebarDensity)
   const [contextMenu, setContextMenu] = useState<
     | {
         kind: "subscription"
@@ -187,6 +194,30 @@ export function Sidebar(props: SidebarProps) {
             />
             <span>{t("moduleTasks")}</span>
           </button>
+          {workbenchModule === "tasks" && (
+            <div
+              className="sidebar-research-nav sidebar-task-nav"
+              role="group"
+              aria-label={t("moduleTasks")}
+            >
+              {TASK_VIEWS.map((entry) => (
+                <button
+                  key={entry.id}
+                  className="sidebar-research-nav__item sidebar-task-nav__item"
+                  type="button"
+                  aria-current={taskView === entry.id ? "page" : undefined}
+                  onClick={() => setTaskView(entry.id)}
+                >
+                  <entry.Icon
+                    aria-hidden="true"
+                    size={16}
+                    weight={taskView === entry.id ? "fill" : "regular"}
+                  />
+                  <span>{t(entry.labelKey)}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <button
             className="sidebar-workbench-nav__item"
             type="button"
@@ -246,9 +277,29 @@ export function Sidebar(props: SidebarProps) {
           )
         })}
       </nav>
-      <section className="subscription-section" aria-labelledby="subscriptions-title">
+      <section
+        className="subscription-section"
+        aria-labelledby="subscriptions-title"
+        data-density={sidebarDensity}
+      >
         <div className="library-toolbar">
           <h2 id="subscriptions-title">{t("subscriptions")}</h2>
+          <button
+            className="icon-button icon-button--small"
+            type="button"
+            aria-label={t("sidebarDensity")}
+            aria-pressed={sidebarDensity === "compact"}
+            title={
+              sidebarDensity === "compact"
+                ? t("sidebarDensityComfortable")
+                : t("sidebarDensityCompact")
+            }
+            onClick={() =>
+              setSidebarDensity(sidebarDensity === "compact" ? "comfortable" : "compact")
+            }
+          >
+            {sidebarDensity === "compact" ? <ArrowsInLineVertical /> : <ArrowsOutLineVertical />}
+          </button>
           <button
             className="icon-button icon-button--small"
             type="button"

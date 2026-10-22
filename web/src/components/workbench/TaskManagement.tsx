@@ -1,32 +1,19 @@
 import "./tasks.css"
 import "./task-management.css"
 
-import {
-  CalendarBlank,
-  Lightning,
-  ListChecks,
-  TreeStructure,
-} from "@phosphor-icons/react"
-import { useState } from "react"
-
 import { useTranslation } from "../../lib/i18n"
+import { useReaderStore } from "../../store/reader"
 import { QuickTasks } from "./QuickTasks"
 import { TaskBoard } from "./TaskBoard"
 import { TaskMindMap } from "./TaskMindMap"
 import { TaskTimeline } from "./TaskTimeline"
-
-export type TaskView = "quick" | "long" | "timeline" | "mindmap"
-
-const TASK_VIEWS: Array<{ id: TaskView; labelKey: string; Icon: typeof Lightning }> = [
-  { id: "quick", labelKey: "taskViewQuick", Icon: Lightning },
-  { id: "long", labelKey: "taskViewLong", Icon: ListChecks },
-  { id: "timeline", labelKey: "taskViewTimeline", Icon: CalendarBlank },
-  { id: "mindmap", labelKey: "taskViewMindMap", Icon: TreeStructure },
-]
+import { TASK_VIEWS } from "./taskViews"
 
 export function TaskManagement(props: { offline?: boolean }) {
   const { t } = useTranslation()
-  const [view, setView] = useState<TaskView>("quick")
+  // 桌面端由侧栏承担视图切换；这条条子只在侧栏隐藏的窄屏出现（见 apple-glass.css）。
+  const view = useReaderStore((state) => state.taskView)
+  const setView = useReaderStore((state) => state.setTaskView)
 
   return (
     <div className="wb-tm">

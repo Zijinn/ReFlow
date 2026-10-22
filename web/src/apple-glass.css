@@ -467,3 +467,217 @@ body,
     0 1px 2px rgb(0 0 0 / 0.35),
     0 0 0 1px rgb(255 255 255 / 0.06);
 }
+
+/* ── 2026-10-22 owner pass ────────────────────────────────────────────────
+   One geometry for the two workbench modules and their child tabs, white
+   cards in the light theme, and a density switch for the subscription tree.
+   Dark keeps its raised surfaces: the white-surface rules are scoped to
+   [data-theme="light"], while the compact nav geometry is shared. */
+
+/* Smaller lockup, same wordmark. */
+.sidebar .sidebar__header {
+  min-height: 44px;
+}
+.sidebar .brand {
+  min-height: 38px;
+  gap: var(--space-4);
+}
+.sidebar .brand__mark {
+  width: 32px;
+  height: 32px;
+  flex-basis: 32px;
+  border-radius: var(--radius-lg);
+}
+
+/* Both module headers and both child lists share one compact rhythm. */
+.sidebar-workbench-nav {
+  gap: 6px;
+  margin-top: 16px;
+  padding-inline: 2px;
+}
+.sidebar-workbench-nav__item {
+  min-height: 40px;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 9px;
+}
+.sidebar-research-nav,
+.sidebar-task-nav {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 0;
+  border-left: 0;
+}
+.sidebar-research-nav__item,
+.sidebar-task-nav__item {
+  min-height: 30px;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 9px;
+}
+/* Child tabs use the same selected language as the reader/workbench switch:
+   a white card, a hairline edge, and a raised ring on the current view. No
+   left rail / indent — the module and its children are one group. */
+:root[data-theme="light"] .sidebar-research-nav__item,
+:root[data-theme="light"] .sidebar-task-nav__item {
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-weight: var(--fw-medium);
+  box-shadow: none;
+}
+:root[data-theme="light"] .sidebar-research-nav__item:hover,
+:root[data-theme="light"] .sidebar-task-nav__item:hover {
+  background: var(--surface-raised);
+  background-image: none;
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+:root[data-theme="light"] .sidebar-research-nav__item[aria-current="page"],
+:root[data-theme="light"] .sidebar-research-nav__item[aria-current="page"]:hover,
+:root[data-theme="light"] .sidebar-task-nav__item[aria-current="page"],
+:root[data-theme="light"] .sidebar-task-nav__item[aria-current="page"]:hover {
+  background: var(--surface-raised);
+  background-image: none;
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
+}
+:root[data-theme="dark"] .sidebar-research-nav__item,
+:root[data-theme="dark"] .sidebar-task-nav__item {
+  border: 1px solid transparent;
+}
+:root[data-theme="dark"] .sidebar-research-nav__item[aria-current="page"],
+:root[data-theme="dark"] .sidebar-task-nav__item[aria-current="page"] {
+  background: var(--surface-muted);
+  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+}
+
+/* Desktop: the sidebar owns module and view switching. The inline strips stay
+   as the narrow-screen fallback, exactly like the research tabs already do. */
+@media (min-width: 900px) {
+  .wb-task-view-nav {
+    display: none;
+  }
+  .wb-main .wb-header,
+  .wb-main[data-wb-tab="dashboard"] .wb-header {
+    padding-top: 28px;
+  }
+}
+@media (max-width: 899px) {
+  .wb-task-view-nav .wb-nav-item,
+  .wb-research-nav .wb-nav-item {
+    min-height: 30px;
+  }
+}
+
+/* White surfaces instead of the blue-tinted glass. Light theme only. */
+:root[data-theme="light"] {
+  --card-glass: var(--surface-raised);
+  --control-glass: var(--surface-raised);
+  --segment-track: var(--surface-raised);
+  --segment-track-edge: var(--border);
+  --segment-track-inset: inset 0 0 0 0.5px var(--border);
+}
+.wb-shell {
+  --surface-muted: #f4f4f6;
+}
+:root[data-theme="light"] .daily-signal,
+:root[data-theme="light"] .source-overview {
+  background: var(--surface-raised);
+  background-image: none;
+  border-color: var(--border);
+}
+:root[data-theme="light"] .daily-signal__icon,
+:root[data-theme="light"] .source-overview__mark,
+:root[data-theme="light"] .wb-daily__icon,
+:root[data-theme="light"] .wb-daily__item-mark {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+:root[data-theme="light"] .wb-overview .wb-daily__plan {
+  background: var(--surface-raised);
+}
+:root[data-theme="light"] .wb-daily__signal,
+:root[data-theme="light"] .wb-daily__plan {
+  border-color: var(--border);
+}
+:root[data-theme="light"] .wb-digest__section,
+:root[data-theme="light"] .wb-digest__cell,
+:root[data-theme="light"] .wb-digest__chip {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+:root[data-theme="light"] .wb-digest__section {
+  background-image: none;
+}
+:root[data-theme="light"] .wb-digest__pill {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+:root[data-theme="light"] .wb-digest__quote {
+  background: var(--surface-raised);
+  border: 0.5px solid var(--border);
+  border-left: 3px solid var(--accent);
+}
+:root[data-theme="light"] .app-view-switch__item:not(.app-view-switch__item--active) {
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: none;
+}
+:root[data-theme="light"] .filter-chip--active,
+:root[data-theme="light"] .filter-chip--active:hover {
+  color: var(--accent-strong);
+  background: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow:
+    0 1px 2px rgb(16 24 40 / 0.06),
+    0 0 0 1px rgb(16 24 40 / 0.04);
+}
+
+/* Card edges need to stay visible on the white page. */
+:root[data-theme="light"] .wb-card,
+:root[data-theme="light"] .wb-panel,
+:root[data-theme="light"] .wb-stat-card,
+:root[data-theme="light"] .wb-detail-grid,
+:root[data-theme="light"] .wb-table-wrap,
+:root[data-theme="light"] .wb-daily,
+:root[data-theme="light"] .sync-provider-card {
+  border-color: var(--border);
+}
+
+/* Subscription density: compact is the default, comfortable restores air. */
+.subscription-section[data-density="compact"] .folder-tree-row,
+.subscription-section[data-density="compact"] .feed-tree-row {
+  min-height: 30px;
+}
+.subscription-section[data-density="compact"] .folder-tree-row .folder-row,
+.subscription-section[data-density="compact"] .feed-row--nested {
+  height: 30px;
+  min-height: 30px;
+}
+.subscription-section[data-density="compact"] .folder-row__toggle {
+  height: 30px;
+}
+.subscription-section[data-density="comfortable"] .folder-tree-row,
+.subscription-section[data-density="comfortable"] .feed-tree-row {
+  min-height: 36px;
+}
+.subscription-section[data-density="comfortable"] .folder-tree-row .folder-row,
+.subscription-section[data-density="comfortable"] .feed-row--nested {
+  height: 36px;
+  min-height: 36px;
+}
+.subscription-section[data-density="comfortable"] .folder-row__toggle {
+  height: 36px;
+}
+
+/* The mind-map root keeps its accent outline but not an accent wash. */
+:root[data-theme="light"] .wb-tm-mind-root {
+  background: var(--surface-raised);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}

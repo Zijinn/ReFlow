@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ReactNode } from "react"
@@ -293,7 +293,44 @@ describe("Sidebar shell action slot", () => {
   })
 })
 
+describe("Sidebar workbench modules and density", () => {
+  it("gives task management the same child-tab row as research", () => {
+    useReaderStore.setState({
+      appView: "workbench",
+      workbenchModule: "tasks",
+      workbenchTab: "dashboard",
+      taskView: "quick",
+    })
+    renderSidebar({ appView: "workbench" })
+
+    const nav = screen.getByRole("group", { name: "Task management" })
+    expect(within(nav).getAllByRole("button")).toHaveLength(4)
+
+    fireEvent.click(within(nav).getByRole("button", { name: "Timeline" }))
+    expect(useReaderStore.getState().taskView).toBe("timeline")
+    expect(within(nav).getByRole("button", { name: "Timeline" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    )
+  })
+
+  it("toggles the subscription tree between compact and comfortable", () => {
+    useReaderStore.setState({ appView: "reader", sidebarDensity: "compact" })
+    const { container } = renderSidebar({})
+    const section = container.querySelector(".subscription-section")
+    const toggle = screen.getByRole("button", { name: "Subscription list density" })
+
+    expect(section).toHaveAttribute("data-density", "compact")
+    fireEvent.click(toggle)
+    expect(section).toHaveAttribute("data-density", "comfortable")
+    expect(useReaderStore.getState().sidebarDensity).toBe("comfortable")
+    fireEvent.click(toggle)
+    expect(section).toHaveAttribute("data-density", "compact")
+  })
+})
+
 function renderSidebar(overrides: {
+  appView?: "reader" | "workbench"
   folders?: Folder[]
   actions?: ReactNode
   onRenameFeed?: (feedID: string, name: string) => void
@@ -308,7 +345,7 @@ function renderSidebar(overrides: {
 }) {
   return render(
     <Sidebar
-      appView="reader"
+      appView={overrides.appView ?? "reader"}
       onAppViewChange={vi.fn()}
       scope={{ kind: "all", title: "All feeds" }}
       subscriptions={[subscription]}

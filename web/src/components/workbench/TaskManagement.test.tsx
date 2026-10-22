@@ -45,7 +45,7 @@ function renderManagement() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useReaderStore.setState({ locale: "en-US" })
+  useReaderStore.setState({ locale: "en-US", taskView: "quick" })
   vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask()] })
   vi.mocked(api.listTaskThreads).mockResolvedValue({ items: [] })
   vi.mocked(api.listResearchPapers).mockResolvedValue({ items: [] })

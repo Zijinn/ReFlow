@@ -18,6 +18,8 @@ export type AppView = "reader" | "workbench"
 // 第一次进来的人肌肉记忆不变；用过长任务之后，下次回来停在他自己选的那一模块。
 export type WorkbenchModule = "tasks" | "research"
 export type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
+export type TaskView = "quick" | "long" | "timeline" | "mindmap"
+export type SidebarDensity = "compact" | "comfortable"
 
 export const defaultShortcuts: Record<ShortcutAction, string> = {
   palette: "mod+k",
@@ -83,10 +85,14 @@ interface ReaderStore {
   appView: AppView
   workbenchModule: WorkbenchModule
   workbenchTab: WorkbenchTab
+  taskView: TaskView
+  sidebarDensity: SidebarDensity
   workbenchColumnWidths: WorkbenchColumnWidths
   setAppView: (appView: AppView) => void
   setWorkbenchModule: (workbenchModule: WorkbenchModule) => void
   setWorkbenchTab: (workbenchTab: WorkbenchTab) => void
+  setTaskView: (taskView: TaskView) => void
+  setSidebarDensity: (sidebarDensity: SidebarDensity) => void
   setScope: (scope: LibraryScope) => void
   selectEntry: (entryID: string | null) => void
   setSearch: (search: string) => void
@@ -148,12 +154,17 @@ export const useReaderStore = create<ReaderStore>()(
       appView: "reader",
       workbenchModule: "research",
       workbenchTab: "dashboard",
+      taskView: "quick",
+      // 订阅列表默认走紧凑档；觉得挤可在订阅栏一键切回舒适档。
+      sidebarDensity: "compact",
       // 只存用户拖过的列：没落键的列在 CSS 里退回 width: var(--wb-col-w, 默认)，
       // 默认宽度因此仍归样式表管，加一档列不用动这里。
       workbenchColumnWidths: {},
       setAppView: (appView) => set({ appView }),
       setWorkbenchModule: (workbenchModule) => set({ workbenchModule }),
       setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
+      setTaskView: (taskView) => set({ taskView }),
+      setSidebarDensity: (sidebarDensity) => set({ sidebarDensity }),
       setScope: (scope) =>
         set({ scope, readerReturnScope: null, selectedEntryID: null, mobileReaderOpen: false }),
       selectEntry: (selectedEntryID) =>
@@ -245,6 +256,8 @@ export const useReaderStore = create<ReaderStore>()(
         appView: state.appView,
         workbenchModule: state.workbenchModule,
         workbenchTab: state.workbenchTab,
+        taskView: state.taskView,
+        sidebarDensity: state.sidebarDensity,
         workbenchColumnWidths: state.workbenchColumnWidths,
       }),
     },
