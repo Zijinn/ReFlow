@@ -501,60 +501,59 @@ body,
   padding: 0 12px;
   border-radius: 9px;
 }
+.sidebar-workbench-nav__chevron {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  flex: none;
+}
+/* Child tabs are a flat disclosure list, not cards: a 12px inset keeps the
+   hierarchy, 14px type stays level with the module label, and the current
+   view is marked by a neutral row fill plus the accent ink. */
 .sidebar-research-nav,
 .sidebar-task-nav {
   display: grid;
-  gap: 4px;
-  margin: 0 0 6px;
+  gap: 1px;
+  margin: 2px 0 8px 12px;
   padding: 0;
   border-left: 0;
 }
 .sidebar-research-nav__item,
 .sidebar-task-nav__item {
-  min-height: 30px;
+  min-height: 32px;
   gap: 10px;
-  padding: 0 12px;
-  border-radius: 9px;
-}
-/* Child tabs use the same selected language as the reader/workbench switch:
-   a white card, a hairline edge, and a raised ring on the current view. No
-   left rail / indent — the module and its children are one group. */
-:root[data-theme="light"] .sidebar-research-nav__item,
-:root[data-theme="light"] .sidebar-task-nav__item {
-  background: var(--surface-raised);
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--text-secondary);
-  border: 1px solid var(--border);
+  font-size: 14px;
   font-weight: var(--fw-medium);
   box-shadow: none;
 }
-:root[data-theme="light"] .sidebar-research-nav__item:hover,
-:root[data-theme="light"] .sidebar-task-nav__item:hover {
-  background: var(--surface-raised);
-  background-image: none;
-  border-color: var(--border-strong);
+.sidebar-research-nav__item:hover,
+.sidebar-task-nav__item:hover {
+  background: var(--fill-hover);
   color: var(--text);
 }
-:root[data-theme="light"] .sidebar-research-nav__item[aria-current="page"],
-:root[data-theme="light"] .sidebar-research-nav__item[aria-current="page"]:hover,
-:root[data-theme="light"] .sidebar-task-nav__item[aria-current="page"],
-:root[data-theme="light"] .sidebar-task-nav__item[aria-current="page"]:hover {
-  background: var(--surface-raised);
-  background-image: none;
-  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
-  color: var(--text);
+.sidebar-research-nav__item[aria-current="page"],
+.sidebar-task-nav__item[aria-current="page"] {
+  background: var(--fill-hover);
+  border: 0;
+  color: var(--accent-strong);
   font-weight: var(--fw-semibold);
-  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
+  box-shadow: none;
 }
-:root[data-theme="dark"] .sidebar-research-nav__item,
-:root[data-theme="dark"] .sidebar-task-nav__item {
-  border: 1px solid transparent;
+.sidebar-research-nav__item[aria-current="page"]:hover,
+.sidebar-task-nav__item[aria-current="page"]:hover {
+  background: var(--fill-hover);
+  color: var(--accent-strong);
 }
 :root[data-theme="dark"] .sidebar-research-nav__item[aria-current="page"],
 :root[data-theme="dark"] .sidebar-task-nav__item[aria-current="page"] {
-  background: var(--surface-muted);
-  border-color: color-mix(in srgb, var(--accent) 38%, transparent);
-  color: var(--text);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  background: var(--fill-hover);
+  border: 0;
+  color: var(--accent-strong);
+  box-shadow: none;
 }
 
 /* Desktop: the sidebar owns module and view switching. The inline strips stay

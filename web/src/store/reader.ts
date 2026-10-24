@@ -86,12 +86,14 @@ interface ReaderStore {
   workbenchModule: WorkbenchModule
   workbenchTab: WorkbenchTab
   taskView: TaskView
+  expandedWorkbenchModules: Record<WorkbenchModule, boolean>
   sidebarDensity: SidebarDensity
   workbenchColumnWidths: WorkbenchColumnWidths
   setAppView: (appView: AppView) => void
   setWorkbenchModule: (workbenchModule: WorkbenchModule) => void
   setWorkbenchTab: (workbenchTab: WorkbenchTab) => void
   setTaskView: (taskView: TaskView) => void
+  toggleWorkbenchModuleExpanded: (workbenchModule: WorkbenchModule) => void
   setSidebarDensity: (sidebarDensity: SidebarDensity) => void
   setScope: (scope: LibraryScope) => void
   selectEntry: (entryID: string | null) => void
@@ -155,15 +157,31 @@ export const useReaderStore = create<ReaderStore>()(
       workbenchModule: "research",
       workbenchTab: "dashboard",
       taskView: "quick",
+      // 两个模块的二级菜单各管各的：默认展开当前模块，另一个可随时点开。
+      expandedWorkbenchModules: { tasks: false, research: true },
       // 订阅列表默认走紧凑档；觉得挤可在订阅栏一键切回舒适档。
       sidebarDensity: "compact",
       // 只存用户拖过的列：没落键的列在 CSS 里退回 width: var(--wb-col-w, 默认)，
       // 默认宽度因此仍归样式表管，加一档列不用动这里。
       workbenchColumnWidths: {},
       setAppView: (appView) => set({ appView }),
-      setWorkbenchModule: (workbenchModule) => set({ workbenchModule }),
+      setWorkbenchModule: (workbenchModule) =>
+        set((state) => ({
+          workbenchModule,
+          expandedWorkbenchModules: {
+            ...state.expandedWorkbenchModules,
+            [workbenchModule]: true,
+          },
+        })),
       setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
       setTaskView: (taskView) => set({ taskView }),
+      toggleWorkbenchModuleExpanded: (workbenchModule) =>
+        set((state) => ({
+          expandedWorkbenchModules: {
+            ...state.expandedWorkbenchModules,
+            [workbenchModule]: !state.expandedWorkbenchModules[workbenchModule],
+          },
+        })),
       setSidebarDensity: (sidebarDensity) => set({ sidebarDensity }),
       setScope: (scope) =>
         set({ scope, readerReturnScope: null, selectedEntryID: null, mobileReaderOpen: false }),
@@ -257,6 +275,7 @@ export const useReaderStore = create<ReaderStore>()(
         workbenchModule: state.workbenchModule,
         workbenchTab: state.workbenchTab,
         taskView: state.taskView,
+        expandedWorkbenchModules: state.expandedWorkbenchModules,
         sidebarDensity: state.sidebarDensity,
         workbenchColumnWidths: state.workbenchColumnWidths,
       }),

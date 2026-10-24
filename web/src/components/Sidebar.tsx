@@ -92,6 +92,10 @@ export function Sidebar(props: SidebarProps) {
   const setWorkbenchTab = useReaderStore((state) => state.setWorkbenchTab)
   const taskView = useReaderStore((state) => state.taskView)
   const setTaskView = useReaderStore((state) => state.setTaskView)
+  const expandedWorkbenchModules = useReaderStore((state) => state.expandedWorkbenchModules)
+  const toggleWorkbenchModuleExpanded = useReaderStore(
+    (state) => state.toggleWorkbenchModuleExpanded,
+  )
   const sidebarDensity = useReaderStore((state) => state.sidebarDensity)
   const setSidebarDensity = useReaderStore((state) => state.setSidebarDensity)
   const [contextMenu, setContextMenu] = useState<
@@ -185,7 +189,11 @@ export function Sidebar(props: SidebarProps) {
             className="sidebar-workbench-nav__item"
             type="button"
             aria-current={workbenchModule === "tasks" ? "page" : undefined}
-            onClick={() => setWorkbenchModule("tasks")}
+            aria-expanded={expandedWorkbenchModules.tasks}
+            onClick={() => {
+              if (workbenchModule === "tasks") toggleWorkbenchModuleExpanded("tasks")
+              else setWorkbenchModule("tasks")
+            }}
           >
             <TreeStructure
               aria-hidden="true"
@@ -193,9 +201,15 @@ export function Sidebar(props: SidebarProps) {
               weight={workbenchModule === "tasks" ? "fill" : "regular"}
             />
             <span>{t("moduleTasks")}</span>
+            {expandedWorkbenchModules.tasks ? (
+              <CaretDown aria-hidden="true" size={14} className="sidebar-workbench-nav__chevron" />
+            ) : (
+              <CaretRight aria-hidden="true" size={14} className="sidebar-workbench-nav__chevron" />
+            )}
           </button>
-          {workbenchModule === "tasks" && (
+          {expandedWorkbenchModules.tasks && (
             <div
+              id="sidebar-task-nav"
               className="sidebar-research-nav sidebar-task-nav"
               role="group"
               aria-label={t("moduleTasks")}
@@ -205,13 +219,20 @@ export function Sidebar(props: SidebarProps) {
                   key={entry.id}
                   className="sidebar-research-nav__item sidebar-task-nav__item"
                   type="button"
-                  aria-current={taskView === entry.id ? "page" : undefined}
-                  onClick={() => setTaskView(entry.id)}
+                  aria-current={
+                    workbenchModule === "tasks" && taskView === entry.id ? "page" : undefined
+                  }
+                  onClick={() => {
+                    setWorkbenchModule("tasks")
+                    setTaskView(entry.id)
+                  }}
                 >
                   <entry.Icon
                     aria-hidden="true"
                     size={16}
-                    weight={taskView === entry.id ? "fill" : "regular"}
+                    weight={
+                      workbenchModule === "tasks" && taskView === entry.id ? "fill" : "regular"
+                    }
                   />
                   <span>{t(entry.labelKey)}</span>
                 </button>
@@ -222,7 +243,11 @@ export function Sidebar(props: SidebarProps) {
             className="sidebar-workbench-nav__item"
             type="button"
             aria-current={workbenchModule === "research" ? "page" : undefined}
-            onClick={() => setWorkbenchModule("research")}
+            aria-expanded={expandedWorkbenchModules.research}
+            onClick={() => {
+              if (workbenchModule === "research") toggleWorkbenchModuleExpanded("research")
+              else setWorkbenchModule("research")
+            }}
           >
             <SquaresFour
               aria-hidden="true"
@@ -230,9 +255,19 @@ export function Sidebar(props: SidebarProps) {
               weight={workbenchModule === "research" ? "fill" : "regular"}
             />
             <span>{t("moduleResearch")}</span>
+            {expandedWorkbenchModules.research ? (
+              <CaretDown aria-hidden="true" size={14} className="sidebar-workbench-nav__chevron" />
+            ) : (
+              <CaretRight aria-hidden="true" size={14} className="sidebar-workbench-nav__chevron" />
+            )}
           </button>
-          {workbenchModule === "research" && (
-            <div className="sidebar-research-nav" role="group" aria-label={t("moduleResearch")}>
+          {expandedWorkbenchModules.research && (
+            <div
+              id="sidebar-research-nav"
+              className="sidebar-research-nav"
+              role="group"
+              aria-label={t("moduleResearch")}
+            >
               {[
                 { id: "dashboard" as const, labelKey: "researchOverview", Icon: ChartPieSlice },
                 { id: "research" as const, labelKey: "workingPapers", Icon: NotePencil },
@@ -244,13 +279,22 @@ export function Sidebar(props: SidebarProps) {
                   key={entry.id}
                   className="sidebar-research-nav__item"
                   type="button"
-                  aria-current={workbenchTab === entry.id ? "page" : undefined}
-                  onClick={() => setWorkbenchTab(entry.id)}
+                  aria-current={
+                    workbenchModule === "research" && workbenchTab === entry.id ? "page" : undefined
+                  }
+                  onClick={() => {
+                    setWorkbenchModule("research")
+                    setWorkbenchTab(entry.id)
+                  }}
                 >
                   <entry.Icon
                     aria-hidden="true"
                     size={16}
-                    weight={workbenchTab === entry.id ? "fill" : "regular"}
+                    weight={
+                      workbenchModule === "research" && workbenchTab === entry.id
+                        ? "fill"
+                        : "regular"
+                    }
                   />
                   <span>{t(entry.labelKey)}</span>
                 </button>
