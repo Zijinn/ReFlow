@@ -243,9 +243,34 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
     }))
   }, [threads, t])
 
+  const unassignedLongRows = useMemo<TimelineRow[]>(
+    () =>
+      threads
+        .filter((thread) => !thread.archived)
+        .flatMap((thread) =>
+          thread.items
+            .filter((item) => !item.closed && item.assignments.length === 0)
+            .map((item) => ({
+              key: `item-${item.id}`,
+              kind: "assignment" as const,
+              id: item.id,
+              title: item.title,
+              subtitle: thread.name,
+              start: "",
+              due: "",
+              state: stateForItem(item.status, item.closed),
+            })),
+        ),
+    [threads],
+  )
+
   const allRows = useMemo(
-    () => [...quickRows, ...longThreads.flatMap((thread) => thread.layers.flatMap((layer) => layer.rows))],
-    [longThreads, quickRows],
+    () => [
+      ...quickRows,
+      ...longThreads.flatMap((thread) => thread.layers.flatMap((layer) => layer.rows)),
+      ...unassignedLongRows,
+    ],
+    [longThreads, quickRows, unassignedLongRows],
   )
 
   const stats = (() => {
@@ -285,6 +310,10 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
         }
       }
     }
+    // A long-task card with no placement at all is still work the owner has
+    // not scheduled; it belongs in the same 未排期 bucket as a dated layer slot
+    // that has not received its dates yet.
+    unscheduled += unassignedLongRows.length
     return { longInWindow, quickInWindow, overdue, doneInWindow, unscheduled }
   })()
 

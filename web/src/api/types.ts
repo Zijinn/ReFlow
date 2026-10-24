@@ -531,6 +531,8 @@ export interface QuickTask {
   notes: string
   start_date: string
   due_date: string
+  /** 从论文下一步行动生成的任务会带回来源论文；手动任务为 null。 */
+  paper_id: string | null
   completed_at: string
   completed: boolean
   position: number

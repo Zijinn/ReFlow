@@ -23,15 +23,19 @@ func scanQuickTask(row interface {
 	Scan(dest ...any) error
 }) (domain.QuickTask, error) {
 	var task domain.QuickTask
+	var paperID sql.NullString
 	if err := row.Scan(&task.ID, &task.Title, &task.Notes, &task.StartDate, &task.DueDate,
-		&task.CompletedAt, &task.Position); err != nil {
+		&paperID, &task.CompletedAt, &task.Position); err != nil {
 		return domain.QuickTask{}, err
+	}
+	if paperID.Valid {
+		task.PaperID = &paperID.String
 	}
 	task.Completed = task.CompletedAt != ""
 	return task, nil
 }
 
-const quickTaskColumns = `id, title, notes, start_date, due_date, completed_at, position`
+const quickTaskColumns = `id, title, notes, start_date, due_date, paper_id, completed_at, position`
 
 // ListQuickTasks returns the flat 即时任务 list. Open tasks come first, then
 // completed ones, and each group keeps the order the owner chose.
@@ -80,7 +84,7 @@ func nextQuickTaskPosition(ctx context.Context, tx *sql.Tx, profileID string) (i
 
 // CreateQuickTask adds one flat task. Position is MIN-1 so a new task lands on
 // top, matching the research table's "new row first" convention.
-func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, startDate, dueDate string) (domain.QuickTask, error) {
+func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, startDate, dueDate string, paperID *string) (domain.QuickTask, error) {
 	title = strings.TrimSpace(title)
 	if err := validateTaskRequired(taskScopeQuickTask, "title", title, quickTaskTextLimit); err != nil {
 		return domain.QuickTask{}, err
@@ -98,6 +102,23 @@ func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, s
 	if err := validateTaskWindow(taskScopeQuickTask, startDate, dueDate); err != nil {
 		return domain.QuickTask{}, err
 	}
+	var linkedPaper any
+	if paperID != nil {
+		trimmed := strings.TrimSpace(*paperID)
+		if trimmed != "" {
+			var exists int
+			err := db.QueryRowContext(ctx,
+				`SELECT 1 FROM research_papers WHERE profile_id = ? AND id = ?`,
+				profileID, trimmed).Scan(&exists)
+			if errors.Is(err, sql.ErrNoRows) {
+				return domain.QuickTask{}, taskValidationf(taskScopeQuickTask, "paper_id does not exist")
+			}
+			if err != nil {
+				return domain.QuickTask{}, fmt.Errorf("check quick task paper: %w", err)
+			}
+			linkedPaper = trimmed
+		}
+	}
 
 	now := formatTime(time.Now().UTC())
 	id := uuid.NewString()
@@ -111,9 +132,9 @@ func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, s
 		return domain.QuickTask{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO quick_tasks
-		(id, profile_id, title, notes, start_date, due_date, completed_at, position, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
-		id, profileID, title, notes, startDate, dueDate, position, now, now); err != nil {
+		(id, profile_id, title, notes, start_date, due_date, paper_id, completed_at, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
+		id, profileID, title, notes, startDate, dueDate, linkedPaper, position, now, now); err != nil {
 		return domain.QuickTask{}, fmt.Errorf("create quick task: %w", err)
 	}
 	if err := tx.Commit(); err != nil {

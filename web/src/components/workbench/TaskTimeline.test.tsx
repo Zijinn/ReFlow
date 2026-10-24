@@ -24,6 +24,7 @@ const quick: QuickTask = {
   notes: "",
   start_date: "2026-10-20",
   due_date: "2026-10-22",
+  paper_id: null,
   completed_at: "",
   completed: false,
   position: 0,

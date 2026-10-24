@@ -4,6 +4,8 @@ import "./submitted-picker.css"
 
 import { Fragment, useEffect, useMemo, useState } from "react"
 
+import { CheckCircle, ListPlus } from "@phosphor-icons/react"
+
 import type { ResearchPaper, ResearchPaperPatch, SubmissionRecord } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { SUBMISSION_STATUS_OPTIONS } from "../../lib/research"
@@ -48,6 +50,9 @@ export function SubmittedPage(props: {
   onReorder: (orderedIDs: string[]) => void
   onMove: (id: string) => void
   onMoveBack: (id: string) => void
+  linkedPaperIDs?: ReadonlySet<string>
+  addingTaskPaperID?: string | null
+  onAddNextActionTask?: (paper: ResearchPaper) => void
 }) {
   const { t } = useTranslation()
   const onFocusConsumed = props.onFocusConsumed
@@ -233,6 +238,7 @@ export function SubmittedPage(props: {
               filtered.map((paper) => {
                 const index = props.papers.findIndex((p) => p.id === paper.id)
                 const expanded = expandedID === paper.id
+                const linkedTask = props.linkedPaperIDs?.has(paper.id) ?? false
                 const deadlineDate = parseDeadline(paper.deadline)
                 const urgency = deadlineDate ? deadlineUrgency(daysUntil(deadlineDate)) : null
                 return (
@@ -248,12 +254,47 @@ export function SubmittedPage(props: {
                         <span className="wb-code">{displayID("submitted", index)}</span>
                       </td>
                       <td className="wb-col-title">
-                        <div className="wb-cell-title">
+                        <div
+                          className={`wb-cell-title${props.onAddNextActionTask && paper.next_action.trim() !== "" ? " wb-cell-title--task" : ""}`}
+                        >
                           <InlineText
                             value={paper.title}
                             placeholder={t("fillPlaceholder")}
                             onCommit={(title) => props.onUpdate(paper.id, { title })}
                           />
+                          {props.onAddNextActionTask && paper.next_action.trim() !== "" && (
+                            <button
+                              type="button"
+                              className={`wb-next-action-task${linkedTask ? " wb-next-action-task--linked" : ""}`}
+                              aria-label={
+                                linkedTask ? t("nextActionTaskAdded") : t("nextActionAddTask")
+                              }
+                              title={
+                                linkedTask
+                                  ? t("nextActionTaskAdded")
+                                  : props.offline
+                                    ? t("workbenchOfflineHint")
+                                    : `${t("nextActionAddTask")} · ${paper.next_action}`
+                              }
+                              disabled={
+                                linkedTask ||
+                                props.offline ||
+                                props.addingTaskPaperID === paper.id
+                              }
+                              onClick={() => props.onAddNextActionTask?.(paper)}
+                            >
+                              {linkedTask ? (
+                                <CheckCircle size={13} weight="fill" aria-hidden="true" />
+                              ) : (
+                                <ListPlus size={13} aria-hidden="true" />
+                              )}
+                              <span>
+                                {linkedTask
+                                  ? t("nextActionTaskAddedShort")
+                                  : t("nextActionTaskShort")}
+                              </span>
+                            </button>
+                          )}
                         </div>
                         <ChipEditor
                           label={t("authors")}

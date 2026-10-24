@@ -2395,6 +2395,7 @@ paths:
                 notes: { type: string, maxLength: 2000 }
                 start_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
                 due_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+                paper_id: { type: [string, "null"], format: uuid }
       responses:
         "201":
           description: The new quick task.
@@ -3689,13 +3690,14 @@ components:
       description: >
         One flat 即时任务. It carries its own date window and completion stamp,
         but no layers, steps, or unlock state.
-      required: [id, title, notes, start_date, due_date, completed_at, completed, position]
+      required: [id, title, notes, start_date, due_date, paper_id, completed_at, completed, position]
       properties:
         id: { type: string }
         title: { type: string, minLength: 1, maxLength: 500 }
         notes: { type: string, maxLength: 2000 }
         start_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
         due_date: { type: string, pattern: "^$|^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+        paper_id: { type: [string, "null"], format: uuid }
         completed_at: { type: string }
         completed: { type: boolean }
         position: { type: integer, minimum: 0 }

@@ -11,13 +11,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   AI_CONTEXT_CAP,
+  createQuickTask,
   createResearchPaper,
   createResearchTag,
   deleteResearchPaper,
   fetchResearchCitation,
   listPreferences,
+  listQuickTasks,
   listResearchPapers,
   listResearchTags,
+  listTaskThreads,
   moveResearchPaper,
   putPreference,
   reorderResearchPapers,
@@ -26,10 +29,12 @@ import {
 import type {
   AIProfile,
   ListResponse,
+  QuickTask,
   ResearchKind,
   ResearchPaper,
   ResearchPaperPatch,
   ResearchTag,
+  TaskThread,
 } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
@@ -44,7 +49,8 @@ import { PublishedPage } from "./PublishedPage"
 import { ResearchPage } from "./ResearchPage"
 import { SubmittedPage } from "./SubmittedPage"
 import { TaskManagement } from "./TaskManagement"
-import { deadlineDays, parseDeadline } from "./utils"
+import { QUICK_TASK_QUERY_KEY, TASK_QUERY_KEY } from "./taskQueryKeys"
+import { deadlineDays, formatDeadline, parseDeadline } from "./utils"
 
 const TABS: Array<{ id: WorkbenchTab; labelKey: string; Icon: typeof Books }> = [
   { id: "dashboard", labelKey: "researchOverview", Icon: ChartPieSlice },
@@ -116,6 +122,7 @@ export function Workbench(props: WorkbenchProps) {
   // 这是"用户上次在看哪一块"，重开应用该回到同一块，而不是每次都回科研。
   const workbenchModule = useReaderStore((state) => state.workbenchModule)
   const setWorkbenchModule = useReaderStore((state) => state.setWorkbenchModule)
+  const setTaskView = useReaderStore((state) => state.setTaskView)
   const [focusPaperID, setFocusPaperID] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null)
   const [batchPending, setBatchPending] = useState(false)
@@ -241,6 +248,34 @@ export function Workbench(props: WorkbenchProps) {
   })
   const tagItems = tagsQuery.data?.tags
   const tags = useMemo(() => tagItems ?? [], [tagItems])
+
+  // The calendar and the next-action button read the same task cache as the
+  // task module, so opening either surface later does not fetch a second copy.
+  const quickTasksQuery = useQuery({
+    queryKey: QUICK_TASK_QUERY_KEY,
+    queryFn: ({ signal }: { signal: AbortSignal }) => listQuickTasks(signal),
+  })
+  const taskThreadsQuery = useQuery({
+    queryKey: TASK_QUERY_KEY,
+    queryFn: ({ signal }: { signal: AbortSignal }) => listTaskThreads(signal),
+  })
+  const quickTasks = useMemo<QuickTask[]>(
+    () => quickTasksQuery.data?.items ?? [],
+    [quickTasksQuery.data?.items],
+  )
+  const taskThreads = useMemo<TaskThread[]>(
+    () => taskThreadsQuery.data?.items ?? [],
+    [taskThreadsQuery.data?.items],
+  )
+  // Only quick tasks created from a next action drive the "已加入任务" state;
+  // a long-task link is a different relationship and must not block this button.
+  const linkedPaperIDs = useMemo(() => {
+    const ids = new Set<string>()
+    for (const task of quickTasks) {
+      if (task.paper_id) ids.add(task.paper_id)
+    }
+    return ids
+  }, [quickTasks])
 
   const invalidate = (kind: ResearchKind) =>
     queryClient.invalidateQueries({ queryKey: ["research", kind] })
@@ -390,6 +425,26 @@ export function Workbench(props: WorkbenchProps) {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["research-tags"] }),
     onError: () => toast(t("tagCreateFailed")),
   })
+  const addNextActionTaskMutation = useMutation({
+    mutationFn: (paper: ResearchPaper) => {
+      const today = formatDeadline(new Date())
+      const due = parseDeadline(paper.deadline) ? paper.deadline.trim() : ""
+      // A deadline already in the past cannot be the end of a window that
+      // starts today; keep it as a one-day overdue marker instead.
+      const start = due && due < today ? "" : today
+      return createQuickTask({
+        title: paper.next_action.trim(),
+        paper_id: paper.id,
+        start_date: start,
+        due_date: due,
+      })
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUICK_TASK_QUERY_KEY })
+      toast(t("nextActionTaskAdded"))
+    },
+    onError: () => toast(t("nextActionTaskFailed")),
+  })
 
   const requestConfirm = (message: string, action: () => void) => setConfirm({ message, action })
 
@@ -423,6 +478,20 @@ export function Workbench(props: WorkbenchProps) {
     if (!requireOnline()) return
     citationMutation.mutate(id)
   }
+  const addNextActionTask = (paper: ResearchPaper) => {
+    if (!requireOnline() || !paper.next_action.trim()) return
+    addNextActionTaskMutation.mutate(paper)
+  }
+  const addingTaskPaperID = addNextActionTaskMutation.isPending
+    ? (addNextActionTaskMutation.variables?.id ?? null)
+    : null
+  const openTaskFromCalendar = useCallback(
+    (kind: "quick" | "assignment") => {
+      setWorkbenchModule("tasks")
+      setTaskView(kind === "quick" ? "quick" : "long")
+    },
+    [setTaskView, setWorkbenchModule],
+  )
   const creating = createMutation.isPending
   const fetchAllCitations = async () => {
     if (!requireOnline()) return
@@ -623,6 +692,9 @@ export function Workbench(props: WorkbenchProps) {
                   onReorder={(ids) => reorder("research", ids)}
                   onMove={(id) => move(id, "submitted")}
                   onCreateTag={createTag}
+                  linkedPaperIDs={linkedPaperIDs}
+                  addingTaskPaperID={addingTaskPaperID}
+                  onAddNextActionTask={addNextActionTask}
                 />
               )}
               {tab === "submitted" && (
@@ -638,6 +710,9 @@ export function Workbench(props: WorkbenchProps) {
                   onReorder={(ids) => reorder("submitted", ids)}
                   onMove={(id) => move(id, "published")}
                   onMoveBack={(id) => move(id, "research")}
+                  linkedPaperIDs={linkedPaperIDs}
+                  addingTaskPaperID={addingTaskPaperID}
+                  onAddNextActionTask={addNextActionTask}
                 />
               )}
               {tab === "published" && (
@@ -670,6 +745,9 @@ export function Workbench(props: WorkbenchProps) {
                   // 点一格气泡回到它自己那张表：在研的截止日期落在在研页，在投的落在
                   // 在投页——和摘要里那条跳转同一套逻辑（含"在投才设焦点行"）。
                   onSelectPaper={openPaperFromDigest}
+                  quickTasks={quickTasks}
+                  taskThreads={taskThreads}
+                  onSelectTask={openTaskFromCalendar}
                 />
               )}
             </>

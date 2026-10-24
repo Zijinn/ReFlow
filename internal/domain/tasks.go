@@ -127,14 +127,15 @@ type TaskThreadPatch struct {
 // QuickTask is one 即时任务: a flat, unlayered task with its own date window.
 // It intentionally does not participate in the layer unlock chain.
 type QuickTask struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Notes       string `json:"notes"`
-	StartDate   string `json:"start_date"`
-	DueDate     string `json:"due_date"`
-	CompletedAt string `json:"completed_at"`
-	Completed   bool   `json:"completed"`
-	Position    int    `json:"position"`
+	ID          string  `json:"id"`
+	Title       string  `json:"title"`
+	Notes       string  `json:"notes"`
+	StartDate   string  `json:"start_date"`
+	DueDate     string  `json:"due_date"`
+	PaperID     *string `json:"paper_id"`
+	CompletedAt string  `json:"completed_at"`
+	Completed   bool    `json:"completed"`
+	Position    int     `json:"position"`
 }
 
 // QuickTaskPatch carries optional quick-task updates; nil fields are untouched.

@@ -24,7 +24,7 @@ describe("accentTheme", () => {
     useReaderStore.getState().setAccentTheme("wine")
     const partialize = useReaderStore.persist.getOptions().partialize
     expect(partialize).toBeTypeOf("function")
-    const persisted = partialize?.(useReaderStore.getState()) as Record<string, unknown>
+    const persisted = partialize?.(useReaderStore.getState()) as unknown as Record<string, unknown>
     expect(persisted).toHaveProperty("accentTheme", "wine")
     useReaderStore.getState().setAccentTheme("academic-blue")
   })
@@ -48,7 +48,7 @@ describe("canvas preferences", () => {
     useReaderStore.getState().setCanvasPhotoVeil(canvasPhotoVeilMax)
     const partialize = useReaderStore.persist.getOptions().partialize
     expect(partialize).toBeTypeOf("function")
-    const persisted = partialize?.(useReaderStore.getState()) as Record<string, unknown>
+    const persisted = partialize?.(useReaderStore.getState()) as unknown as Record<string, unknown>
     expect(persisted).toMatchObject({
       canvasTheme: "orchid",
       canvasPhoto: "data:image/jpeg;base64,AAAA",
@@ -97,7 +97,7 @@ describe("workbench column widths", () => {
   it("is included in the persisted partialize output", () => {
     useReaderStore.getState().setWorkbenchColumnWidth("published", "doi", 260)
     const partialize = useReaderStore.persist.getOptions().partialize
-    const persisted = partialize?.(useReaderStore.getState()) as Record<string, unknown>
+    const persisted = partialize?.(useReaderStore.getState()) as unknown as Record<string, unknown>
     expect(persisted).toMatchObject({ workbenchColumnWidths: { published: { doi: 260 } } })
     useReaderStore.setState({ workbenchColumnWidths: restore })
   })

@@ -21,6 +21,7 @@ vi.mock("../../api/client", async (importOriginal) => {
   return {
     ...actual,
     cancelJob: vi.fn(),
+    createQuickTask: vi.fn(),
     createResearchPaper: vi.fn(),
     createResearchTag: vi.fn(),
     deleteResearchPaper: vi.fn(),
@@ -30,8 +31,10 @@ vi.mock("../../api/client", async (importOriginal) => {
     getJob: vi.fn(),
     listAIResults: vi.fn(),
     listPreferences: vi.fn(() => Promise.resolve({ items: {} })),
+    listQuickTasks: vi.fn(),
     listResearchPapers: vi.fn(),
     listResearchTags: vi.fn(),
+    listTaskThreads: vi.fn(),
     moveResearchPaper: vi.fn(),
     putPreference: vi.fn(),
     reorderResearchPapers: vi.fn(),
@@ -202,6 +205,8 @@ beforeEach(() => {
   )
   vi.mocked(api.putPreference).mockResolvedValue({})
   vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
+  vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [] })
+  vi.mocked(api.listTaskThreads).mockResolvedValue({ items: [] })
   vi.mocked(api.createResearchTag).mockImplementation((name) =>
     Promise.resolve({ id: `tag-${name}`, name, position: 0, color: "", color_enabled: true }),
   )
@@ -519,6 +524,46 @@ describe("Workbench navigation", () => {
     expect(screen.queryByRole("button", { name: "Collapse details" })).not.toBeInTheDocument()
     const row = document.querySelector('tr[data-paper-id="r-deadline"]')
     expect(row?.querySelector(".wb-code")?.textContent).toBe("R001")
+  })
+})
+
+describe("Next action → tasks", () => {
+  it("creates a paper-linked quick task with the next action and deadline", async () => {
+    const due = new Date()
+    due.setDate(due.getDate() + 5)
+    const dueISO = formatDeadline(due)
+    papersByKind.research = [
+      paper({
+        id: "r-next",
+        title: "Next paper",
+        next_action: "Run robustness checks",
+        deadline: dueISO,
+      }),
+    ]
+    vi.mocked(api.createQuickTask).mockResolvedValue({
+      id: "q-next",
+      title: "Run robustness checks",
+      notes: "",
+      start_date: formatDeadline(new Date()),
+      due_date: dueISO,
+      paper_id: "r-next",
+      completed_at: "",
+      completed: false,
+      position: 0,
+    })
+
+    renderWorkbench()
+    goToTab(/Working papers/)
+    fireEvent.click(await screen.findByRole("button", { name: "Add to tasks" }))
+    const today = formatDeadline(new Date())
+    await waitFor(() =>
+      expect(api.createQuickTask).toHaveBeenCalledWith({
+        title: "Run robustness checks",
+        paper_id: "r-next",
+        start_date: today,
+        due_date: dueISO,
+      }),
+    )
   })
 })
 

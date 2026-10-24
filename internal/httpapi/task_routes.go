@@ -390,17 +390,18 @@ func (s *Server) listQuickTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createQuickTask(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Title     string `json:"title"`
-		Notes     string `json:"notes"`
-		StartDate string `json:"start_date"`
-		DueDate   string `json:"due_date"`
+		Title     string  `json:"title"`
+		Notes     string  `json:"notes"`
+		StartDate string  `json:"start_date"`
+		DueDate   string  `json:"due_date"`
+		PaperID   *string `json:"paper_id"`
 	}
 	if err := decodeTaskJSON(w, r, &request); err != nil {
 		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
 		return
 	}
 	task, err := storage.CreateQuickTask(r.Context(), s.db, domain.DefaultProfileID,
-		request.Title, request.Notes, request.StartDate, request.DueDate)
+		request.Title, request.Notes, request.StartDate, request.DueDate, request.PaperID)
 	if err != nil {
 		s.storageError(w, r, err)
 		return

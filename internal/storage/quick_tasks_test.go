@@ -12,7 +12,7 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 	db := newTaskTestDB(t)
 
 	first, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
-		"整理报销单", "", "2026-10-20", "2026-10-24")
+		"整理报销单", "", "2026-10-20", "2026-10-24", nil)
 	if err != nil {
 		t.Fatalf("create quick task: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 		t.Fatalf("unexpected new quick task: %+v", first)
 	}
 
-	second, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "预约体检", "", "", "")
+	second, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "预约体检", "", "", "", nil)
 	if err != nil {
 		t.Fatalf("create second quick task: %v", err)
 	}
@@ -29,10 +29,10 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 	}
 
 	// A due date without a start date is legal; a window running backwards is not.
-	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "倒序", "", "2026-10-24", "2026-10-20"); err == nil {
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "倒序", "", "2026-10-24", "2026-10-20", nil); err == nil {
 		t.Fatal("due_date before start_date must be rejected")
 	}
-	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "坏日期", "", "2026-02-30", ""); err == nil {
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "坏日期", "", "2026-02-30", "", nil); err == nil {
 		t.Fatal("impossible calendar dates must be rejected")
 	}
 
@@ -78,6 +78,47 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 	}
 	if _, err := GetQuickTask(ctx, db, domain.DefaultProfileID, second.ID); err == nil {
 		t.Fatal("deleted quick task must disappear")
+	}
+}
+
+func TestQuickTaskPaperLink(t *testing.T) {
+	ctx := context.Background()
+	db := newTaskTestDB(t)
+	if _, err := db.ExecContext(ctx,
+		`INSERT INTO research_papers (id, profile_id, kind) VALUES (?, ?, 'research')`,
+		"paper-1", domain.DefaultProfileID); err != nil {
+		t.Fatalf("insert research paper: %v", err)
+	}
+	paperID := "paper-1"
+	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
+		"补齐稳健性检验", "", "", "", &paperID)
+	if err != nil {
+		t.Fatalf("create linked quick task: %v", err)
+	}
+	if task.PaperID == nil || *task.PaperID != paperID {
+		t.Fatalf("quick task paper link did not round-trip: %+v", task)
+	}
+	loaded, err := GetQuickTask(ctx, db, domain.DefaultProfileID, task.ID)
+	if err != nil {
+		t.Fatalf("reload linked quick task: %v", err)
+	}
+	if loaded.PaperID == nil || *loaded.PaperID != paperID {
+		t.Fatalf("reloaded quick task lost its paper link: %+v", loaded)
+	}
+
+	missing := "paper-missing"
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
+		"坏关联", "", "", "", &missing); err == nil {
+		t.Fatal("a quick task must not link to a paper outside the profile")
+	}
+
+	unlinked, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
+		"独立任务", "", "", "", nil)
+	if err != nil {
+		t.Fatalf("create unlinked quick task: %v", err)
+	}
+	if unlinked.PaperID != nil {
+		t.Fatalf("a manual quick task must stay unlinked: %+v", unlinked)
 	}
 }
 

@@ -125,6 +125,36 @@ interface ReaderStore {
   clearWorkbenchColumnWidth: (table: string, column: string) => void
 }
 
+const persistedReaderState = (state: ReaderStore) => ({
+  viewMode: state.viewMode,
+  shortcuts: state.shortcuts,
+  locale: state.locale,
+  theme: state.theme,
+  accentTheme: state.accentTheme,
+  canvasTheme: state.canvasTheme,
+  canvasPhoto: state.canvasPhoto,
+  canvasPhotoVeil: state.canvasPhotoVeil,
+  paneLayout: state.paneLayout,
+  aiPanelWidth: state.aiPanelWidth,
+  openFolders: state.openFolders,
+  readerAppearance: state.readerAppearance,
+  annotations: state.annotations,
+  alwaysTranslateTitles: state.alwaysTranslateTitles,
+  alwaysTranslateContent: state.alwaysTranslateContent,
+  autoAcademicTags: state.autoAcademicTags,
+  autoAcademicTagFolderIDs: state.autoAcademicTagFolderIDs,
+  autoAcademicTagFeedIDs: state.autoAcademicTagFeedIDs,
+  appView: state.appView,
+  workbenchModule: state.workbenchModule,
+  workbenchTab: state.workbenchTab,
+  taskView: state.taskView,
+  expandedWorkbenchModules: state.expandedWorkbenchModules,
+  sidebarDensity: state.sidebarDensity,
+  workbenchColumnWidths: state.workbenchColumnWidths,
+})
+
+type PersistedReaderState = ReturnType<typeof persistedReaderState>
+
 export const useReaderStore = create<ReaderStore>()(
   persist(
     (set) => ({
@@ -159,8 +189,8 @@ export const useReaderStore = create<ReaderStore>()(
       taskView: "quick",
       // 两个模块的二级菜单各管各的：默认展开当前模块，另一个可随时点开。
       expandedWorkbenchModules: { tasks: false, research: true },
-      // 订阅列表默认走紧凑档；觉得挤可在订阅栏一键切回舒适档。
-      sidebarDensity: "compact",
+      // 订阅列表默认走宽松档；需要更密时可在订阅栏一键切回紧凑档。
+      sidebarDensity: "comfortable",
       // 只存用户拖过的列：没落键的列在 CSS 里退回 width: var(--wb-col-w, 默认)，
       // 默认宽度因此仍归样式表管，加一档列不用动这里。
       workbenchColumnWidths: {},
@@ -252,33 +282,15 @@ export const useReaderStore = create<ReaderStore>()(
     }),
     {
       name: "reflow-reader-preferences",
-      partialize: (state) => ({
-        viewMode: state.viewMode,
-        shortcuts: state.shortcuts,
-        locale: state.locale,
-        theme: state.theme,
-        accentTheme: state.accentTheme,
-        canvasTheme: state.canvasTheme,
-        canvasPhoto: state.canvasPhoto,
-        canvasPhotoVeil: state.canvasPhotoVeil,
-        paneLayout: state.paneLayout,
-        aiPanelWidth: state.aiPanelWidth,
-        openFolders: state.openFolders,
-        readerAppearance: state.readerAppearance,
-        annotations: state.annotations,
-        alwaysTranslateTitles: state.alwaysTranslateTitles,
-        alwaysTranslateContent: state.alwaysTranslateContent,
-        autoAcademicTags: state.autoAcademicTags,
-        autoAcademicTagFolderIDs: state.autoAcademicTagFolderIDs,
-        autoAcademicTagFeedIDs: state.autoAcademicTagFeedIDs,
-        appView: state.appView,
-        workbenchModule: state.workbenchModule,
-        workbenchTab: state.workbenchTab,
-        taskView: state.taskView,
-        expandedWorkbenchModules: state.expandedWorkbenchModules,
-        sidebarDensity: state.sidebarDensity,
-        workbenchColumnWidths: state.workbenchColumnWidths,
-      }),
+      version: 1,
+      // 旧版本默认紧凑，升级后第一次打开订阅列表时把它放宽一次；之后用户
+      // 自己选的档位照常保留。
+      migrate: (persisted, version) => {
+        const state = persisted as PersistedReaderState
+        if (version < 1) return { ...state, sidebarDensity: "comfortable" as const }
+        return state
+      },
+      partialize: persistedReaderState,
     },
   ),
 )

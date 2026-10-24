@@ -402,7 +402,7 @@ func TestLibrarySnapshotRoundTripsQuickTasks(t *testing.T) {
 	}
 	defer db.Close()
 
-	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "扬州报销整理", "", "2026-10-12", "2026-10-14")
+	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "扬州报销整理", "", "2026-10-12", "2026-10-14", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -441,7 +441,7 @@ func TestLibrarySnapshotIsEmptyCountsQuickTasks(t *testing.T) {
 	if !LibrarySnapshotIsEmpty(document) {
 		t.Fatal("empty database snapshot should be considered empty")
 	}
-	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "只有即时任务", "", "", ""); err != nil {
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "只有即时任务", "", "", "", nil); err != nil {
 		t.Fatal(err)
 	}
 	document, err = ExportLibrarySnapshot(ctx, db)

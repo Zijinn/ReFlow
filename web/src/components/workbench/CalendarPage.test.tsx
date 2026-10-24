@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { ResearchPaper } from "../../api/types"
+import type { QuickTask, ResearchPaper, TaskThread } from "../../api/types"
 import { useReaderStore } from "../../store/reader"
 import { CalendarPage } from "./CalendarPage"
 import { formatDeadline } from "./utils"
@@ -65,7 +65,127 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
   }
 }
 
+function quickTask(overrides: Partial<QuickTask> = {}): QuickTask {
+  return {
+    id: "q-1",
+    title: "Quick task",
+    notes: "",
+    start_date: "",
+    due_date: "",
+    paper_id: null,
+    completed_at: "",
+    completed: false,
+    position: 0,
+    ...overrides,
+  }
+}
+
+function taskThread(
+  start: string,
+  due: string,
+  overrides: { id?: string; title?: string; closed?: boolean } = {},
+): TaskThread {
+  const suffix = overrides.id ?? "open"
+  return {
+    id: `thread-${suffix}`,
+    name: "Thread",
+    position: 0,
+    archived: false,
+    map_markdown: "",
+    layers: [
+      {
+        id: "layer-1",
+        name: "Layer one",
+        position: 0,
+        unlocked: true,
+        forced_unlock: false,
+        item_count: 1,
+        closed_count: 0,
+      },
+    ],
+    items: [
+      {
+        id: `item-${suffix}`,
+        title: overrides.title ?? "Long task",
+        notes: "",
+        position: 0,
+        paper_id: null,
+        closed_at: "",
+        closed: false,
+        layer_count: 1,
+        progress: 0,
+        status: "active",
+        stats: { total_steps: 0, done_steps: 0 },
+        assignments: [
+          {
+            id: `assignment-${suffix}`,
+            layer_id: "layer-1",
+            layer_position: 0,
+            position: 0,
+            start_date: start,
+            due_date: due,
+            closed: overrides.closed ?? false,
+            closed_at: "",
+            steps: [],
+          },
+        ],
+      },
+    ],
+    stats: { active: 1, locked: 0, unstarted: 0, overdue: 0, closed: 0, total: 1, slots: 1, slots_closed: 0 },
+  }
+}
+
 describe("CalendarPage", () => {
+  it("draws open task ranges, hides completed tasks, and keeps undated tasks below", () => {
+    const onSelectTask = vi.fn()
+    render(
+      <CalendarPage
+        papers={[]}
+        onSelectPaper={vi.fn()}
+        quickTasks={[
+          quickTask({
+            id: "q-open",
+            title: "Open range",
+            start_date: dayOffset(1),
+            due_date: dayOffset(3),
+          }),
+          quickTask({
+            id: "q-done",
+            title: "Done range",
+            start_date: dayOffset(1),
+            due_date: dayOffset(3),
+            completed: true,
+          }),
+          quickTask({ id: "q-loose", title: "Unscheduled quick" }),
+        ]}
+        taskThreads={[
+          taskThread(dayOffset(-1), dayOffset(2), { id: "open", title: "Long range" }),
+          taskThread(dayOffset(1), dayOffset(2), {
+            id: "closed",
+            title: "Closed range",
+            closed: true,
+          }),
+          taskThread("", "", { id: "loose", title: "Unscheduled long" }),
+        ]}
+        onSelectTask={onSelectTask}
+      />,
+    )
+
+    // One quick bar plus two week segments for the long range.
+    expect(document.querySelectorAll(".wb-cal-task-bar")).toHaveLength(3)
+    expect(document.querySelector(".wb-cal-task-bar--continues-left")).not.toBeNull()
+    expect(document.querySelector(".wb-cal-task-bar--continues-right")).not.toBeNull()
+    expect(screen.queryByText("Done range")).not.toBeInTheDocument()
+    expect(screen.queryByText("Closed range")).not.toBeInTheDocument()
+
+    const unscheduled = screen.getByRole("region", { name: "Unscheduled tasks" })
+    expect(within(unscheduled).getByText("Unscheduled quick")).toBeInTheDocument()
+    expect(within(unscheduled).getByText("Unscheduled long")).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole("button", { name: "Open range" }))
+    expect(onSelectTask).toHaveBeenCalledWith("quick", "q-open")
+  })
+
   it("places each submitted deadline on its day with an urgency tint", () => {
     render(
       <CalendarPage

@@ -1069,6 +1069,7 @@ export function createQuickTask(input: {
   notes?: string
   start_date?: string
   due_date?: string
+  paper_id?: string | null
 }): Promise<QuickTask> {
   return request<QuickTask>("/api/v1/tasks/quick", {
     method: "POST",

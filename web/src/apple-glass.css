@@ -664,19 +664,59 @@ body,
 }
 .subscription-section[data-density="comfortable"] .folder-tree-row,
 .subscription-section[data-density="comfortable"] .feed-tree-row {
-  min-height: 36px;
+  min-height: 40px;
 }
 .subscription-section[data-density="comfortable"] .folder-tree-row .folder-row,
 .subscription-section[data-density="comfortable"] .feed-row--nested {
-  height: 36px;
-  min-height: 36px;
+  height: 40px;
+  min-height: 40px;
 }
 .subscription-section[data-density="comfortable"] .folder-row__toggle {
-  height: 36px;
+  height: 40px;
 }
 
 /* The mind-map root keeps its accent outline but not an accent wash. */
 :root[data-theme="light"] .wb-tm-mind-root {
   background: var(--surface-raised);
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+
+/* Next-action → quick task: a compact chip on the paper title line, visible
+   even when the responsive table drops the next-action column. */
+.wb-cell-title--task {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.wb-cell-title--task > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.wb-next-action-task {
+  display: inline-flex;
+  height: 22px;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent-strong);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wb-next-action-task:hover:not(:disabled) {
+  background: var(--fill-hover);
+  color: var(--accent-strong);
+}
+.wb-next-action-task:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.wb-next-action-task--linked:disabled {
+  color: var(--wb-hue-green-ink);
+  opacity: 1;
 }
