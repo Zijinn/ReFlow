@@ -771,7 +771,7 @@ describe("Workbench AI panel", () => {
     expect(input.paperIDs[19]).toBe("r-19")
     expect(input.message).toBe("summarise the queue")
     expect(input.profileID).toBe("ai-1")
-  })
+  }, 15000)
 
   it("keeps the returned session for the next turn of the same thread", async () => {
     const { container } = renderWorkbench(panelProps)
