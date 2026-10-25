@@ -7,10 +7,48 @@ import (
 	"net/netip"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Zijinn/ReFlow/internal/domain"
 	"github.com/Zijinn/ReFlow/internal/storage"
 )
+
+type pairingLimiter struct {
+	mu       sync.Mutex
+	attempts map[string]pairingAttempt
+}
+
+type pairingAttempt struct {
+	count int
+	reset time.Time
+}
+
+func newPairingLimiter() *pairingLimiter {
+	return &pairingLimiter{attempts: make(map[string]pairingAttempt)}
+}
+
+func (l *pairingLimiter) allow(key string) bool {
+	now := time.Now()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	for candidate, attempt := range l.attempts {
+		if now.After(attempt.reset) {
+			delete(l.attempts, candidate)
+		}
+	}
+	attempt, ok := l.attempts[key]
+	if !ok || now.After(attempt.reset) {
+		l.attempts[key] = pairingAttempt{count: 1, reset: now.Add(10 * time.Minute)}
+		return true
+	}
+	if attempt.count >= 10 {
+		return false
+	}
+	attempt.count++
+	l.attempts[key] = attempt
+	return true
+}
 
 type SecurityConfig struct {
 	RequireDeviceAuth bool

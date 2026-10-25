@@ -13,7 +13,7 @@ import {
   type CSSProperties,
 } from "react"
 
-import { CaretRight, CheckCircle, ListPlus } from "@phosphor-icons/react"
+import { CaretRight } from "@phosphor-icons/react"
 
 import type { ResearchPaper, ResearchPaperPatch, ResearchTag } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
@@ -49,6 +49,7 @@ import {
   tagDotClass,
   tagHueVar,
 } from "./utils"
+import { NextActionTaskChip } from "./NextActionTaskChip"
 import { StageTree } from "./StageTree"
 
 // 工具栏排序档：manual 是手工顺序（拖拽把手可见），其余几种都是纯前端视图
@@ -434,7 +435,7 @@ export function ResearchPage(props: {
   onMove: (id: string) => void
   onCreateTag: (name: string) => Promise<ResearchTag | null>
   linkedPaperIDs?: ReadonlySet<string>
-  addingTaskPaperID?: string | null
+  addingTaskPaperIDs?: ReadonlySet<string>
   onAddNextActionTask?: (paper: ResearchPaper) => void
 }) {
   const { t } = useTranslation()
@@ -667,37 +668,13 @@ export function ResearchPage(props: {
                             onCommit={(title) => props.onUpdate(paper.id, { title })}
                           />
                           {props.onAddNextActionTask && paper.next_action.trim() !== "" && (
-                            <button
-                              type="button"
-                              className={`wb-next-action-task${linkedTask ? " wb-next-action-task--linked" : ""}`}
-                              aria-label={
-                                linkedTask ? t("nextActionTaskAdded") : t("nextActionAddTask")
-                              }
-                              title={
-                                linkedTask
-                                  ? t("nextActionTaskAdded")
-                                  : props.offline
-                                    ? t("workbenchOfflineHint")
-                                    : `${t("nextActionAddTask")} · ${paper.next_action}`
-                              }
-                              disabled={
-                                linkedTask ||
-                                props.offline ||
-                                props.addingTaskPaperID === paper.id
-                              }
-                              onClick={() => props.onAddNextActionTask?.(paper)}
-                            >
-                              {linkedTask ? (
-                                <CheckCircle size={13} weight="fill" aria-hidden="true" />
-                              ) : (
-                                <ListPlus size={13} aria-hidden="true" />
-                              )}
-                              <span>
-                                {linkedTask
-                                  ? t("nextActionTaskAddedShort")
-                                  : t("nextActionTaskShort")}
-                              </span>
-                            </button>
+                            <NextActionTaskChip
+                              paper={paper}
+                              linked={linkedTask}
+                              pending={props.addingTaskPaperIDs?.has(paper.id) ?? false}
+                              offline={props.offline}
+                              onAdd={props.onAddNextActionTask}
+                            />
                           )}
                         </div>
                         <ChipEditor

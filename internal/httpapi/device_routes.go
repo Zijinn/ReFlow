@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"net"
 	"net/http"
 	"time"
 
@@ -19,6 +20,18 @@ func (s *Server) createPairingCode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) pairDevice(w http.ResponseWriter, r *http.Request) {
+	if s.pairs != nil {
+		peer := r.RemoteAddr
+		if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+			peer = host
+		}
+		if !s.pairs.allow(peer) {
+			w.Header().Set("Retry-After", "600")
+			writeProblem(w, r, http.StatusTooManyRequests, "pairing_rate_limited", "Too many pairing attempts",
+				"Wait a few minutes before trying another pairing code.")
+			return
+		}
+	}
 	var request struct {
 		Code     string `json:"code"`
 		Name     string `json:"name"`
@@ -39,7 +52,7 @@ func (s *Server) pairDevice(w http.ResponseWriter, r *http.Request) {
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name: "reflow_device", Value: token, Path: "/api", MaxAge: 365 * 24 * 60 * 60,
-		HttpOnly: true, SameSite: http.SameSiteStrictMode,
+		HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil,
 	})
 	writeJSON(w, http.StatusCreated, map[string]any{"device": device, "token": token})
 }

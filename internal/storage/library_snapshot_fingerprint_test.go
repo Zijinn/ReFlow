@@ -2,12 +2,64 @@ package storage
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/Zijinn/ReFlow/internal/domain"
 )
+
+// The incremental hash in LibrarySnapshotFingerprint must stay byte-identical to
+// the whole-document encoding it replaced, or every existing sync cursor would
+// read as "changed" on upgrade.
+func TestSnapshotFingerprintMatchesWholeDocumentEncoding(t *testing.T) {
+	document := BackupDocument{
+		Version: 1, SchemaVersion: 23,
+		Tables: []BackupTable{
+			{
+				Name:    "feeds",
+				Columns: []string{"id", "etag", "title"},
+				Rows: [][]BackupValue{
+					{{Kind: "text", Text: "feed-1"}, {Kind: "text", Text: "volatile"}, {Kind: "text", Text: "Example"}},
+					{{Kind: "text", Text: "feed-2"}, {Kind: "null"}, {Kind: "text", Text: "Second"}},
+				},
+			},
+			{
+				Name:    "entries",
+				Columns: []string{"id", "title"},
+				Rows:    [][]BackupValue{{{Kind: "text", Text: "entry-1"}, {Kind: "text", Text: "Title"}}},
+			},
+		},
+	}
+	tables := make([]BackupTable, len(document.Tables))
+	copy(tables, document.Tables)
+	for index, table := range tables {
+		if table.Name == "feeds" {
+			tables[index] = *sanitizeFeedsForFingerprint(table)
+		}
+	}
+	body, err := json.Marshal(struct {
+		Version       int           `json:"version"`
+		SchemaVersion int           `json:"schema_version"`
+		Tables        []BackupTable `json:"tables"`
+	}{Version: document.Version, SchemaVersion: document.SchemaVersion, Tables: tables})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256(body)
+	want := hex.EncodeToString(sum[:])
+
+	got, err := LibrarySnapshotFingerprint(document)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("incremental fingerprint drifted from whole-document encoding\n got: %s\nwant: %s", got, want)
+	}
+}
 
 // A routine feed poll must not change the library snapshot fingerprint. When
 // it did, every refresh cycle marked the library "locally changed", and two

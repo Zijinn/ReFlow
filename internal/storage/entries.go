@@ -352,6 +352,9 @@ func PruneProcessedMutations(ctx context.Context, db *sql.DB, olderThan time.Tim
 // the cutoff are deleted, while starred, read-later, and annotated entries are
 // always kept. The FTS index has no foreign keys, so its rows go first.
 func PruneReadEntries(ctx context.Context, db *sql.DB, profileID string, publishedBefore time.Time) (int64, error) {
+	// An entry row is shared by every profile subscribed to its feed. Deleting it
+	// for one profile would cascade into another profile's reading state, so feeds
+	// still subscribed elsewhere are left alone.
 	const selection = `
 		SELECT e.id FROM entries e
 		JOIN subscriptions s ON s.feed_id = e.feed_id AND s.profile_id = ?
@@ -360,16 +363,19 @@ func PruneReadEntries(ctx context.Context, db *sql.DB, profileID string, publish
 			AND COALESCE(es.is_read, 0) = 1
 			AND COALESCE(es.is_starred, 0) = 0
 			AND COALESCE(es.is_read_later, 0) = 0
-			AND NOT EXISTS (SELECT 1 FROM entry_annotations a WHERE a.entry_id = e.id)`
+			AND NOT EXISTS (SELECT 1 FROM entry_annotations a WHERE a.entry_id = e.id)
+			AND NOT EXISTS (SELECT 1 FROM subscriptions other
+				WHERE other.feed_id = e.feed_id AND other.profile_id <> ?)`
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, fmt.Errorf("begin retention prune: %w", err)
 	}
 	defer tx.Rollback()
-	if _, err := tx.ExecContext(ctx, "DELETE FROM entries_fts WHERE entry_id IN ("+selection+")", profileID, formatTime(publishedBefore)); err != nil {
+	cutoff := formatTime(publishedBefore)
+	if _, err := tx.ExecContext(ctx, "DELETE FROM entries_fts WHERE entry_id IN ("+selection+")", profileID, cutoff, profileID); err != nil {
 		return 0, fmt.Errorf("prune search index: %w", err)
 	}
-	result, err := tx.ExecContext(ctx, "DELETE FROM entries WHERE id IN ("+selection+")", profileID, formatTime(publishedBefore))
+	result, err := tx.ExecContext(ctx, "DELETE FROM entries WHERE id IN ("+selection+")", profileID, cutoff, profileID)
 	if err != nil {
 		return 0, fmt.Errorf("prune read entries: %w", err)
 	}

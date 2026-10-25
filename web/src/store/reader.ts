@@ -20,6 +20,10 @@ export type WorkbenchModule = "tasks" | "research"
 export type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
 export type TaskView = "quick" | "long" | "timeline" | "mindmap"
 export type SidebarDensity = "compact" | "comfortable"
+export interface TaskFocus {
+  kind: "quick" | "assignment"
+  id: string
+}
 
 export const defaultShortcuts: Record<ShortcutAction, string> = {
   palette: "mod+k",
@@ -86,6 +90,7 @@ interface ReaderStore {
   workbenchModule: WorkbenchModule
   workbenchTab: WorkbenchTab
   taskView: TaskView
+  taskFocus: TaskFocus | null
   expandedWorkbenchModules: Record<WorkbenchModule, boolean>
   sidebarDensity: SidebarDensity
   workbenchColumnWidths: WorkbenchColumnWidths
@@ -93,6 +98,8 @@ interface ReaderStore {
   setWorkbenchModule: (workbenchModule: WorkbenchModule) => void
   setWorkbenchTab: (workbenchTab: WorkbenchTab) => void
   setTaskView: (taskView: TaskView) => void
+  setTaskFocus: (focus: TaskFocus | null) => void
+  clearTaskFocus: () => void
   toggleWorkbenchModuleExpanded: (workbenchModule: WorkbenchModule) => void
   setSidebarDensity: (sidebarDensity: SidebarDensity) => void
   setScope: (scope: LibraryScope) => void
@@ -187,6 +194,7 @@ export const useReaderStore = create<ReaderStore>()(
       workbenchModule: "research",
       workbenchTab: "dashboard",
       taskView: "quick",
+      taskFocus: null,
       // 两个模块的二级菜单各管各的：默认展开当前模块，另一个可随时点开。
       expandedWorkbenchModules: { tasks: false, research: true },
       // 订阅列表默认走宽松档；需要更密时可在订阅栏一键切回紧凑档。
@@ -205,6 +213,8 @@ export const useReaderStore = create<ReaderStore>()(
         })),
       setWorkbenchTab: (workbenchTab) => set({ workbenchTab }),
       setTaskView: (taskView) => set({ taskView }),
+      setTaskFocus: (taskFocus) => set({ taskFocus }),
+      clearTaskFocus: () => set({ taskFocus: null }),
       toggleWorkbenchModuleExpanded: (workbenchModule) =>
         set((state) => ({
           expandedWorkbenchModules: {

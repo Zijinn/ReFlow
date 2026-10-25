@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -46,6 +47,19 @@ var backupTables = []string{
 	"task_threads", "task_layers", "task_items", "task_assignments", "task_steps", "quick_tasks",
 }
 
+// Device tokens, runtime jobs and sync credentials are not library content.
+// Exporting them would put bearer-token hashes and encrypted provider secrets
+// inside a portable document; restoring them would let a crafted backup mint a
+// device or schedule work. They stay local and must be re-created by pairing /
+// re-authentication after a restore.
+var restoreSkippedTables = map[string]struct{}{
+	"devices":       {},
+	"jobs":          {},
+	"job_attempts":  {},
+	"sync_accounts": {},
+	"sync_mappings": {},
+}
+
 func ExportBackup(ctx context.Context, db *sql.DB) (BackupDocument, error) {
 	// A single read transaction gives every table the same snapshot; without
 	// it, concurrent feed/job writes could leak dangling references into the
@@ -63,6 +77,9 @@ func ExportBackup(ctx context.Context, db *sql.DB) (BackupDocument, error) {
 		return BackupDocument{}, fmt.Errorf("read schema version: %w", err)
 	}
 	for _, tableName := range backupTables {
+		if _, skip := restoreSkippedTables[tableName]; skip {
+			continue
+		}
 		exists, err := tableExists(ctx, tx, tableName)
 		if err != nil {
 			return BackupDocument{}, err
@@ -82,6 +99,25 @@ func ExportBackup(ctx context.Context, db *sql.DB) (BackupDocument, error) {
 	return document, nil
 }
 
+// reenableRestoreForeignKeys closes the connection instead of returning it to
+// the pool when the pragma cannot be verified. PRAGMA foreign_keys is
+// per-connection; silently pooling a connection with FK enforcement off would
+// let later writes orphan task steps and quick-task paper links.
+func reenableRestoreForeignKeys(connection *sql.Conn) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	enabled := false
+	if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = ON"); err == nil {
+		var value int
+		if err := connection.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&value); err == nil {
+			enabled = value == 1
+		}
+	}
+	if !enabled {
+		_ = connection.Raw(func(any) error { return driver.ErrBadConn })
+	}
+}
+
 func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) error {
 	if document.Format != BackupFormat || document.Version != 1 {
 		return errors.New("unsupported ReFlow backup format")
@@ -95,7 +131,7 @@ func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) err
 	if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		return fmt.Errorf("disable foreign keys for restore: %w", err)
 	}
-	defer connection.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+	defer reenableRestoreForeignKeys(connection)
 	tx, err := connection.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin backup restore: %w", err)
@@ -107,6 +143,9 @@ func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) err
 	}
 	for index := len(backupTables) - 1; index >= 0; index-- {
 		name := backupTables[index]
+		if _, skip := restoreSkippedTables[name]; skip {
+			continue
+		}
 		exists, existsErr := tableExists(ctx, tx, name)
 		if existsErr != nil {
 			return existsErr
@@ -118,6 +157,9 @@ func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) err
 		}
 	}
 	for _, table := range document.Tables {
+		if _, skip := restoreSkippedTables[table.Name]; skip {
+			continue
+		}
 		if len(table.Rows) == 0 {
 			continue
 		}
@@ -140,6 +182,22 @@ func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) err
 			if _, err := tx.ExecContext(ctx, statement, values...); err != nil {
 				return fmt.Errorf("restore table %s: %w", table.Name, err)
 			}
+		}
+	}
+	// The backup no longer carries runtime/security tables. Drop stale work
+	// and references that would otherwise point at devices or jobs which were
+	// deliberately not restored.
+	for _, statement := range []string{
+		"DELETE FROM job_attempts",
+		"DELETE FROM jobs",
+		"DELETE FROM sync_mappings",
+		"UPDATE entry_states SET updated_by_device_id = NULL WHERE updated_by_device_id IS NOT NULL",
+		"UPDATE processed_mutations SET device_id = NULL WHERE device_id IS NOT NULL",
+		"UPDATE ai_chat_messages SET job_id = NULL WHERE job_id IS NOT NULL",
+		"UPDATE ai_usage SET job_id = NULL WHERE job_id IS NOT NULL",
+	} {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("clean restored references: %w", err)
 		}
 	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM entries_fts"); err != nil {
@@ -183,6 +241,7 @@ func validateBackupForRestore(ctx context.Context, tx *sql.Tx, document BackupDo
 
 	allowed := make(map[string]struct{}, len(backupTables))
 	required := make(map[string][]string, len(backupTables))
+	available := make(map[string][]string, len(backupTables))
 	for _, name := range backupTables {
 		allowed[name] = struct{}{}
 		exists, err := tableExists(ctx, tx, name)
@@ -196,7 +255,10 @@ func validateBackupForRestore(ctx context.Context, tx *sql.Tx, document BackupDo
 		if err != nil {
 			return err
 		}
-		required[name] = columns
+		available[name] = columns
+		if _, skip := restoreSkippedTables[name]; !skip {
+			required[name] = columns
+		}
 	}
 
 	seen := make(map[string]struct{}, len(document.Tables))
@@ -205,7 +267,7 @@ func validateBackupForRestore(ctx context.Context, tx *sql.Tx, document BackupDo
 		if _, ok := allowed[table.Name]; !ok {
 			return fmt.Errorf("backup contains unsupported table %q", table.Name)
 		}
-		currentColumns, exists := required[table.Name]
+		currentColumns, exists := available[table.Name]
 		if !exists {
 			return fmt.Errorf("backup contains table %q which does not exist in the current schema", table.Name)
 		}
@@ -226,6 +288,9 @@ func validateBackupForRestore(ctx context.Context, tx *sql.Tx, document BackupDo
 		}
 	}
 	for _, name := range backupTables {
+		if _, skip := restoreSkippedTables[name]; skip {
+			continue
+		}
 		if _, exists := required[name]; !exists {
 			continue
 		}

@@ -84,7 +84,12 @@ import { useTranslation } from "../lib/i18n"
 import { useOnlineState } from "../lib/online"
 import { keyboardChord } from "../lib/shortcuts"
 import { applyTheme } from "../lib/theme"
-import { enqueueStateMutation, flushMutationOutbox, queueStateMutation } from "../offline/database"
+import {
+  clearOfflineStorage,
+  enqueueStateMutation,
+  flushMutationOutbox,
+  queueStateMutation,
+} from "../offline/database"
 import { useReaderStore, type PaneLayout } from "../store/reader"
 import { toast } from "../store/toast"
 import { Sidebar } from "./Sidebar"
@@ -768,7 +773,8 @@ export function AppShell() {
   const restoreMutation = useMutation({
     mutationFn: restoreBackup,
     onSuccess: async () => {
-      await queryClient.invalidateQueries()
+      await clearOfflineStorage()
+      queryClient.clear()
       setPreferencesOpen(false)
       // 这是真的关闭（不是二级对话框的往返），所以沿用旧行为：下次打开回界面栏。
       setPreferencesTab("interface")
@@ -778,8 +784,11 @@ export function AppShell() {
     mutationFn: ({ code, name, platform }: Parameters<typeof pairDevice>[0]) =>
       pairDevice({ code, name, platform }),
     onSuccess: async () => {
+      // A different token means a different account/device. Do not let the
+      // previous library, highlights or queued mutations survive the switch.
+      await clearOfflineStorage()
+      queryClient.clear()
       await status.refetch()
-      await queryClient.invalidateQueries()
     },
   })
   const pairingCodeMutation = useMutation({ mutationFn: createPairingCode })

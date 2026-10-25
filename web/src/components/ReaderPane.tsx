@@ -26,7 +26,6 @@ import {
   WaveSine,
   X,
 } from "@phosphor-icons/react"
-import DOMPurify from "dompurify"
 import {
   type CSSProperties,
   type FormEvent,
@@ -67,6 +66,7 @@ import {
 } from "../lib/annotations"
 import { formatBibTeX, formatGBT7714 } from "../lib/citation"
 import { formatAIResult } from "../lib/ai"
+import { sanitizeArticleHTML } from "../lib/articleHtml"
 import { useTranslation } from "../lib/i18n"
 import { formatAuthors, summaryDuplicatesContent } from "../lib/metadata"
 import { useReaderStore } from "../store/reader"
@@ -308,11 +308,10 @@ export function ReaderPane(props: ReaderPaneProps) {
   })
   const safeHTML = useMemo(
     () =>
-      DOMPurify.sanitize(
+      sanitizeArticleHTML(
         (preferReadability ? props.detail?.readability_html : null) ??
           props.detail?.sanitized_html ??
           "",
-        { USE_PROFILES: { html: true, mathMl: true } },
       ),
     [preferReadability, props.detail],
   )

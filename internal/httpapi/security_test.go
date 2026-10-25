@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strings"
 	"testing"
 )
 
@@ -199,6 +200,28 @@ func TestLoopbackListenerRejectsForeignHostHeaders(t *testing.T) {
 	}
 }
 
+func TestPairRateLimit(t *testing.T) {
+	handler := newTestServer(t).Handler()
+	body := `{"code":"WRONG","name":"iPad","platform":"ipad"}`
+	for attempt := 0; attempt < 10; attempt++ {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/devices/pair", strings.NewReader(body))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusBadRequest {
+			t.Fatalf("attempt %d: expected 400, got %d", attempt, response.Code)
+		}
+	}
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/devices/pair", strings.NewReader(body))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusTooManyRequests {
+		t.Fatalf("expected 429 after repeated pairing attempts, got %d", response.Code)
+	}
+	if response.Header().Get("Retry-After") == "" {
+		t.Fatal("expected a Retry-After header")
+	}
+}
+
 func TestSecurityHeadersKeepCSPForWebClients(t *testing.T) {
 	handler := (&Server{}).securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
@@ -223,8 +246,12 @@ func TestSecurityHeadersAllowWailsResources(t *testing.T) {
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 
-	if csp := response.Header().Get("Content-Security-Policy"); csp != "" {
-		t.Fatalf("expected Wails requests to omit CSP, got %q", csp)
+	csp := response.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "wails://") || !strings.Contains(csp, "form-action 'none'") {
+		t.Fatalf("expected a Wails-aware CSP, got %q", csp)
+	}
+	if response.Header().Get("X-Frame-Options") != "DENY" {
+		t.Fatal("expected framing to remain denied")
 	}
 	if response.Header().Get("Referrer-Policy") != "no-referrer" {
 		t.Fatal("expected non-CSP security headers to remain enabled")

@@ -140,6 +140,10 @@ func (s *SyncService) CreateAccount(ctx context.Context, input SyncAccountInput)
 	if err != nil {
 		return domain.SyncAccount{}, err
 	}
+	allowPrivate := input.AllowPrivateNetwork
+	if err := validateLibrarySyncTransport(provider, endpoint, allowPrivate); err != nil {
+		return domain.SyncAccount{}, err
+	}
 	if s.box == nil {
 		return domain.SyncAccount{}, errors.New("credential encryption is not configured")
 	}
@@ -187,6 +191,13 @@ func (s *SyncService) UpdateAccount(ctx context.Context, accountID string, input
 	if err != nil {
 		return domain.SyncAccount{}, err
 	}
+	allowPrivate := record.Account.AllowPrivateNetwork
+	if input.AllowPrivateNetwork != nil {
+		allowPrivate = *input.AllowPrivateNetwork
+	}
+	if err := validateLibrarySyncTransport(record.Account.Provider, endpoint, allowPrivate); err != nil {
+		return domain.SyncAccount{}, err
+	}
 	patch := storage.SyncAccountPatch{
 		Name: input.Name, Endpoint: input.Endpoint, Enabled: input.Enabled,
 		AllowPrivateNetwork: input.AllowPrivateNetwork, SyncIntervalMinutes: input.SyncIntervalMinutes,
@@ -226,20 +237,21 @@ func (s *SyncService) TestConnection(ctx context.Context, input SyncConnectionTe
 			return SyncConnectionTestResult{}, err
 		}
 		provider = record.Account.Provider
-		if endpoint == "" {
-			endpoint = record.Account.Endpoint
-		}
+		// Stored credentials are bound to the stored endpoint. Never let a
+		// request redirect them to an arbitrary host, and never let it raise
+		// the private-network permission above what the account was saved with.
+		endpoint = record.Account.Endpoint
 		credentials = mergeSyncCredentials(storedCredentials, credentials)
 		allowPrivate = record.Account.AllowPrivateNetwork
-		if input.AllowPrivateNetwork != nil {
-			allowPrivate = *input.AllowPrivateNetwork
-		}
 	}
 	if provider != "webdav" {
 		return SyncConnectionTestResult{}, errors.New("connection testing is currently available only for WebDAV")
 	}
 	normalized, err := normalizeLibrarySyncEndpoint(provider, endpoint)
 	if err != nil {
+		return SyncConnectionTestResult{}, err
+	}
+	if err := validateLibrarySyncTransport(provider, normalized, allowPrivate); err != nil {
 		return SyncConnectionTestResult{}, err
 	}
 	if err := s.testWebDAVConnection(ctx, normalized, credentials, allowPrivate); err != nil {

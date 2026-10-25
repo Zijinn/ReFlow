@@ -22,6 +22,42 @@ type AddFeedInput struct {
 	TitleOverride *string
 }
 
+// SanitizeSnapshot re-runs the feed allow-list over HTML that arrived inside a
+// portable snapshot. Snapshots are user/remote input and are inserted without
+// going through the parser otherwise.
+func (s *FeedService) SanitizeSnapshot(document storage.BackupDocument) storage.BackupDocument {
+	for tableIndex := range document.Tables {
+		table := &document.Tables[tableIndex]
+		if table.Name != "entry_contents" {
+			continue
+		}
+		indexOf := make(map[string]int, len(table.Columns))
+		for index, column := range table.Columns {
+			indexOf[column] = index
+		}
+		sanitizeColumn := func(row []storage.BackupValue, htmlColumn, textColumn string) {
+			htmlIndex, ok := indexOf[htmlColumn]
+			if !ok || htmlIndex >= len(row) || row[htmlIndex].Kind != "text" {
+				return
+			}
+			if strings.TrimSpace(row[htmlIndex].Text) == "" {
+				return
+			}
+			sanitized, plainText := s.parser.SanitizeHTML(row[htmlIndex].Text, "")
+			row[htmlIndex].Text = sanitized
+			if textIndex, ok := indexOf[textColumn]; ok && textIndex < len(row) {
+				row[textIndex] = storage.BackupValue{Kind: "text", Text: plainText}
+			}
+		}
+		for rowIndex := range table.Rows {
+			row := table.Rows[rowIndex]
+			sanitizeColumn(row, "sanitized_html", "plain_text")
+			sanitizeColumn(row, "readability_html", "readability_text")
+		}
+	}
+	return document
+}
+
 func (s *FeedService) FetchReadability(ctx context.Context, entryID string) error {
 	entry, err := storage.GetEntry(ctx, s.db, domain.DefaultProfileID, entryID)
 	if err != nil {

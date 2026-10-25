@@ -875,7 +875,12 @@ export async function importOPML(file: File): Promise<Job> {
   return (await response.json()) as Job
 }
 
+const MAX_BACKUP_BYTES = 256 * 1024 * 1024
+
 export async function restoreBackup(file: File): Promise<void> {
+  if (file.size > MAX_BACKUP_BYTES) {
+    throw new APIError(413, "Backup file is larger than 256 MB")
+  }
   const headers = new Headers({ "Content-Type": "application/json" })
   const token = localStorage.getItem("reflow-device-token")
   if (token) headers.set("Authorization", `Bearer ${token}`)
@@ -890,6 +895,26 @@ export async function restoreBackup(file: File): Promise<void> {
     const problem = (await response.json().catch(() => undefined)) as Problem | undefined
     throw new APIError(response.status, problem?.detail ?? "Backup restore failed", problem)
   }
+}
+
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const headers = new Headers()
+  const token = localStorage.getItem("reflow-device-token")
+  if (token) headers.set("Authorization", `Bearer ${token}`)
+  const response = await fetch(path, { headers, credentials: "same-origin" })
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => undefined)) as Problem | undefined
+    throw new APIError(response.status, problem?.detail ?? "Download failed", problem)
+  }
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement("a")
+  anchor.href = url
+  anchor.download = filename
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }
 
 export function startOfToday(): Date {
@@ -1084,6 +1109,7 @@ export function updateQuickTask(
     notes?: string
     start_date?: string
     due_date?: string
+    paper_id?: string | null
     completed?: boolean
     position?: number
   },

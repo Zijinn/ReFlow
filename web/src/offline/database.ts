@@ -114,19 +114,28 @@ async function replayStateMutation(
   } catch {
     return false
   }
-  if (
-    response.ok ||
-    (response.status >= 400 &&
-      response.status < 500 &&
-      response.status !== 401 &&
-      response.status !== 429)
-  ) {
+  // Only a confirmed write (or an entry that no longer exists) may leave the
+  // outbox. A 403/409/422 used to be swallowed here, silently losing a user's
+  // offline read/star/later change; keep it for a later retry or inspection.
+  if (response.ok || response.status === 404 || response.status === 410) {
     await transactionPromise(database, outboxStore, "readwrite", (store) =>
       store.delete(record.mutationID),
     )
     return true
   }
   return false
+}
+
+export async function clearOfflineStorage(): Promise<void> {
+  const database = await openDatabase()
+  if (database) {
+    for (const storeName of [cacheStore, outboxStore]) {
+      await transactionPromise(database, storeName, "readwrite", (store) => store.clear())
+    }
+  }
+  if (typeof caches !== "undefined") {
+    await caches.delete("reflow-entry-api")
+  }
 }
 
 export function entryPageCacheKey(scopeKey: string, query: string, cursor?: string, variant = "") {

@@ -37,6 +37,23 @@ func scanQuickTask(row interface {
 
 const quickTaskColumns = `id, title, notes, start_date, due_date, paper_id, completed_at, position`
 
+type rowQueryer interface {
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+func requireQuickTaskPaper(ctx context.Context, q rowQueryer, profileID, paperID string) error {
+	var exists bool
+	if err := q.QueryRowContext(ctx,
+		"SELECT EXISTS(SELECT 1 FROM research_papers WHERE profile_id = ? AND id = ?)",
+		profileID, paperID).Scan(&exists); err != nil {
+		return fmt.Errorf("check quick task paper: %w", err)
+	}
+	if !exists {
+		return taskValidationf(taskScopeQuickTask, "paper_id does not exist")
+	}
+	return nil
+}
+
 // ListQuickTasks returns the flat 即时任务 list. Open tasks come first, then
 // completed ones, and each group keeps the order the owner chose.
 func ListQuickTasks(ctx context.Context, db *sql.DB, profileID string) ([]domain.QuickTask, error) {
@@ -102,24 +119,6 @@ func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, s
 	if err := validateTaskWindow(taskScopeQuickTask, startDate, dueDate); err != nil {
 		return domain.QuickTask{}, err
 	}
-	var linkedPaper any
-	if paperID != nil {
-		trimmed := strings.TrimSpace(*paperID)
-		if trimmed != "" {
-			var exists int
-			err := db.QueryRowContext(ctx,
-				`SELECT 1 FROM research_papers WHERE profile_id = ? AND id = ?`,
-				profileID, trimmed).Scan(&exists)
-			if errors.Is(err, sql.ErrNoRows) {
-				return domain.QuickTask{}, taskValidationf(taskScopeQuickTask, "paper_id does not exist")
-			}
-			if err != nil {
-				return domain.QuickTask{}, fmt.Errorf("check quick task paper: %w", err)
-			}
-			linkedPaper = trimmed
-		}
-	}
-
 	now := formatTime(time.Now().UTC())
 	id := uuid.NewString()
 	tx, err := db.BeginTx(ctx, nil)
@@ -127,6 +126,16 @@ func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, s
 		return domain.QuickTask{}, fmt.Errorf("begin quick task create: %w", err)
 	}
 	defer tx.Rollback()
+	var linkedPaper any
+	if paperID != nil {
+		trimmed := strings.TrimSpace(*paperID)
+		if trimmed != "" {
+			if err := requireQuickTaskPaper(ctx, tx, profileID, trimmed); err != nil {
+				return domain.QuickTask{}, err
+			}
+			linkedPaper = trimmed
+		}
+	}
 	position, err := nextQuickTaskPosition(ctx, tx, profileID)
 	if err != nil {
 		return domain.QuickTask{}, err
@@ -135,6 +144,9 @@ func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, s
 		(id, profile_id, title, notes, start_date, due_date, paper_id, completed_at, position, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
 		id, profileID, title, notes, startDate, dueDate, linkedPaper, position, now, now); err != nil {
+		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
+			return domain.QuickTask{}, taskValidationf(taskScopeQuickTask, "paper_id does not exist")
+		}
 		return domain.QuickTask{}, fmt.Errorf("create quick task: %w", err)
 	}
 	if err := tx.Commit(); err != nil {
@@ -186,6 +198,20 @@ func UpdateQuickTask(ctx context.Context, db *sql.DB, profileID, id string, patc
 	if err := validateTaskWindow(taskScopeQuickTask, startDate, dueDate); err != nil {
 		return domain.QuickTask{}, err
 	}
+	if patch.SetPaperID {
+		var linked any
+		if patch.PaperID != nil {
+			trimmed := strings.TrimSpace(*patch.PaperID)
+			if trimmed != "" {
+				if err := requireQuickTaskPaper(ctx, db, profileID, trimmed); err != nil {
+					return domain.QuickTask{}, err
+				}
+				linked = trimmed
+			}
+		}
+		sets = append(sets, "paper_id = ?")
+		args = append(args, linked)
+	}
 	if patch.Completed != nil {
 		if *patch.Completed {
 			if current.CompletedAt == "" {
@@ -198,9 +224,9 @@ func UpdateQuickTask(ctx context.Context, db *sql.DB, profileID, id string, patc
 		}
 	}
 	if patch.Position != nil {
-		if *patch.Position < 0 {
-			return domain.QuickTask{}, taskValidationf(taskScopeQuickTask, "position must not be negative")
-		}
+		// New quick tasks are positioned with MIN(position)-1, so negative
+		// positions are the normal representation; do not reject a client that
+		// echoes the read model back.
 		sets = append(sets, "position = ?")
 		args = append(args, *patch.Position)
 	}

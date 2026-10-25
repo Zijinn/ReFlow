@@ -141,12 +141,14 @@ type QuickTask struct {
 // QuickTaskPatch carries optional quick-task updates; nil fields are untouched.
 // Completed flips the stored stamp, so a client never has to send completed_at.
 type QuickTaskPatch struct {
-	Title     *string
-	Notes     *string
-	StartDate *string
-	DueDate   *string
-	Completed *bool
-	Position  *int
+	Title      *string
+	Notes      *string
+	StartDate  *string
+	DueDate    *string
+	SetPaperID bool
+	PaperID    *string
+	Completed  *bool
+	Position   *int
 }
 
 // TaskLayerPatch carries optional layer updates; nil fields are untouched.

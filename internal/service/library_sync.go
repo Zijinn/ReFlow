@@ -44,12 +44,18 @@ func (s *SyncService) runLibrarySync(
 	if mode != "auto" && mode != "push" && mode != "pull" {
 		return SyncResult{}, errors.New("library sync mode must be auto, push, or pull")
 	}
-	if record.Account.Provider == "webdav" {
-		normalized, err := normalizeLibrarySyncEndpoint("webdav", record.Account.Endpoint)
+	// Revalidate at use time as well as at create/update time. A restored or
+	// externally modified account must not be able to point an iCloud write at
+	// an arbitrary local file.
+	if record.Account.Provider == "webdav" || record.Account.Provider == "icloud" {
+		normalized, err := normalizeLibrarySyncEndpoint(record.Account.Provider, record.Account.Endpoint)
 		if err != nil {
 			return SyncResult{}, err
 		}
 		record.Account.Endpoint = normalized
+	}
+	if err := validateLibrarySyncTransport(record.Account.Provider, record.Account.Endpoint, record.Account.AllowPrivateNetwork); err != nil {
+		return SyncResult{}, err
 	}
 	if progress != nil {
 		progress(0, 3)
@@ -62,7 +68,7 @@ func (s *SyncService) runLibrarySync(
 	if err != nil {
 		return SyncResult{}, err
 	}
-	remote, remoteExists, err := s.readRemoteSnapshot(ctx, record, credentials)
+	remote, remoteExists, remoteETag, err := s.readRemoteSnapshot(ctx, record, credentials)
 	if err != nil {
 		return SyncResult{}, err
 	}
@@ -88,7 +94,7 @@ func (s *SyncService) runLibrarySync(
 
 	switch action {
 	case "push":
-		if err := s.writeRemoteSnapshot(ctx, record, credentials, local); err != nil {
+		if err := s.writeRemoteSnapshot(ctx, record, credentials, local, remoteExists, remoteETag); err != nil {
 			return SyncResult{}, err
 		}
 		remoteHash = localHash
@@ -107,7 +113,7 @@ func (s *SyncService) runLibrarySync(
 			}
 			defer s.maintenance.ExitMaintenance()
 		}
-		if err := storage.RestoreLibrarySnapshot(ctx, s.db, remote); err != nil {
+		if err := storage.RestoreLibrarySnapshot(ctx, s.db, s.feeds.SanitizeSnapshot(remote)); err != nil {
 			return SyncResult{}, err
 		}
 		localHash = remoteHash
@@ -158,63 +164,74 @@ func chooseLibrarySyncAction(local storage.BackupDocument, localHash string, rem
 	}
 }
 
-func (s *SyncService) readRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials) (storage.BackupDocument, bool, error) {
+func (s *SyncService) readRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials) (storage.BackupDocument, bool, string, error) {
 	var body []byte
+	etag := ""
 	if record.Account.Provider == "icloud" {
 		info, err := os.Stat(record.Account.Endpoint)
 		if errors.Is(err, os.ErrNotExist) {
-			return storage.BackupDocument{}, false, nil
+			return storage.BackupDocument{}, false, "", nil
 		}
 		if err != nil {
-			return storage.BackupDocument{}, false, fmt.Errorf("stat iCloud snapshot: %w", err)
+			return storage.BackupDocument{}, false, "", fmt.Errorf("stat iCloud snapshot: %w", err)
 		}
 		if info.Size() > maxLibrarySnapshotBytes {
-			return storage.BackupDocument{}, false, errors.New("iCloud snapshot is too large")
+			return storage.BackupDocument{}, false, "", errors.New("iCloud snapshot is too large")
 		}
 		body, err = os.ReadFile(record.Account.Endpoint)
 		if errors.Is(err, os.ErrNotExist) {
-			return storage.BackupDocument{}, false, nil
+			return storage.BackupDocument{}, false, "", nil
 		}
 		if err != nil {
-			return storage.BackupDocument{}, false, fmt.Errorf("read iCloud snapshot: %w", err)
+			return storage.BackupDocument{}, false, "", fmt.Errorf("read iCloud snapshot: %w", err)
 		}
 	} else {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, record.Account.Endpoint, nil)
 		if err != nil {
-			return storage.BackupDocument{}, false, err
+			return storage.BackupDocument{}, false, "", err
 		}
 		request.Header.Set("Accept", "application/json")
 		authorizeLibrarySyncRequest(request, credentials)
 		response, err := s.clientFactory(record.Account.AllowPrivateNetwork).Do(request)
 		if err != nil {
-			return storage.BackupDocument{}, false, &syncadapter.Error{Code: "network_error", Retryable: !errors.Is(err, context.Canceled), Err: err}
+			return storage.BackupDocument{}, false, "", &syncadapter.Error{Code: "network_error", Retryable: !errors.Is(err, context.Canceled), Err: err}
 		}
 		defer response.Body.Close()
 		if response.StatusCode == http.StatusNotFound {
-			return storage.BackupDocument{}, false, nil
+			return storage.BackupDocument{}, false, "", nil
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
-			return storage.BackupDocument{}, false, webDAVStatusError(response.StatusCode)
+			return storage.BackupDocument{}, false, "", webDAVStatusError(response.StatusCode)
+		}
+		// A weak validator cannot be used for If-Match; skip the precondition
+		// rather than sending a header the server is required to reject.
+		etag = strings.TrimSpace(response.Header.Get("ETag"))
+		if strings.HasPrefix(etag, "W/") {
+			etag = ""
 		}
 		body, err = io.ReadAll(io.LimitReader(response.Body, maxLibrarySnapshotBytes+1))
 		if err != nil {
-			return storage.BackupDocument{}, false, err
+			return storage.BackupDocument{}, false, "", err
 		}
 		if int64(len(body)) > maxLibrarySnapshotBytes {
-			return storage.BackupDocument{}, false, errors.New("WebDAV snapshot is too large")
+			return storage.BackupDocument{}, false, "", errors.New("WebDAV snapshot is too large")
 		}
 	}
 	var document storage.BackupDocument
 	if err := json.Unmarshal(body, &document); err != nil {
-		return storage.BackupDocument{}, false, fmt.Errorf("decode remote ReFlow snapshot: %w", err)
+		return storage.BackupDocument{}, false, "", fmt.Errorf("decode remote ReFlow snapshot: %w", err)
 	}
 	if document.Format != storage.LibrarySnapshotFormat || document.Version != 1 {
-		return storage.BackupDocument{}, false, errors.New("remote file is not an ReFlow library snapshot")
+		return storage.BackupDocument{}, false, "", errors.New("remote file is not an ReFlow library snapshot")
 	}
-	return document, true, nil
+	return document, true, etag, nil
 }
 
-func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials, document storage.BackupDocument) error {
+// writeRemoteSnapshot replaces the remote file only if the copy we read is still
+// the copy on the server. Without the precondition two devices syncing at once
+// would silently overwrite each other and the next auto run would see a snapshot
+// that belongs to neither device's cursor.
+func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials, document storage.BackupDocument, remoteExists bool, etag string) error {
 	body, err := json.Marshal(document)
 	if err != nil {
 		return fmt.Errorf("encode ReFlow snapshot: %w", err)
@@ -249,12 +266,21 @@ func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.Sy
 		}
 		return nil
 	}
-	status, err := s.sendWebDAVRequest(ctx, http.MethodPut, record.Account.Endpoint, body, "application/json", credentials, record.Account.AllowPrivateNetwork)
+	preconditions := http.Header{}
+	if etag != "" {
+		preconditions.Set("If-Match", etag)
+	} else if !remoteExists {
+		preconditions.Set("If-None-Match", "*")
+	}
+	status, err := s.sendWebDAVRequest(ctx, http.MethodPut, record.Account.Endpoint, body, "application/json", credentials, record.Account.AllowPrivateNetwork, preconditions)
 	if err != nil {
 		return err
 	}
 	if status >= 200 && status < 300 {
 		return nil
+	}
+	if status == http.StatusPreconditionFailed {
+		return &syncadapter.Error{Code: "conflict", StatusCode: status, Err: errors.New("the remote snapshot changed while syncing; run sync again")}
 	}
 	if status != http.StatusNotFound {
 		return webDAVStatusError(status)
@@ -266,12 +292,32 @@ func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.Sy
 	if err := s.ensureWebDAVCollection(ctx, collection, credentials, record.Account.AllowPrivateNetwork, 0); err != nil {
 		return err
 	}
-	status, err = s.sendWebDAVRequest(ctx, http.MethodPut, record.Account.Endpoint, body, "application/json", credentials, record.Account.AllowPrivateNetwork)
+	status, err = s.sendWebDAVRequest(ctx, http.MethodPut, record.Account.Endpoint, body, "application/json", credentials, record.Account.AllowPrivateNetwork, preconditions)
 	if err != nil {
 		return err
 	}
+	if status == http.StatusPreconditionFailed {
+		return &syncadapter.Error{Code: "conflict", StatusCode: status, Err: errors.New("the remote snapshot changed while syncing; run sync again")}
+	}
 	if status < 200 || status >= 300 {
 		return webDAVStatusError(status)
+	}
+	return nil
+}
+
+// WebDAV credentials travel on every request. A plain-HTTP endpoint on a public
+// network leaks them to anyone on the path, so TLS is required unless the owner
+// explicitly opted that account into private-network access.
+func validateLibrarySyncTransport(provider, endpoint string, allowPrivate bool) error {
+	if provider != "webdav" || allowPrivate {
+		return nil
+	}
+	parsed, err := url.Parse(endpoint)
+	if err != nil {
+		return errors.New("WebDAV endpoint is not a valid URL")
+	}
+	if !strings.EqualFold(parsed.Scheme, "https") {
+		return errors.New("WebDAV endpoint must use HTTPS unless private-network access is enabled")
 	}
 	return nil
 }
@@ -364,14 +410,14 @@ func (s *SyncService) testWebDAVConnection(ctx context.Context, snapshotEndpoint
 	}
 	testFile := *collection
 	testFile.Path = path.Join(collection.Path, "reflow-connection-test-"+uuid.NewString()+".tmp")
-	status, err := s.sendWebDAVRequest(ctx, http.MethodPut, testFile.String(), []byte("ReFlow WebDAV connection test\n"), "text/plain; charset=utf-8", credentials, allowPrivate)
+	status, err := s.sendWebDAVRequest(ctx, http.MethodPut, testFile.String(), []byte("ReFlow WebDAV connection test\n"), "text/plain; charset=utf-8", credentials, allowPrivate, nil)
 	if err != nil {
 		return err
 	}
 	if status < 200 || status >= 300 {
 		return webDAVStatusError(status)
 	}
-	status, err = s.sendWebDAVRequest(ctx, http.MethodDelete, testFile.String(), nil, "", credentials, allowPrivate)
+	status, err = s.sendWebDAVRequest(ctx, http.MethodDelete, testFile.String(), nil, "", credentials, allowPrivate, nil)
 	if err != nil {
 		return err
 	}
@@ -400,7 +446,7 @@ func (s *SyncService) ensureWebDAVCollection(ctx context.Context, collection *ur
 	if depth > 16 {
 		return errors.New("WebDAV collection nesting is too deep")
 	}
-	status, err := s.sendWebDAVRequest(ctx, "PROPFIND", collection.String(), []byte(`<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><allprop/></propfind>`), "application/xml; charset=utf-8", credentials, allowPrivate)
+	status, err := s.sendWebDAVRequest(ctx, "PROPFIND", collection.String(), []byte(`<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><allprop/></propfind>`), "application/xml; charset=utf-8", credentials, allowPrivate, nil)
 	if err != nil {
 		return err
 	}
@@ -422,7 +468,7 @@ func (s *SyncService) ensureWebDAVCollection(ctx context.Context, collection *ur
 	if err := s.ensureWebDAVCollection(ctx, &parent, credentials, allowPrivate, depth+1); err != nil {
 		return err
 	}
-	status, err = s.sendWebDAVRequest(ctx, "MKCOL", collection.String(), nil, "", credentials, allowPrivate)
+	status, err = s.sendWebDAVRequest(ctx, "MKCOL", collection.String(), nil, "", credentials, allowPrivate, nil)
 	if err != nil {
 		return err
 	}
@@ -432,13 +478,18 @@ func (s *SyncService) ensureWebDAVCollection(ctx context.Context, collection *ur
 	return nil
 }
 
-func (s *SyncService) sendWebDAVRequest(ctx context.Context, method, endpoint string, body []byte, contentType string, credentials syncadapter.Credentials, allowPrivate bool) (int, error) {
+func (s *SyncService) sendWebDAVRequest(ctx context.Context, method, endpoint string, body []byte, contentType string, credentials syncadapter.Credentials, allowPrivate bool, extraHeaders http.Header) (int, error) {
 	request, err := http.NewRequestWithContext(ctx, method, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return 0, err
 	}
 	request.Header.Set("Accept", "application/json, application/xml, text/xml, */*")
 	request.Header.Set("User-Agent", "ReFlow/WebDAV")
+	for name, values := range extraHeaders {
+		for _, value := range values {
+			request.Header.Add(name, value)
+		}
+	}
 	if contentType != "" {
 		request.Header.Set("Content-Type", contentType)
 	}

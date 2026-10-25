@@ -64,7 +64,7 @@ function taskWindow(start: Date | null, due: Date | null): { start: Date; due: D
   const first = start ?? due
   const last = due ?? start
   if (!first || !last) return null
-  return { start: first, due: last }
+  return first > last ? { start: last, due: first } : { start: first, due: last }
 }
 
 function urgencyClass(days: number): string {
@@ -150,6 +150,7 @@ export function CalendarPage(props: {
       })
     }
     for (const thread of props.taskThreads ?? []) {
+      if (thread.archived) continue
       const layerNames = new Map(thread.layers.map((layer) => [layer.id, layer.name]))
       for (const item of thread.items) {
         if (item.closed) continue
@@ -255,12 +256,17 @@ export function CalendarPage(props: {
     return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(2024, 0, 1 + index)))
   }, [intlLocale])
 
+  const monthStart = new Date(cursor.year, cursor.month, 1)
+  const monthEnd = new Date(cursor.year, cursor.month + 1, 0)
   const monthCount = cells.reduce(
-    (total, date) => total + (eventsByDay.get(dayKey(date))?.length ?? 0),
+    (total, date) =>
+      date.getMonth() === cursor.month && date.getFullYear() === cursor.year
+        ? total + (eventsByDay.get(dayKey(date))?.length ?? 0)
+        : total,
     0,
   )
   const monthTaskCount = taskData.events.filter(
-    (event) => event.due >= cells[0]! && event.start <= cells[cells.length - 1]!,
+    (event) => event.due >= monthStart && event.start <= monthEnd,
   ).length
   const monthSummary =
     monthCount === 0 && monthTaskCount === 0
@@ -391,7 +397,11 @@ export function CalendarPage(props: {
                 })}
               </div>
               {segments.length > 0 && (
-                <div className="wb-cal-task-lane" aria-label={t("calendarTasks")}>
+                <div
+                  className="wb-cal-task-lane"
+                  role="group"
+                  aria-label={`${t("calendarTasks")} · ${formatDeadline(week[0]!)} – ${formatDeadline(week[6]!)}`}
+                >
                   {segments.map((segment) => {
                     const classes = ["wb-cal-task-bar"]
                     if (segment.continuesLeft) classes.push("wb-cal-task-bar--continues-left")
@@ -405,6 +415,7 @@ export function CalendarPage(props: {
                           gridColumn: `${segment.startColumn + 1} / ${segment.endColumn + 2}`,
                         }}
                         title={`${segment.event.title} · ${formatDeadline(segment.event.start)} – ${formatDeadline(segment.event.due)}`}
+                        aria-label={`${segment.event.title} · ${segment.event.subtitle} · ${formatDeadline(segment.event.start)} – ${formatDeadline(segment.event.due)}`}
                         onClick={() =>
                           props.onSelectTask?.(segment.event.kind, segment.event.id)
                         }

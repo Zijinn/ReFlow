@@ -282,3 +282,38 @@ Usage rows are committed in the same transaction as AI results or assistant mess
 ## Search
 
 An FTS5 virtual table indexes `entry_id`, title, author, summary, and sanitized plain text. Triggers or explicit repository updates keep it consistent with `entries` and `entry_contents`. Search results join through `entry_states` so profile filters remain authoritative.
+
+## Research workspace
+
+### research_papers
+
+One row per working paper, submission, or publication. The three kinds share a stable row id so a paper can flow `research → submitted → published` without losing its history.
+
+- Kind-specific columns are nullable or empty-string defaults; `stages_json`, `history_json`, `authors_json`, and `keywords_json` hold structured values edited inline by the client.
+- `deadline` is a calendar day (`YYYY-MM-DD` or empty), not a timestamp.
+- `doi` is unique per profile when present; Crossref citation values are cached in `citations`, `citation_source`, and `citation_updated_at`.
+
+### research_tags and research_paper_tags
+
+Tags belong to a profile and have an ordered position, a colour, and a per-row-head colour switch. `research_paper_tags` is an ordered join table; deleting a paper or tag cascades the association.
+
+## Personal workbench tasks
+
+The task board is `任务管理`, beside the research workspace.
+
+- `task_threads` — 主线.
+- `task_layers` — 层; ordered, with an optional forced unlock. A layer unlocks when every placement in the previous layer is closed. The lock is a display/status rule, not a write gate.
+- `task_items` — 任务 card; optional `paper_id` links it to the research workspace.
+- `task_assignments` — one item placed in one layer, with its own date window and steps. `(item_id, layer_id)` is unique; one task can sit in several layers.
+- `task_steps` — checkboxes on a placement.
+- `quick_tasks` — flat 即时任务. Migration `0022_quick_task_paper.sql` adds the optional `paper_id` link used by the "next action → task" handoff; deleting a paper sets it to `NULL`.
+
+Derived values (`closed`, `unlocked`, `progress`, `status`, and the statistics) are computed by the server on read. Only display stamps such as `closed_at` and `done_at` are stored.
+
+## AI cache invariant
+
+Migration `0023_ai_result_unique.sql` enforces one `ai_results` row per `(profile_id, entry_id, operation, language, input_hash)`. `INSERT OR IGNORE` and the usage ledger rely on that uniqueness.
+
+## Backup and snapshot boundary
+
+Portable backups and WebDAV/iCloud snapshots intentionally exclude device pairings, queued jobs, sync-account credentials, and local sync metadata. A restore keeps the current device pairings and sync accounts; the restored library must be re-authorized for remote sync. Restored `entry_contents` HTML is re-sanitized before insertion.

@@ -48,6 +48,8 @@ import {
   updateTaskStep,
   updateTaskThread,
 } from "../../api/client"
+import type { TaskFocus } from "../../store/reader"
+import { TASK_QUERY_KEY } from "./taskQueryKeys"
 import type {
   ListResponse,
   ResearchKind,
@@ -71,7 +73,6 @@ import { parseDeadline, relativeTime } from "./utils"
 // 不在前端拼这棵树——派生口径只有服务端那一份，客户端补一份迟早和它漂开。
 // 唯一的例外是"勾一步"：那一颗的本地结果毫无歧义（见 stepMutation），
 // 所以它走快照-恢复那一套乐观更新，和 Workbench 的论文表同一个做法。
-const TASK_QUERY_KEY = ["task-threads"]
 
 // 「关联到论文」的候选来自三张论文表，用的就是 Workbench 那同一批缓存键，
 // 所以在两个模块之间来回切并不会把论文表多打一遍。
@@ -517,7 +518,10 @@ function TaskCard(props: {
   const canComplete = !assignment.closed && layer.unlocked
 
   return (
-    <article className={`wb-task-card ${cardEdgeClass(item, assignment)}`}>
+    <article
+      className={`wb-task-card ${cardEdgeClass(item, assignment)}`}
+      data-assignment-id={assignment.id}
+    >
       <div className="wb-task-card-head">
         <ExpandToggle
           expanded={expanded}
@@ -927,8 +931,13 @@ function ThreadSection(props: { thread: TaskThread; ctx: CardContext }) {
 }
 
 // ── 长任务板本体 ───────────────────────────────────────────────────────
-export function TaskBoard(props: { offline?: boolean }) {
+export function TaskBoard(props: {
+  offline?: boolean
+  focus?: TaskFocus | null
+  onFocusConsumed?: () => void
+}) {
   const { t } = useTranslation()
+  const { focus, onFocusConsumed } = props
   const queryClient = useQueryClient()
   const detected = useOnlineState()
   // Workbench 已经把在线状态算好传下来；单独挂这块板子（测试、以后的别的入口）
@@ -945,6 +954,16 @@ export function TaskBoard(props: { offline?: boolean }) {
     queryKey: TASK_QUERY_KEY,
     queryFn: ({ signal }: { signal: AbortSignal }) => listTaskThreads(signal),
   })
+  useEffect(() => {
+    if (!focus || focus.kind !== "assignment") return
+    const card = document.querySelector(`[data-assignment-id="${focus.id}"]`)
+    if (!card) return
+    card.scrollIntoView?.({ block: "center", behavior: "smooth" })
+    card.classList.add("wb-row--flash")
+    const timer = window.setTimeout(() => card.classList.remove("wb-row--flash"), 1600)
+    onFocusConsumed?.()
+    return () => window.clearTimeout(timer)
+  }, [focus, onFocusConsumed, treeQuery.data])
 
   const paperResults = useQueries({
     queries: PAPER_KINDS.map((kind) => ({

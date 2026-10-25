@@ -1,3 +1,5 @@
+import { useCallback } from "react"
+
 import { useReaderStore } from "../store/reader"
 
 export type Locale = "zh-CN" | "en-US"
@@ -232,7 +234,9 @@ const messages: Record<Locale, Record<string, string>> = {
     retentionDays90: "90 天",
     retentionDays180: "180 天",
     retentionDays365: "1 年",
-    backupDescription: "订阅源、文章、状态、规则和设置",
+    backupDescription: "订阅源、文章、状态、规则、科研数据与任务；设备配对和同步账号需重新授权",
+    backupTooLarge: "备份文件过大，请选择 256 MB 以内的文件。",
+    downloadFailed: "下载失败，请重试。",
     backup: "备份",
     restore: "恢复",
     addSubscriptionTitle: "添加订阅",
@@ -1124,7 +1128,10 @@ const messages: Record<Locale, Record<string, string>> = {
     retentionDays90: "90 days",
     retentionDays180: "180 days",
     retentionDays365: "1 year",
-    backupDescription: "Feeds, articles, states, rules, and settings",
+    backupDescription:
+      "Feeds, articles, states, rules, research data and tasks; device pairing and sync accounts must be re-authorised",
+    backupTooLarge: "This backup is too large. Choose a file under 256 MB.",
+    downloadFailed: "Download failed. Try again.",
     backup: "Backup",
     restore: "Restore",
     // 英文里这个对象一路叫 feed（Feed / Refresh feed / Copy feed ID），
@@ -1809,7 +1816,10 @@ export function translate(locale: Locale, key: string): string {
 
 export function useTranslation() {
   const locale = useReaderStore((state) => state.locale)
-  return { locale, t: ((key: string) => translate(locale, key)) as Translator }
+  // A fresh closure on every render invalidates every useMemo that lists `t`
+  // as a dependency. The function only changes when the locale does.
+  const t: Translator = useCallback((key: string) => translate(locale, key), [locale])
+  return { locale, t }
 }
 
 export function localizedScopeTitle(scope: { kind: string; title: string }, locale: Locale) {

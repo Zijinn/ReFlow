@@ -111,6 +111,29 @@ func TestQuickTaskPaperLink(t *testing.T) {
 		"坏关联", "", "", "", &missing); err == nil {
 		t.Fatal("a quick task must not link to a paper outside the profile")
 	}
+	if _, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
+		domain.QuickTaskPatch{SetPaperID: true, PaperID: &missing}); err == nil {
+		t.Fatal("updating a quick task must reject a paper outside the profile")
+	}
+	unlinkedTask, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
+		domain.QuickTaskPatch{SetPaperID: true, PaperID: nil})
+	if err != nil {
+		t.Fatalf("unlink quick task paper: %v", err)
+	}
+	if unlinkedTask.PaperID != nil {
+		t.Fatalf("explicit null must unlink the paper: %+v", unlinkedTask)
+	}
+	relinked, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
+		domain.QuickTaskPatch{SetPaperID: true, PaperID: &paperID})
+	if err != nil || relinked.PaperID == nil || *relinked.PaperID != paperID {
+		t.Fatalf("relink quick task paper: %+v, %v", relinked, err)
+	}
+
+	negative := -7
+	if _, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
+		domain.QuickTaskPatch{Position: &negative}); err != nil {
+		t.Fatalf("quick task positions are negative by design: %v", err)
+	}
 
 	unlinked, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
 		"独立任务", "", "", "", nil)

@@ -6,7 +6,7 @@ on:
       version:
         description: Semantic version without a leading v
         required: true
-        default: 1.1.0
+        default: 2.0.7
   push:
     tags:
       - "v*.*.*"
@@ -21,6 +21,7 @@ concurrency:
 jobs:
   license-inventory:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v6
@@ -47,9 +48,37 @@ jobs:
           name: dependency-license-inventory-${{ github.run_id }}
           path: dist/licenses
 
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25.x"
+          cache: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm --dir web install --frozen-lockfile
+      - run: test -z "$(gofmt -l cmd internal)" || (gofmt -l cmd internal; exit 1)
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: bash scripts/check-release-config.sh
+      - run: pnpm --dir web typecheck
+      - run: pnpm --dir web lint
+      - run: pnpm --dir web test
+      - run: pnpm --dir web build
+      - run: pnpm --dir web build:desktop
+
   macos-universal:
-    needs: license-inventory
+    needs: [license-inventory, verify]
     runs-on: macos-14
+    timeout-minutes: 45
     env:
       MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
       MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -155,8 +184,9 @@ jobs:
           path: dist/ReFlow-${{ env.VERSION }}-macos-universal.dmg
 
   windows-x64:
-    needs: license-inventory
+    needs: [license-inventory, verify]
     runs-on: windows-latest
+    timeout-minutes: 45
     env:
       WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
       WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
@@ -194,8 +224,8 @@ jobs:
           wails3 generate icons -input build/icons/ReFlow-1024.png -macfilename build/darwin/ReFlow.icns -windowsfilename build/windows/ReFlow.ico
           # These literals must equal the committed version in info.json / wails.exe.manifest, or
           # the substitution silently no-ops and ships a stale FileVersion. check-release-config.sh gates it.
-          (Get-Content build/windows/info.json -Raw).Replace('1.1.0', $env:VERSION) | Set-Content build/windows/info.release.json
-          (Get-Content build/windows/wails.exe.manifest -Raw).Replace('version="1.1.0"', "version=`"$($env:VERSION)`"") | Set-Content build/windows/wails.release.exe.manifest
+          (Get-Content build/windows/info.json -Raw).Replace('2.0.7', $env:VERSION) | Set-Content build/windows/info.release.json
+          (Get-Content build/windows/wails.exe.manifest -Raw).Replace('version="2.0.7"', "version=`"$($env:VERSION)`"") | Set-Content build/windows/wails.release.exe.manifest
           wails3 generate syso -arch amd64 -icon build/windows/ReFlow.ico -manifest build/windows/wails.release.exe.manifest -info build/windows/info.release.json -out reflow_windows_amd64.syso
           go build -tags desktop -trimpath -buildvcs=false -ldflags "-s -w -H windowsgui -X github.com/Zijinn/ReFlow/internal/version.Version=$($env:VERSION)" -o dist/ReFlow.exe ./cmd/reflow-desktop
           Remove-Item reflow_windows_amd64.syso
@@ -241,9 +271,11 @@ jobs:
     if: ${{ github.ref_type == 'tag' }}
     needs:
       - license-inventory
+      - verify
       - macos-universal
       - windows-x64
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
     steps:

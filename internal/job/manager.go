@@ -258,9 +258,12 @@ func (m *Manager) StartCleanupScheduler(ctx context.Context, interval time.Durat
 }
 
 func (m *Manager) runCleanup(ctx context.Context) {
+	// Only the maintenance check needs the admission lock. Holding it during a
+	// large retention DELETE blocks every enqueue and job claim.
 	m.admissionMu.Lock()
-	defer m.admissionMu.Unlock()
-	if m.maintenance.Load() {
+	maintenance := m.maintenance.Load()
+	m.admissionMu.Unlock()
+	if maintenance {
 		return
 	}
 	cutoff := time.Now().UTC().Add(-30 * 24 * time.Hour)
@@ -408,8 +411,10 @@ func (m *Manager) worker(ctx context.Context) {
 	}
 }
 
+const jobExecutionTimeout = 10 * time.Minute
+
 func (m *Manager) execute(ctx context.Context, current domain.Job) {
-	jobCtx, cancel := context.WithCancel(ctx)
+	jobCtx, cancel := context.WithTimeout(ctx, jobExecutionTimeout)
 	done := make(chan struct{})
 	m.admissionMu.Lock()
 	if m.maintenance.Load() {

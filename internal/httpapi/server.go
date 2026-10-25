@@ -40,6 +40,7 @@ type Server struct {
 	events   *event.Hub
 	security SecurityConfig
 	handler  http.Handler
+	pairs    *pairingLimiter
 }
 
 func New(db *sql.DB, logger *slog.Logger, webDir string) *Server {
@@ -53,7 +54,7 @@ func NewWithFetcher(db *sql.DB, logger *slog.Logger, webDir string, fetcher *fee
 	s := &Server{
 		db: db, logger: logger, webDir: webDir, feeds: feedService,
 		zotero: service.NewZoteroService(db, fetcher), research: service.NewResearchService(db),
-		jobs: manager, events: hub,
+		jobs: manager, events: hub, pairs: newPairingLimiter(),
 	}
 	manager.Register("feed.refresh", func(ctx context.Context, current domain.Job, progress job.ProgressFunc) error {
 		var payload struct {
@@ -117,11 +118,11 @@ func NewWithFetcher(db *sql.DB, logger *slog.Logger, webDir string, fetcher *fee
 
 func (s *Server) Start(ctx context.Context) error {
 	if s.security.RequireDeviceAuth || len(s.security.TrustedProxies) > 0 {
-		code, expiresAt, err := storage.CreatePairingCode(ctx, s.db, 10*time.Minute)
+		_, expiresAt, err := storage.CreatePairingCode(ctx, s.db, 10*time.Minute)
 		if err != nil {
 			return err
 		}
-		s.logger.Warn("remote access pairing code", "code", code, "expires_at", expiresAt)
+		s.logger.Warn("remote access pairing code created", "expires_at", expiresAt)
 	}
 	if err := s.jobs.Start(ctx); err != nil {
 		return err
@@ -347,13 +348,18 @@ func (s *Server) requestLog(next http.Handler) http.Handler {
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
 		// WKWebView loads the embedded frontend through the wails:// scheme. A
 		// browser-oriented 'self' CSP blocks those module resources before they
-		// reach this server, so retain CSP for HTTP/PWA clients only.
+		// reach this server, so desktop requests get a CSP that names the Wails
+		// scheme instead of no CSP at all. Both policies keep forms and framing
+		// closed; article content is additionally sanitised client-side.
 		if r.Header.Get("X-Wails-Window-ID") == "" {
-			w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src https:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'")
+			w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		} else {
+			w.Header().Set("Content-Security-Policy", "default-src 'self' wails://* http://wails.localhost; img-src 'self' data: https: wails://*; media-src 'self' https: wails://*; style-src 'self' 'unsafe-inline' wails://*; script-src 'self' 'unsafe-inline' 'unsafe-eval' wails://*; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* wails://*; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 		}
 		next.ServeHTTP(w, r)
 	})

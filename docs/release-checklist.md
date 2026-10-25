@@ -4,9 +4,11 @@ Native installers are built only on GitHub-hosted runners. The development works
 
 ## Before tagging
 
+- Bump every version source together: `package.json`, `web/package.json`, `internal/version/version.go`, `api/openapi.yaml`, `build/darwin/Info.plist`, `build/windows/info.json`, `build/windows/wails.exe.manifest`, `build/windows/installer.nsi`, and the release workflow's default/literal version. `bash scripts/check-release-config.sh` must pass.
 - Run `go test ./... -count=1`, `go test -race ./...`, and `go vet ./...`.
 - Run `pnpm --dir web typecheck`, `pnpm --dir web lint`, `pnpm --dir web test -- --run`, `pnpm --dir web build`, and `pnpm --dir web build:desktop`.
 - Run `bash scripts/check-release-config.sh` and review the OpenAPI route coverage test.
+- The release workflow now runs a `verify` job (gofmt, race tests, vet, contract check, frontend typecheck/lint/test/build, desktop web build) before packaging; confirm it is green before publishing.
 - Perform browser checks at 1440x900, 820x1180, and 390x844. Record no console errors, no horizontal overflow, and a working mobile reader back transition.
 - Export a backup from the release candidate and restore it into a fresh database. Keep the database and `master.key` together; encrypted sync and AI credentials cannot be recovered from the JSON backup with a different key.
 - Review `THIRD_PARTY_NOTICES.md` and the generated Go/JavaScript license reports.

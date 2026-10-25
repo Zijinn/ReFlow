@@ -2,18 +2,14 @@ import {
   ArrowsInLineVertical,
   ArrowsOutLineVertical,
   Books,
-  CalendarBlank,
   CaretDown,
   CaretRight,
-  ChartPieSlice,
   CircleNotch,
   Flask,
   Funnel,
   FolderOpen,
   FolderSimplePlus,
   NewspaperClipping,
-  NotePencil,
-  PaperPlaneTilt,
   Plus,
   Sparkle,
   SquaresFour,
@@ -30,6 +26,7 @@ import { localizedScopeTitle, useTranslation } from "../lib/i18n"
 import { useReaderStore, type AppView } from "../store/reader"
 import { Brand } from "./Brand"
 import { FolderContextMenu } from "./FolderContextMenu"
+import { RESEARCH_TABS } from "./workbench/researchTabs"
 import { TASK_VIEWS } from "./workbench/taskViews"
 import { PromptDialog } from "./PromptDialog"
 import { SubscriptionContextMenu } from "./SubscriptionContextMenu"
@@ -146,6 +143,12 @@ export function Sidebar(props: SidebarProps) {
   }
   const openURL = (value: string | null | undefined) => {
     if (!value) return
+    try {
+      const parsed = new URL(value)
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return
+    } catch {
+      return
+    }
     window.open(value, "_blank", "noopener,noreferrer")
   }
   return (
@@ -268,13 +271,7 @@ export function Sidebar(props: SidebarProps) {
               role="group"
               aria-label={t("moduleResearch")}
             >
-              {[
-                { id: "dashboard" as const, labelKey: "researchOverview", Icon: ChartPieSlice },
-                { id: "research" as const, labelKey: "workingPapers", Icon: NotePencil },
-                { id: "submitted" as const, labelKey: "submissions", Icon: PaperPlaneTilt },
-                { id: "published" as const, labelKey: "publications", Icon: Books },
-                { id: "calendar" as const, labelKey: "calendar", Icon: CalendarBlank },
-              ].map((entry) => (
+              {RESEARCH_TABS.map((entry) => (
                 <button
                   key={entry.id}
                   className="sidebar-research-nav__item"

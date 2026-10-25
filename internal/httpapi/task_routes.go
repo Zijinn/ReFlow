@@ -413,20 +413,35 @@ func (s *Server) createQuickTask(w http.ResponseWriter, r *http.Request) {
 func (s *Server) updateQuickTask(w http.ResponseWriter, r *http.Request) {
 	taskID := r.PathValue("quickTaskID")
 	var request struct {
-		Title     *string `json:"title"`
-		Notes     *string `json:"notes"`
-		StartDate *string `json:"start_date"`
-		DueDate   *string `json:"due_date"`
-		Completed *bool   `json:"completed"`
-		Position  *int    `json:"position"`
+		Title     *string         `json:"title"`
+		Notes     *string         `json:"notes"`
+		StartDate *string         `json:"start_date"`
+		DueDate   *string         `json:"due_date"`
+		PaperID   json.RawMessage `json:"paper_id"`
+		Completed *bool           `json:"completed"`
+		Position  *int            `json:"position"`
 	}
 	if err := decodeTaskJSON(w, r, &request); err != nil {
 		writeJSONDecodeError(w, r, err, "invalid_request", "Invalid request")
 		return
 	}
-	task, err := storage.UpdateQuickTask(r.Context(), s.db, domain.DefaultProfileID, taskID,
-		domain.QuickTaskPatch{Title: request.Title, Notes: request.Notes, StartDate: request.StartDate,
-			DueDate: request.DueDate, Completed: request.Completed, Position: request.Position})
+	patch := domain.QuickTaskPatch{Title: request.Title, Notes: request.Notes, StartDate: request.StartDate,
+		DueDate: request.DueDate, Completed: request.Completed, Position: request.Position}
+	if len(request.PaperID) > 0 {
+		patch.SetPaperID = true
+		if string(request.PaperID) != "null" {
+			var paperID string
+			if err := json.Unmarshal(request.PaperID, &paperID); err != nil {
+				writeProblem(w, r, http.StatusBadRequest, "invalid_quick_task", "Invalid paper link",
+					"paper_id must be a paper id string or null.")
+				return
+			}
+			if trimmed := strings.TrimSpace(paperID); trimmed != "" {
+				patch.PaperID = &trimmed
+			}
+		}
+	}
+	task, err := storage.UpdateQuickTask(r.Context(), s.db, domain.DefaultProfileID, taskID, patch)
 	if err != nil {
 		s.storageError(w, r, err)
 		return

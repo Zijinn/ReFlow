@@ -83,14 +83,14 @@ function quickTask(overrides: Partial<QuickTask> = {}): QuickTask {
 function taskThread(
   start: string,
   due: string,
-  overrides: { id?: string; title?: string; closed?: boolean } = {},
+  overrides: { id?: string; title?: string; closed?: boolean; archived?: boolean } = {},
 ): TaskThread {
   const suffix = overrides.id ?? "open"
   return {
     id: `thread-${suffix}`,
     name: "Thread",
     position: 0,
-    archived: false,
+    archived: overrides.archived ?? false,
     map_markdown: "",
     layers: [
       {
@@ -182,7 +182,7 @@ describe("CalendarPage", () => {
     expect(within(unscheduled).getByText("Unscheduled quick")).toBeInTheDocument()
     expect(within(unscheduled).getByText("Unscheduled long")).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole("button", { name: "Open range" }))
+    fireEvent.click(screen.getByRole("button", { name: /Open range/ }))
     expect(onSelectTask).toHaveBeenCalledWith("quick", "q-open")
   })
 
@@ -210,6 +210,36 @@ describe("CalendarPage", () => {
     expect(screen.getByText("Due now")).toBeInTheDocument()
     // A deadline further out than a week carries no urgency tint.
     expect(screen.getByText("Later").parentElement?.className).toBe("wb-cal-event")
+  })
+
+  it("hides archived threads and normalises reversed ranges", () => {
+    render(
+      <CalendarPage
+        papers={[]}
+        onSelectPaper={vi.fn()}
+        quickTasks={[
+          quickTask({
+            id: "q-reversed",
+            title: "Reversed range",
+            start_date: dayOffset(5),
+            due_date: dayOffset(2),
+          }),
+        ]}
+        taskThreads={[
+          taskThread(dayOffset(1), dayOffset(2), {
+            id: "archived",
+            title: "Archived work",
+            archived: true,
+          }),
+        ]}
+        onSelectTask={vi.fn()}
+      />,
+    )
+    expect(screen.queryByText("Archived work")).not.toBeInTheDocument()
+    const bar = document.querySelector<HTMLElement>(".wb-cal-task-bar")
+    expect(bar).not.toBeNull()
+    expect(bar?.style.gridColumn).toMatch(/^\d+ \/ \d+$/)
+    expect(screen.getByRole("button", { name: /Reversed range/ })).toBeInTheDocument()
   })
 
   it("ignores papers without a parseable deadline", () => {

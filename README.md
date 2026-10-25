@@ -18,6 +18,8 @@ ReFlow is a local-first personal RSS reader for macOS, Windows, iPad, and the we
 - FreshRSS, Google Reader compatible services, Miniflux, Fever, Feedbin, and Nextcloud News adapters
 - Concurrent WebDAV and iCloud Drive library synchronization with conflict detection and explicit recovery choices
 - `reflow` command-line interface for AI agents: working papers, tags, literature identification from subscribed entries, and a machine-readable command catalog
+- Research workspace: working papers, submissions, publications, a deadline calendar with task range bars, quick tasks, and layered long-task threads
+- One-click handoff from a paper's next action to a linked quick task; the same tasks appear on the timeline, the research calendar, and the unscheduled list
 - Chinese and English interfaces, light and dark themes, and five timeline views
 
 ## Screenshots
@@ -93,6 +95,8 @@ make cli
 ## Data And Security
 
 SQLite is authoritative. Library data lives in the operating-system configuration directory named `ReFlow`. The rename is complete and no legacy data directory is read, so an existing library must be restored from a full local backup or re-synced from the cloud. The database and owner-only `master.key` must be kept together when restoring a full local backup.
+
+Portable backups contain library content, research data, and tasks, but deliberately exclude device pairings, queued jobs, and sync-account credentials. Re-pair devices and re-authenticate sync accounts after a restore; this keeps a backup from minting credentials or scheduling remote work.
 
 ReFlow binds to loopback by default. LAN access must be enabled explicitly and uses one-time device pairing, hashed bearer tokens, scoped origins, and optional TLS. Reverse proxies must be explicitly listed by exact IP or CIDR in `REFLOW_TRUSTED_PROXIES`; only the immediate peer is classified, forwarded-address headers are ignored for authorization, and protected APIs still require a paired device token. Feed, synchronization, WebDAV, and AI HTTP endpoints share redirect validation, response limits, and SSRF protections; private network access requires an account-level opt-in.
 

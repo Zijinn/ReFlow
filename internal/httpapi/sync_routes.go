@@ -144,7 +144,12 @@ func (s *Server) testSyncAccountConnection(w http.ResponseWriter, r *http.Reques
 		default:
 			code = "connection_test_failed"
 		}
-		writeProblem(w, r, status, code, "Connection test failed", err.Error())
+		s.logger.WarnContext(r.Context(), "sync connection test failed", "error", err, "request_id", requestIDFrom(r.Context()))
+		detail := "The sync endpoint could not be reached."
+		if code == "authentication_error" {
+			detail = "The sync endpoint rejected the credentials."
+		}
+		writeProblem(w, r, status, code, "Connection test failed", detail)
 		return
 	}
 	writeJSON(w, http.StatusOK, result)

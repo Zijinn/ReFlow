@@ -287,7 +287,8 @@ func GetAIEntryContent(ctx context.Context, db *sql.DB, profileID, entryID strin
 func GetAIResult(ctx context.Context, db *sql.DB, profileID, entryID, operation, language, inputHash string) (domain.AIResult, error) {
 	item, err := scanAIResult(db.QueryRowContext(ctx, `SELECT id, ai_profile_id, entry_id, operation,
 		language, input_hash, result_text, usage_json, created_at FROM ai_results
-		WHERE profile_id = ? AND entry_id = ? AND operation = ? AND language = ? AND input_hash = ?`,
+		WHERE profile_id = ? AND entry_id = ? AND operation = ? AND language = ? AND input_hash = ?
+		ORDER BY created_at DESC LIMIT 1`,
 		profileID, entryID, operation, language, inputHash))
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.AIResult{}, ErrNotFound
@@ -350,7 +351,8 @@ func SaveAIResultAndUsage(ctx context.Context, db *sql.DB, params SaveAIResultPa
 	}
 	item, err := scanAIResult(tx.QueryRowContext(ctx, `SELECT id, ai_profile_id, entry_id, operation,
 		language, input_hash, result_text, usage_json, created_at FROM ai_results
-		WHERE profile_id = ? AND entry_id = ? AND operation = ? AND language = ? AND input_hash = ?`,
+		WHERE profile_id = ? AND entry_id = ? AND operation = ? AND language = ? AND input_hash = ?
+		ORDER BY created_at DESC LIMIT 1`,
 		params.ProfileID, params.EntryID, params.Operation, params.Language, params.InputHash))
 	if err != nil {
 		return domain.AIResult{}, false, err

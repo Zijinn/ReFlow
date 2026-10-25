@@ -34,6 +34,21 @@ func TestBoxPersistsKeyAndAuthenticatesContext(t *testing.T) {
 	}
 }
 
+func TestLoadOrCreateRejectsSymlink(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "real.key")
+	if err := os.WriteFile(target, make([]byte, 32), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "master.key")
+	if err := os.Symlink(target, link); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+	if _, err := LoadOrCreate(link); err == nil {
+		t.Fatal("a symlink at the master key path must be rejected")
+	}
+}
+
 func TestLoadOrCreateTightensExistingKeyPermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "master.key")
 	if err := os.WriteFile(path, make([]byte, 32), 0o644); err != nil {

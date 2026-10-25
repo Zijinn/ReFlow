@@ -176,10 +176,18 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
     () => new Intl.DateTimeFormat(locale, { weekday: "short" }),
     [locale],
   )
+  const dayFormat = useMemo(
+    () => new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" }),
+    [locale],
+  )
+  const monthFormat = useMemo(
+    () => new Intl.DateTimeFormat(locale, { year: "numeric", month: "long" }),
+    [locale],
+  )
   const rangeLabel =
     mode === "week"
-      ? `${windowStart.getMonth() + 1}月${windowStart.getDate()}日 – ${windowEnd.getMonth() + 1}月${windowEnd.getDate()}日`
-      : `${windowStart.getFullYear()}年${windowStart.getMonth() + 1}月`
+      ? `${dayFormat.format(windowStart)} – ${dayFormat.format(windowEnd)}`
+      : monthFormat.format(windowStart)
   const weekLabel = t("taskTimelineWeekNumber").replace("{week}", String(isoWeek(windowStart)))
 
   const threads = useMemo(() => threadsQuery.data?.items ?? [], [threadsQuery.data?.items])
@@ -187,20 +195,24 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
 
   const quickRows = useMemo<TimelineRow[]>(
     () =>
-      quickTasks.map((task) => ({
+      quickTasks.map((task) => {
+        const start = task.start_date && task.due_date && task.start_date > task.due_date ? task.due_date : task.start_date
+        const due = task.start_date && task.due_date && task.start_date > task.due_date ? task.start_date : task.due_date
+        return {
         key: `quick-${task.id}`,
         kind: "quick",
         id: task.id,
         title: task.title,
-        subtitle: dateRange(task.start_date, task.due_date) || t("taskViewQuick"),
-        start: task.start_date,
-        due: task.due_date,
+        subtitle: dateRange(start, due) || t("taskViewQuick"),
+        start,
+        due,
         state: task.completed
           ? "closed"
           : task.due_date && task.due_date < todayValue()
             ? "overdue"
             : "active",
-      })),
+        }
+      }),
     [quickTasks, t],
   )
 
@@ -220,23 +232,27 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
             .flatMap((item) =>
               item.assignments
                 .filter((assignment) => assignment.layer_id === layer.id)
-                .map((assignment) => ({
+                .map((assignment) => {
+                  const start = assignment.start_date && assignment.due_date && assignment.start_date > assignment.due_date ? assignment.due_date : assignment.start_date
+                  const due = assignment.start_date && assignment.due_date && assignment.start_date > assignment.due_date ? assignment.start_date : assignment.due_date
+                  return {
                   key: `assignment-${assignment.id}`,
                   kind: "assignment" as const,
                   id: assignment.id,
                   title: item.title,
                   subtitle: assignmentSubtitle(
                     layer.name,
-                    assignment.start_date,
-                    assignment.due_date,
+                    start,
+                    due,
                     assignment.steps.filter((step) => step.done).length,
                     assignment.steps.length,
                     t("taskStepUnit"),
                   ),
-                  start: assignment.start_date,
-                  due: assignment.due_date,
+                  start,
+                  due,
                   state: stateForItem(item.status, assignment.closed),
-                })),
+                  }
+                }),
             )
             .sort((left, right) => left.title.localeCompare(right.title)),
         })),
@@ -601,10 +617,17 @@ function TimelineBar(props: {
         width: `${width}%`,
       }}
       title={row.title}
+      aria-label={`${row.title} · ${row.start || "—"} – ${row.due || "—"}`}
       onPointerDown={(event) => {
+        event.currentTarget.focus()
         event.preventDefault()
         event.currentTarget.setPointerCapture(event.pointerId)
         setDrag({ startX: event.clientX, pxPerDay: pixelPerDay(event), delta: 0 })
+      }}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return
+        event.preventDefault()
+        onShift(row, event.key === "ArrowLeft" ? -1 : 1)
       }}
       onPointerMove={(event) => {
         if (!drag) return

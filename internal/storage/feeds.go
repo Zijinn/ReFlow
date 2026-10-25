@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/Zijinn/ReFlow/internal/domain"
@@ -262,6 +263,20 @@ func DeleteSubscription(ctx context.Context, db *sql.DB, profileID, feedID strin
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
 		return ErrNotFound
+	}
+	var remaining int
+	if err := tx.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM subscriptions WHERE feed_id = ?", feedID).Scan(&remaining); err != nil {
+		return fmt.Errorf("count remaining subscriptions: %w", err)
+	}
+	if remaining == 0 {
+		// entries_fts is a virtual table and does not participate in the
+		// entries cascade; without this the index keeps dead rows forever.
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM entries_fts WHERE entry_id IN (SELECT id FROM entries WHERE feed_id = ?)",
+			feedID); err != nil {
+			return fmt.Errorf("delete feed search rows: %w", err)
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM feeds WHERE id = ? AND NOT EXISTS (
@@ -664,10 +679,13 @@ func stringPointer(value sql.NullString) *string {
 }
 
 func timePointer(value sql.NullString) *time.Time {
-	if !value.Valid {
+	if !value.Valid || value.String == "" {
 		return nil
 	}
 	parsed := parseTime(value.String)
+	if parsed.IsZero() {
+		return nil
+	}
 	return &parsed
 }
 
@@ -676,10 +694,22 @@ func formatTime(value time.Time) string {
 }
 
 func parseTime(value string) time.Time {
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err == nil {
-		return parsed
+	parsed, ok := parseTimeValue(value)
+	if !ok {
+		// Malformed rows point at corruption or a hand-edited database. Surface
+		// them instead of quietly serving year-1 timestamps.
+		slog.Warn("storage: malformed timestamp", "value", value)
+		return time.Time{}
 	}
-	parsed, _ = time.Parse("2006-01-02 15:04:05", value)
-	return parsed.UTC()
+	return parsed
+}
+
+func parseTimeValue(value string) (time.Time, bool) {
+	if parsed, err := time.Parse(time.RFC3339Nano, value); err == nil {
+		return parsed, true
+	}
+	if parsed, err := time.Parse("2006-01-02 15:04:05", value); err == nil {
+		return parsed.UTC(), true
+	}
+	return time.Time{}, false
 }

@@ -10,6 +10,42 @@ import (
 	"github.com/Zijinn/ReFlow/internal/domain"
 )
 
+func TestDeleteSubscriptionClearsSearchIndex(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	guid := "fts-entry"
+	entryURL := "https://example.com/fts-entry"
+	created, err := SaveNewFeed(ctx, db, domain.DefaultProfileID, "https://example.com/feed", "https://example.com/feed", domain.ParsedFeed{
+		Title: "FTS feed", Format: "rss", Entries: []domain.ParsedEntry{{
+			GUID: &guid, CanonicalURL: &entryURL, Title: "Searchable article",
+			PublishedAt: time.Now().UTC(), ContentHash: "fts-hash",
+			SanitizedHTML: "<p>searchable body</p>", PlainText: "searchable body",
+		}},
+	}, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := ListEntries(ctx, db, domain.EntryFilter{ProfileID: domain.DefaultProfileID, FeedID: created.ID, Limit: 10})
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("list entries: %+v, %v", page, err)
+	}
+	entryID := page.Items[0].ID
+	if err := DeleteSubscription(ctx, db, domain.DefaultProfileID, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	var indexed int
+	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM entries_fts WHERE entry_id = ?", entryID).Scan(&indexed); err != nil {
+		t.Fatal(err)
+	}
+	if indexed != 0 {
+		t.Fatalf("unsubscribing left %d stale FTS rows", indexed)
+	}
+}
+
 func TestFeedEntryDedupSearchAndMutationIdempotency(t *testing.T) {
 	ctx := context.Background()
 	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
@@ -253,5 +289,17 @@ func TestEmptySubscriptionHasZeroUnreadAndFailureBackoffUsesRFC3339(t *testing.T
 	remaining := time.Until(*failed.NextCheckAt)
 	if remaining < 4*time.Minute || remaining > 6*time.Minute {
 		t.Fatalf("unexpected first backoff %s", remaining)
+	}
+}
+
+func TestMalformedTimestampsAreNotServedAsYearOne(t *testing.T) {
+	if parsed := parseTime("not-a-timestamp"); !parsed.IsZero() {
+		t.Fatalf("expected a zero sentinel for malformed input, got %v", parsed)
+	}
+	if parsed := timePointer(sql.NullString{Valid: true, String: "not-a-timestamp"}); parsed != nil {
+		t.Fatalf("expected a nil nullable timestamp for malformed input, got %v", parsed)
+	}
+	if parsed := timePointer(sql.NullString{Valid: true, String: "2026-10-25T08:00:00Z"}); parsed == nil || parsed.IsZero() {
+		t.Fatalf("expected a valid timestamp to survive, got %v", parsed)
 	}
 }

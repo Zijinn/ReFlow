@@ -73,24 +73,16 @@ export default defineConfig(({ mode }) => {
         workbox: {
           navigateFallback: "/index.html",
           globPatterns: ["**/*.{js,css,html,png,woff2}"],
-          runtimeCaching: [
-            {
-              urlPattern: ({ url }) => url.pathname.startsWith("/api/v1/entries"),
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "reflow-entry-api",
-                expiration: { maxEntries: 120, maxAgeSeconds: 60 * 60 * 24 * 7 },
-                networkTimeoutSeconds: 4,
-              },
-            },
-          ],
+          // Authenticated API responses are cached in IndexedDB with explicit
+          // device-scoped lifecycle handling. Do not mirror them into a second,
+          // URL-keyed CacheStorage bucket that survives re-pairing/revocation.
         },
-        devOptions: { enabled: true },
       }),
     ],
     server: {
       host: "127.0.0.1",
       port: Number.isFinite(devPort) ? devPort : 4173,
+      strictPort: true,
       proxy: {
         "/api": devAPITarget,
         "/healthz": devAPITarget,

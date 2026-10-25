@@ -31,7 +31,7 @@ grep -q "^  version: $version$" api/openapi.yaml
 
 ruby -ryaml -rjson -rrexml/document -e '
   workflow = YAML.load_file(".github/workflows/release.yml")
-  expected_jobs = ["license-inventory", "macos-universal", "publish-release", "windows-x64"]
+  expected_jobs = ["license-inventory", "macos-universal", "publish-release", "verify", "windows-x64"]
   abort "release workflow has unexpected jobs" unless workflow["jobs"].is_a?(Hash) && workflow["jobs"].keys.sort == expected_jobs
   YAML.load_file("api/openapi.yaml")
   JSON.parse(File.read("build/windows/info.json"))

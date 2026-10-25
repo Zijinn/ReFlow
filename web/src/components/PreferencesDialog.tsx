@@ -52,6 +52,7 @@ import {
   APIError,
   createResearchTag,
   deleteResearchTag,
+  downloadFile,
   listPreferences,
   listResearchTags,
   putPreference,
@@ -274,6 +275,11 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
     setShortcut(action, chord)
   }
   const selectBackup = (file?: File) => {
+    if (file && file.size > 256 * 1024 * 1024) {
+      toast(t("backupTooLarge"))
+      if (restoreInput.current) restoreInput.current.value = ""
+      return
+    }
     if (file)
       setPendingConfirmation({
         message: t("restoreConfirmation"),
@@ -966,14 +972,19 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                             <Books />
                             {t("manage")}
                           </button>
-                          <a
+                          <button
                             className="button button--secondary"
-                            href="/api/v1/exports/opml"
-                            download
+                            type="button"
+                            onClick={() => {
+                              void downloadFile(
+                                "/api/v1/exports/opml",
+                                "reflow-subscriptions.opml",
+                              ).catch(() => toast(t("downloadFailed")))
+                            }}
                           >
                             <DownloadSimple />
                             {t("export")}
-                          </a>
+                          </button>
                         </div>
                       </section>
                       <section className="preference-section preference-section--row">
@@ -1001,10 +1012,19 @@ export function PreferencesDialog(props: PreferencesDialogProps) {
                           <p>{t("backupDescription")}</p>
                         </div>
                         <div className="button-group">
-                          <a className="button button--secondary" href="/api/v1/backup" download>
+                          <button
+                            className="button button--secondary"
+                            type="button"
+                            onClick={() => {
+                              void downloadFile(
+                                "/api/v1/backup",
+                                "reflow-backup.json",
+                              ).catch(() => toast(t("downloadFailed")))
+                            }}
+                          >
                             <DownloadSimple />
                             {t("backup")}
-                          </a>
+                          </button>
                           <input
                             ref={restoreInput}
                             className="sr-only"

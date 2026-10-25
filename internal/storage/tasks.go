@@ -176,11 +176,11 @@ func syncTaskClosedStamps(ctx context.Context, exec taskExecer, itemWhere string
 // --- read side ---
 
 // loadTaskBoard reads the profile's board once and assembles the threads named by
-// threadIDs (all of them when threadIDs is empty). Every child query is scoped by
-// profile_id rather than by an id list: this is a personal tool holding tens of
-// rows that the client fetches in one document, so a flat read per level beats an
-// IN-list per thread and stays clear of SQLite's host-parameter ceiling however
-// long the card list grows.
+// threadIDs (all of them when threadIDs is empty). The whole-board path scopes
+// child queries by profile_id rather than by an id list: this is a personal tool
+// holding tens of rows that the client fetches in one document, so a flat read
+// per level beats an IN-list per thread. Single-thread reads (item/layer writes)
+// pass their one id so they do not pay for the rest of the board.
 func loadTaskBoard(ctx context.Context, db *sql.DB, profileID string, threadIDs []string) ([]domain.TaskThread, error) {
 	threads, err := queryTaskThreads(ctx, db, profileID, threadIDs)
 	if err != nil {
@@ -189,19 +189,19 @@ func loadTaskBoard(ctx context.Context, db *sql.DB, profileID string, threadIDs 
 	if len(threads) == 0 {
 		return []domain.TaskThread{}, nil
 	}
-	layersByThread, err := queryTaskLayers(ctx, db, profileID)
+	layersByThread, err := queryTaskLayers(ctx, db, profileID, threadIDs)
 	if err != nil {
 		return nil, err
 	}
-	itemsByThread, err := queryTaskItems(ctx, db, profileID)
+	itemsByThread, err := queryTaskItems(ctx, db, profileID, threadIDs)
 	if err != nil {
 		return nil, err
 	}
-	assignmentsByItem, err := queryTaskAssignments(ctx, db, profileID)
+	assignmentsByItem, err := queryTaskAssignments(ctx, db, profileID, threadIDs)
 	if err != nil {
 		return nil, err
 	}
-	stepsByAssignment, err := queryTaskSteps(ctx, db, profileID)
+	stepsByAssignment, err := queryTaskSteps(ctx, db, profileID, threadIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -244,9 +244,17 @@ func queryTaskThreads(ctx context.Context, db *sql.DB, profileID string, threadI
 	return threads, rows.Err()
 }
 
-func queryTaskLayers(ctx context.Context, db *sql.DB, profileID string) (map[string][]domain.TaskLayer, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id, thread_id, name, position, forced_unlock
-		FROM task_layers WHERE profile_id = ? ORDER BY position, created_at`, profileID)
+func queryTaskLayers(ctx context.Context, db *sql.DB, profileID string, threadIDs []string) (map[string][]domain.TaskLayer, error) {
+	query := `SELECT id, thread_id, name, position, forced_unlock
+		FROM task_layers WHERE profile_id = ?`
+	args := []any{profileID}
+	if len(threadIDs) > 0 {
+		query += ` AND thread_id IN (` + taskPlaceholders(len(threadIDs)) + `)`
+		for _, id := range threadIDs {
+			args = append(args, id)
+		}
+	}
+	rows, err := db.QueryContext(ctx, query+` ORDER BY position, created_at`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list task layers: %w", err)
 	}
@@ -267,9 +275,17 @@ func queryTaskLayers(ctx context.Context, db *sql.DB, profileID string) (map[str
 	return byThread, rows.Err()
 }
 
-func queryTaskItems(ctx context.Context, db *sql.DB, profileID string) (map[string][]domain.TaskItem, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id, thread_id, title, notes, position, paper_id, closed_at
-		FROM task_items WHERE profile_id = ? ORDER BY position, created_at`, profileID)
+func queryTaskItems(ctx context.Context, db *sql.DB, profileID string, threadIDs []string) (map[string][]domain.TaskItem, error) {
+	query := `SELECT id, thread_id, title, notes, position, paper_id, closed_at
+		FROM task_items WHERE profile_id = ?`
+	args := []any{profileID}
+	if len(threadIDs) > 0 {
+		query += ` AND thread_id IN (` + taskPlaceholders(len(threadIDs)) + `)`
+		for _, id := range threadIDs {
+			args = append(args, id)
+		}
+	}
+	rows, err := db.QueryContext(ctx, query+` ORDER BY position, created_at`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list task items: %w", err)
 	}
@@ -297,17 +313,24 @@ func queryTaskItems(ctx context.Context, db *sql.DB, profileID string) (map[stri
 	return byThread, rows.Err()
 }
 
-func queryTaskAssignments(ctx context.Context, db *sql.DB, profileID string) (map[string][]domain.TaskAssignment, error) {
+func queryTaskAssignments(ctx context.Context, db *sql.DB, profileID string, threadIDs []string) (map[string][]domain.TaskAssignment, error) {
 	// The join to task_layers is what lets a placement come back already carrying
 	// its layer's position: a card sitting in 第二层 and 第三层 has to list those
 	// placements in the order the board shows the layers, not in insertion order.
-	rows, err := db.QueryContext(ctx, `SELECT a.item_id, a.id, a.layer_id, a.position, l.position,
+	query := `SELECT a.item_id, a.id, a.layer_id, a.position, l.position,
 			a.start_date, a.due_date, a.closed_at
 		FROM task_assignments a
 		JOIN task_items i ON i.id = a.item_id
 		JOIN task_layers l ON l.id = a.layer_id
-		WHERE i.profile_id = ?
-		ORDER BY l.position, a.position, a.id`, profileID)
+		WHERE i.profile_id = ?`
+	args := []any{profileID}
+	if len(threadIDs) > 0 {
+		query += ` AND i.thread_id IN (` + taskPlaceholders(len(threadIDs)) + `)`
+		for _, id := range threadIDs {
+			args = append(args, id)
+		}
+	}
+	rows, err := db.QueryContext(ctx, query+` ORDER BY l.position, a.position, a.id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list task assignments: %w", err)
 	}
@@ -328,16 +351,23 @@ func queryTaskAssignments(ctx context.Context, db *sql.DB, profileID string) (ma
 	return byItem, rows.Err()
 }
 
-func queryTaskSteps(ctx context.Context, db *sql.DB, profileID string) (map[string][]domain.TaskStep, error) {
+func queryTaskSteps(ctx context.Context, db *sql.DB, profileID string, threadIDs []string) (map[string][]domain.TaskStep, error) {
 	// Steps join through two levels to reach the profile: the schema keeps them on
 	// the placement they belong to, so a step inherits its scope instead of
 	// carrying a third copy of the profile id.
-	rows, err := db.QueryContext(ctx, `SELECT s.assignment_id, s.id, s.name, s.done, s.position, s.done_at
+	query := `SELECT s.assignment_id, s.id, s.name, s.done, s.position, s.done_at
 		FROM task_steps s
 		JOIN task_assignments a ON a.id = s.assignment_id
 		JOIN task_items i ON i.id = a.item_id
-		WHERE i.profile_id = ?
-		ORDER BY s.position, s.id`, profileID)
+		WHERE i.profile_id = ?`
+	args := []any{profileID}
+	if len(threadIDs) > 0 {
+		query += ` AND i.thread_id IN (` + taskPlaceholders(len(threadIDs)) + `)`
+		for _, id := range threadIDs {
+			args = append(args, id)
+		}
+	}
+	rows, err := db.QueryContext(ctx, query+` ORDER BY s.position, s.id`, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list task steps: %w", err)
 	}
@@ -452,7 +482,10 @@ func assembleTaskThread(thread domain.TaskThread, layers []domain.TaskLayer, ite
 
 	// Pass 3: each card's status, tested in the contract's fixed order, so a card
 	// that is both overdue and parked in a locked layer reports locked.
-	today := time.Now().UTC().Format(taskDateLayout)
+	// Due dates are calendar days in the user's local timezone; using UTC here
+	// makes the server call an item active until 08:00 in UTC+8 while the
+	// calendar already paints it overdue.
+	today := time.Now().Format(taskDateLayout)
 	for _, item := range items {
 		item.Status = deriveTaskItemStatus(item, unlocked, today)
 		thread.Stats.Total++
@@ -712,7 +745,7 @@ func scanTaskOwnerID(ctx context.Context, db *sql.DB, query, id, profileID, labe
 
 // taskAssignmentItemID resolves the card a placement belongs to, scoped by profile
 // so an id from another board answers 404 rather than touching a stranger's rows.
-func taskAssignmentItemID(ctx context.Context, db *sql.DB, profileID, assignmentID string) (string, error) {
+func taskAssignmentItemID(ctx context.Context, db rowQueryer, profileID, assignmentID string) (string, error) {
 	var itemID string
 	err := db.QueryRowContext(ctx, `SELECT a.item_id FROM task_assignments a
 		JOIN task_items i ON i.id = a.item_id WHERE i.profile_id = ? AND a.id = ?`, profileID, assignmentID).
@@ -726,7 +759,7 @@ func taskAssignmentItemID(ctx context.Context, db *sql.DB, profileID, assignment
 	return itemID, nil
 }
 
-func taskStepAssignmentID(ctx context.Context, db *sql.DB, profileID, stepID string) (string, error) {
+func taskStepAssignmentID(ctx context.Context, db rowQueryer, profileID, stepID string) (string, error) {
 	var assignmentID string
 	err := db.QueryRowContext(ctx, `SELECT s.assignment_id FROM task_steps s
 		JOIN task_assignments a ON a.id = s.assignment_id
@@ -1359,10 +1392,13 @@ func UpdateTaskStep(ctx context.Context, db *sql.DB, profileID, id string, patch
 	if patch.Position != nil && *patch.Position < 0 {
 		return domain.TaskStep{}, taskValidationf(taskScopeStep, "position must not be negative")
 	}
-	var (
-		currentDone int
-	)
-	err := db.QueryRowContext(ctx, `SELECT s.done FROM task_steps s
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.TaskStep{}, fmt.Errorf("begin task step update: %w", err)
+	}
+	defer tx.Rollback()
+	var currentDone int
+	err = tx.QueryRowContext(ctx, `SELECT s.done FROM task_steps s
 		JOIN task_assignments a ON a.id = s.assignment_id
 		JOIN task_items i ON i.id = a.item_id
 		WHERE i.profile_id = ? AND s.id = ?`, profileID, id).Scan(&currentDone)
@@ -1372,11 +1408,11 @@ func UpdateTaskStep(ctx context.Context, db *sql.DB, profileID, id string, patch
 	if err != nil {
 		return domain.TaskStep{}, fmt.Errorf("read task step: %w", err)
 	}
-	assignmentID, err := taskStepAssignmentID(ctx, db, profileID, id)
+	assignmentID, err := taskStepAssignmentID(ctx, tx, profileID, id)
 	if err != nil {
 		return domain.TaskStep{}, err
 	}
-	itemID, err := taskAssignmentItemID(ctx, db, profileID, assignmentID)
+	itemID, err := taskAssignmentItemID(ctx, tx, profileID, assignmentID)
 	if err != nil {
 		return domain.TaskStep{}, err
 	}
@@ -1403,7 +1439,7 @@ func UpdateTaskStep(ctx context.Context, db *sql.DB, profileID, id string, patch
 	if len(sets) > 0 {
 		sets = append(sets, "updated_at = ?")
 		args = append(args, now, id)
-		if _, err := db.ExecContext(ctx,
+		if _, err := tx.ExecContext(ctx,
 			"UPDATE task_steps SET "+joinComma(sets)+" WHERE id = ?", args...); err != nil {
 			return domain.TaskStep{}, fmt.Errorf("update task step: %w", err)
 		}
@@ -1411,9 +1447,12 @@ func UpdateTaskStep(ctx context.Context, db *sql.DB, profileID, id string, patch
 	if flipped {
 		// The tick is what the closed chip and the percentage are read from, so a
 		// flip reconciles the placement's and the card's display stamps with it.
-		if err := syncTaskClosedStamps(ctx, db, "id = ?", []any{itemID}, now); err != nil {
+		if err := syncTaskClosedStamps(ctx, tx, "id = ?", []any{itemID}, now); err != nil {
 			return domain.TaskStep{}, err
 		}
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.TaskStep{}, fmt.Errorf("commit task step update: %w", err)
 	}
 	return GetTaskStep(ctx, db, profileID, id)
 }

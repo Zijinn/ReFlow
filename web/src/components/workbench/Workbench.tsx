@@ -1,12 +1,5 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
-import {
-  Books,
-  CalendarBlank,
-  ChartPieSlice,
-  NotePencil,
-  PaperPlaneTilt,
-  Sparkle,
-} from "@phosphor-icons/react"
+import { Sparkle } from "@phosphor-icons/react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
@@ -48,17 +41,10 @@ import { Dashboard } from "./Dashboard"
 import { PublishedPage } from "./PublishedPage"
 import { ResearchPage } from "./ResearchPage"
 import { SubmittedPage } from "./SubmittedPage"
+import { RESEARCH_TABS } from "./researchTabs"
 import { TaskManagement } from "./TaskManagement"
 import { QUICK_TASK_QUERY_KEY, TASK_QUERY_KEY } from "./taskQueryKeys"
 import { deadlineDays, formatDeadline, parseDeadline } from "./utils"
-
-const TABS: Array<{ id: WorkbenchTab; labelKey: string; Icon: typeof Books }> = [
-  { id: "dashboard", labelKey: "researchOverview", Icon: ChartPieSlice },
-  { id: "research", labelKey: "workingPapers", Icon: NotePencil },
-  { id: "submitted", labelKey: "submissions", Icon: PaperPlaneTilt },
-  { id: "published", labelKey: "publications", Icon: Books },
-  { id: "calendar", labelKey: "calendar", Icon: CalendarBlank },
-]
 
 // 个人工作台的两个模块。长任务是板子，科研工作台是今天这五张表原样往下挪一层，
 // 所以选中长任务时连 .wb-nav 整条都不渲染——科研那五格的可见性、顺序、无障碍
@@ -123,6 +109,9 @@ export function Workbench(props: WorkbenchProps) {
   const workbenchModule = useReaderStore((state) => state.workbenchModule)
   const setWorkbenchModule = useReaderStore((state) => state.setWorkbenchModule)
   const setTaskView = useReaderStore((state) => state.setTaskView)
+  const setTaskFocus = useReaderStore((state) => state.setTaskFocus)
+  const taskFocus = useReaderStore((state) => state.taskFocus)
+  const clearTaskFocus = useReaderStore((state) => state.clearTaskFocus)
   const [focusPaperID, setFocusPaperID] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null)
   const [batchPending, setBatchPending] = useState(false)
@@ -131,6 +120,9 @@ export function Workbench(props: WorkbenchProps) {
   )
   const shellRef = useRef<HTMLDivElement>(null)
   const [openRowID, setOpenRowID] = useState<string | null>(null)
+  const [pendingNextActionPaperIDs, setPendingNextActionPaperIDs] = useState<Set<string>>(
+    () => new Set(),
+  )
   // Stable so the submissions page's jump effect does not re-run every render.
   const clearFocus = useCallback(() => setFocusPaperID(null), [])
 
@@ -215,6 +207,7 @@ export function Workbench(props: WorkbenchProps) {
       (focusedPaper ? [focusedPaper] : tabPapers.slice(0, AI_CONTEXT_CAP)).map((paper) => paper.id),
     [focusedPaper, tabPapers],
   )
+  const calendarPapers = useMemo(() => [...research, ...submitted], [research, submitted])
   const aiContextLabel = focusedPaper
     ? `${t("aiContextFocusedPaper")} · ${truncateTitle(focusedPaper.title)}`
     : `${t(aiContextKey(tab))} · ${tabPapers.length}`
@@ -272,7 +265,7 @@ export function Workbench(props: WorkbenchProps) {
   const linkedPaperIDs = useMemo(() => {
     const ids = new Set<string>()
     for (const task of quickTasks) {
-      if (task.paper_id) ids.add(task.paper_id)
+      if (task.paper_id && !task.completed) ids.add(task.paper_id)
     }
     return ids
   }, [quickTasks])
@@ -439,8 +432,8 @@ export function Workbench(props: WorkbenchProps) {
         due_date: due,
       })
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUICK_TASK_QUERY_KEY })
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: QUICK_TASK_QUERY_KEY })
       toast(t("nextActionTaskAdded"))
     },
     onError: () => toast(t("nextActionTaskFailed")),
@@ -480,17 +473,25 @@ export function Workbench(props: WorkbenchProps) {
   }
   const addNextActionTask = (paper: ResearchPaper) => {
     if (!requireOnline() || !paper.next_action.trim()) return
-    addNextActionTaskMutation.mutate(paper)
+    if (pendingNextActionPaperIDs.has(paper.id)) return
+    setPendingNextActionPaperIDs((current) => new Set(current).add(paper.id))
+    addNextActionTaskMutation.mutate(paper, {
+      onSettled: () => {
+        setPendingNextActionPaperIDs((current) => {
+          const next = new Set(current)
+          next.delete(paper.id)
+          return next
+        })
+      },
+    })
   }
-  const addingTaskPaperID = addNextActionTaskMutation.isPending
-    ? (addNextActionTaskMutation.variables?.id ?? null)
-    : null
   const openTaskFromCalendar = useCallback(
-    (kind: "quick" | "assignment") => {
+    (kind: "quick" | "assignment", taskID: string) => {
       setWorkbenchModule("tasks")
       setTaskView(kind === "quick" ? "quick" : "long")
+      setTaskFocus({ kind, id: taskID })
     },
-    [setTaskView, setWorkbenchModule],
+    [setTaskFocus, setTaskView, setWorkbenchModule],
   )
   const creating = createMutation.isPending
   const fetchAllCitations = async () => {
@@ -582,7 +583,7 @@ export function Workbench(props: WorkbenchProps) {
         </div>
         {!isTasks && (
           <nav className="wb-nav wb-research-nav" aria-label={t("moduleResearch")}>
-            {TABS.map((entry) => (
+            {RESEARCH_TABS.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
@@ -650,7 +651,11 @@ export function Workbench(props: WorkbenchProps) {
         </header>
         <section className="wb-content">
           {isTasks ? (
-            <TaskManagement offline={!online} />
+            <TaskManagement
+              offline={!online}
+              focus={taskFocus}
+              onFocusConsumed={clearTaskFocus}
+            />
           ) : hasError ? (
             <div className="wb-empty" role="alert">
               <p>{t("papersLoadFailed")}</p>
@@ -693,7 +698,7 @@ export function Workbench(props: WorkbenchProps) {
                   onMove={(id) => move(id, "submitted")}
                   onCreateTag={createTag}
                   linkedPaperIDs={linkedPaperIDs}
-                  addingTaskPaperID={addingTaskPaperID}
+                  addingTaskPaperIDs={pendingNextActionPaperIDs}
                   onAddNextActionTask={addNextActionTask}
                 />
               )}
@@ -711,7 +716,7 @@ export function Workbench(props: WorkbenchProps) {
                   onMove={(id) => move(id, "published")}
                   onMoveBack={(id) => move(id, "research")}
                   linkedPaperIDs={linkedPaperIDs}
-                  addingTaskPaperID={addingTaskPaperID}
+                  addingTaskPaperIDs={pendingNextActionPaperIDs}
                   onAddNextActionTask={addNextActionTask}
                 />
               )}
@@ -738,7 +743,7 @@ export function Workbench(props: WorkbenchProps) {
               )}
               {tab === "calendar" && (
                 <CalendarPage
-                  papers={[...research, ...submitted]}
+                  papers={calendarPapers}
                   aiProfiles={props.aiProfiles ?? []}
                   onConfigureAI={props.onConfigureAI}
                   onAskAI={props.onAskAI}

@@ -18,18 +18,39 @@ type Box struct {
 }
 
 func LoadOrCreate(path string) (*Box, error) {
-	if info, err := os.Lstat(path); err == nil {
+	var key []byte
+	info, lstatErr := os.Lstat(path)
+	switch {
+	case lstatErr == nil:
 		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
 			return nil, errors.New("secret key path must be a regular file")
 		}
-		if err := os.Chmod(path, 0o600); err != nil {
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open secret key: %w", err)
+		}
+		openedInfo, err := file.Stat()
+		if err != nil {
+			file.Close()
+			return nil, fmt.Errorf("inspect opened secret key: %w", err)
+		}
+		// Reject a path that was swapped between Lstat and Open (including a
+		// regular file or symlink pointing elsewhere). Keep using the opened fd,
+		// and chmod the fd rather than the path, to close the TOCTOU window.
+		if !openedInfo.Mode().IsRegular() || !os.SameFile(info, openedInfo) {
+			file.Close()
+			return nil, errors.New("secret key path changed while opening")
+		}
+		if err := file.Chmod(0o600); err != nil {
+			file.Close()
 			return nil, fmt.Errorf("secure secret key permissions: %w", err)
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return nil, fmt.Errorf("inspect secret key: %w", err)
-	}
-	key, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
+		key, err = io.ReadAll(file)
+		file.Close()
+		if err != nil {
+			return nil, fmt.Errorf("read secret key: %w", err)
+		}
+	case errors.Is(lstatErr, os.ErrNotExist):
 		key = make([]byte, keySize)
 		if _, err := io.ReadFull(rand.Reader, key); err != nil {
 			return nil, fmt.Errorf("generate secret key: %w", err)
@@ -51,8 +72,8 @@ func LoadOrCreate(path string) (*Box, error) {
 		if err := file.Close(); err != nil {
 			return nil, fmt.Errorf("close secret key: %w", err)
 		}
-	} else if err != nil {
-		return nil, fmt.Errorf("read secret key: %w", err)
+	default:
+		return nil, fmt.Errorf("inspect secret key: %w", lstatErr)
 	}
 	if len(key) != keySize {
 		return nil, fmt.Errorf("secret key must be %d bytes", keySize)

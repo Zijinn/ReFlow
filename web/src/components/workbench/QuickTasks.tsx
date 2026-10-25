@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarBlank, Check, Lightning, Plus, Trash, WarningCircle } from "@phosphor-icons/react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import {
   createQuickTask,
@@ -12,6 +12,7 @@ import type { QuickTask } from "../../api/types"
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
 import { toast } from "../../store/toast"
+import type { TaskFocus } from "../../store/reader"
 import { ConfirmDialog } from "../ConfirmDialog"
 import { DatePickerCell, EmptyState, InlineText } from "./shared"
 import { QUICK_TASK_QUERY_KEY } from "./taskQueryKeys"
@@ -23,8 +24,14 @@ function isOverdue(task: QuickTask): boolean {
   return due !== null && daysUntil(due) < 0
 }
 
-export function QuickTasks(props: { offline?: boolean; onOpenTimeline?: () => void }) {
+export function QuickTasks(props: {
+  offline?: boolean
+  onOpenTimeline?: () => void
+  focus?: TaskFocus | null
+  onFocusConsumed?: () => void
+}) {
   const { t } = useTranslation()
+  const { focus, onFocusConsumed } = props
   const queryClient = useQueryClient()
   const detected = useOnlineState()
   const online = props.offline === undefined ? detected : !props.offline
@@ -75,6 +82,16 @@ export function QuickTasks(props: { offline?: boolean; onOpenTimeline?: () => vo
   })
 
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data?.items])
+  useEffect(() => {
+    if (!focus || focus.kind !== "quick") return
+    const row = document.querySelector(`[data-quick-task-id="${focus.id}"]`)
+    if (!row) return
+    row.scrollIntoView?.({ block: "center", behavior: "smooth" })
+    row.classList.add("wb-row--flash")
+    const timer = window.setTimeout(() => row.classList.remove("wb-row--flash"), 1600)
+    onFocusConsumed?.()
+    return () => window.clearTimeout(timer)
+  }, [focus, onFocusConsumed, tasks])
   const open = tasks.filter((task) => !task.completed)
   const completed = tasks.filter((task) => task.completed)
   const overdueCount = open.filter(isOverdue).length
@@ -249,7 +266,10 @@ function QuickRow(props: {
   const { task, onUpdate, onDelete } = props
   const overdue = isOverdue(task)
   return (
-    <li className={`wb-tm-quick-row ${task.completed ? "wb-tm-quick-row--done" : ""}`}>
+    <li
+      className={`wb-tm-quick-row ${task.completed ? "wb-tm-quick-row--done" : ""}`}
+      data-quick-task-id={task.id}
+    >
       <button
         type="button"
         className="wb-tm-check"

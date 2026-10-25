@@ -971,7 +971,7 @@ func openDatabaseBeforeMigration(t *testing.T, ctx context.Context, before int) 
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := applyMigration(ctx, db, version, entry.Name(), string(body)); err != nil {
+		if _, err := applyMigration(ctx, db, version, entry.Name(), string(body)); err != nil {
 			t.Fatal(err)
 		}
 	}

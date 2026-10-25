@@ -36,6 +36,34 @@ func TestHealth(t *testing.T) {
 	}
 }
 
+func TestSecurityHeaders(t *testing.T) {
+	handler := newTestServer(t).Handler()
+	for _, test := range []struct {
+		name   string
+		header string
+		want   string
+	}{
+		{name: "browser", want: "form-action 'none'"},
+		{name: "wails", header: "X-Wails-Window-ID", want: "wails://"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
+			if test.header != "" {
+				request.Header.Set(test.header, "test-window")
+			}
+			handler.ServeHTTP(recorder, request)
+			if got := recorder.Header().Get("X-Frame-Options"); got != "DENY" {
+				t.Fatalf("X-Frame-Options = %q", got)
+			}
+			csp := recorder.Header().Get("Content-Security-Policy")
+			if !strings.Contains(csp, test.want) || !strings.Contains(csp, "form-action 'none'") {
+				t.Fatalf("CSP = %q", csp)
+			}
+		})
+	}
+}
+
 func TestStatusReportsDatabaseReady(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)

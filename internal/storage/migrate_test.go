@@ -79,7 +79,7 @@ func TestEachPriorMigrationUpgradesToLatest(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if err := applyMigration(context.Background(), db, version, entry.Name(), string(body)); err != nil {
+				if _, err := applyMigration(context.Background(), db, version, entry.Name(), string(body)); err != nil {
 					t.Fatal(err)
 				}
 			}

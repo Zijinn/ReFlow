@@ -6,6 +6,7 @@ import type {
   AIChatSession,
   AIProfile,
   Job,
+  QuickTask,
   ResearchKind,
   ResearchPaper,
 } from "../../api/types"
@@ -89,6 +90,21 @@ function paper(overrides: Partial<ResearchPaper> = {}): ResearchPaper {
     last_updated: "2026-09-01",
     created_at: "",
     updated_at: "",
+    ...overrides,
+  }
+}
+
+function quickTask(overrides: Partial<QuickTask> = {}): QuickTask {
+  return {
+    id: "q-1",
+    title: "Focus task",
+    notes: "",
+    start_date: formatDeadline(new Date()),
+    due_date: formatDeadline(new Date(Date.now() + 2 * 86_400_000)),
+    paper_id: null,
+    completed_at: "",
+    completed: false,
+    position: 0,
     ...overrides,
   }
 }
@@ -188,7 +204,13 @@ function goToTab(name: RegExp) {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  useReaderStore.setState({ locale: "en-US", workbenchModule: "research", workbenchTab: "dashboard" })
+  useReaderStore.setState({
+    locale: "en-US",
+    workbenchModule: "research",
+    workbenchTab: "dashboard",
+    taskView: "quick",
+    taskFocus: null,
+  })
   useToastStore.setState({ toasts: [] })
   papersByKind.research = [paper()]
   papersByKind.submitted = []
@@ -564,6 +586,48 @@ describe("Next action → tasks", () => {
         due_date: dueISO,
       }),
     )
+  })
+})
+
+describe("Task focus and linked chip", () => {
+  it("jumps from a calendar bar to the task and keeps its focus id", async () => {
+    vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask({ id: "q-focus" })] })
+    renderWorkbench()
+    goToTab(/Deadline calendar/)
+    await waitFor(() => expect(useReaderStore.getState().workbenchTab).toBe("calendar"))
+    const bars = await screen.findAllByRole("button", { name: /Focus task/ })
+    const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
+    fireEvent.click(bars[0]!)
+    await waitFor(() => expect(useReaderStore.getState().workbenchModule).toBe("tasks"))
+    expect(useReaderStore.getState().taskView).toBe("quick")
+    expect(await screen.findByRole("heading", { name: "Task management" })).toBeInTheDocument()
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    expect(document.querySelector('[data-quick-task-id="q-focus"]')).not.toBeNull()
+  })
+
+  it("unlocks the chip once the linked quick task is completed", async () => {
+    papersByKind.research = [
+      paper({ id: "r-linked", title: "Linked paper", next_action: "Run checks" }),
+    ]
+    vi.mocked(api.listQuickTasks).mockResolvedValue({
+      items: [quickTask({ paper_id: "r-linked", completed: true, completed_at: new Date().toISOString() })],
+    })
+    renderWorkbench()
+    goToTab(/Working papers/)
+    const chip = await screen.findByRole("button", { name: "Add to tasks" })
+    expect(chip).toBeEnabled()
+  })
+
+  it("disables the chip while an open linked task exists", async () => {
+    papersByKind.research = [
+      paper({ id: "r-linked", title: "Linked paper", next_action: "Run checks" }),
+    ]
+    vi.mocked(api.listQuickTasks).mockResolvedValue({
+      items: [quickTask({ paper_id: "r-linked" })],
+    })
+    renderWorkbench()
+    goToTab(/Working papers/)
+    expect(await screen.findByRole("button", { name: "Added to tasks" })).toBeDisabled()
   })
 })
 

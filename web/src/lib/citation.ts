@@ -19,8 +19,20 @@ function bibtexKey(entry: Entry): string {
   return `${surname.replace(/[^A-Za-z0-9]/g, "") || "entry"}${Number.isNaN(year) ? "" : year}${firstTitleWord ?? ""}`
 }
 
+function stripControlCharacters(value: string): string {
+  let output = ""
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0
+    output += code < 32 || code === 127 ? " " : character
+  }
+  return output
+}
+
 function bibtexEscape(value: string): string {
-  return value.replace(/[{}\\]/g, "")
+  return stripControlCharacters(value)
+    .replace(/[{}]/g, "")
+    .replace(/\\/g, "\\textbackslash{}")
+    .replace(/([&%$#_])/g, "\\$1")
 }
 
 /** BibTeX @article entry; falls back to url when the entry has no DOI. */

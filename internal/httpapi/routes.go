@@ -675,8 +675,11 @@ func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer s.jobs.ExitMaintenance()
+	document = s.feeds.SanitizeSnapshot(document)
 	if err := storage.RestoreBackup(r.Context(), s.db, document); err != nil {
-		writeProblem(w, r, http.StatusUnprocessableEntity, "restore_failed", "Backup could not be restored", err.Error())
+		s.logger.ErrorContext(r.Context(), "backup restore failed", "error", err)
+		writeProblem(w, r, http.StatusUnprocessableEntity, "restore_failed", "Backup could not be restored",
+			"The backup could not be restored. Check that it is a ReFlow backup for this schema version.")
 		return
 	}
 	s.events.Publish("library.restored", map[string]any{"created_at": document.CreatedAt})
@@ -686,7 +689,7 @@ func (s *Server) restoreBackup(w http.ResponseWriter, r *http.Request) {
 const (
 	maxJSONBodyBytes   = 1 << 20
 	maxOPMLBodyBytes   = 16 << 20
-	maxBackupBodyBytes = 512 << 20
+	maxBackupBodyBytes = 256 << 20
 )
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
@@ -827,18 +830,26 @@ func (s *Server) storageError(w http.ResponseWriter, r *http.Request, err error)
 func (s *Server) serviceError(w http.ResponseWriter, r *http.Request, err error) {
 	code := "feed_error"
 	status := http.StatusUnprocessableEntity
+	detail := "The feed could not be fetched. Check the URL and network connection."
 	var fetchError *feedcore.FetchError
 	if errors.As(err, &fetchError) {
 		code = fetchError.Code
 	}
 	if errors.Is(err, feedcore.ErrBlockedAddress) || errors.Is(err, feedcore.ErrInvalidURL) {
 		code = "blocked_address"
+		detail = "That address is not allowed by the feed network policy."
 		if errors.Is(err, feedcore.ErrInvalidURL) {
 			code = "invalid_url"
+			detail = "That feed URL is not valid."
 		}
 		status = http.StatusBadRequest
 	}
-	writeProblem(w, r, status, code, "Feed could not be processed", err.Error())
+	// Keep resolver/dial details in the server log; the response only exposes a
+	// stable code and a safe explanation.
+	if status >= 500 || code == "feed_error" {
+		s.logger.WarnContext(r.Context(), "feed operation failed", "error", err, "request_id", requestIDFrom(r.Context()))
+	}
+	writeProblem(w, r, status, code, "Feed could not be processed", detail)
 }
 
 func (s *Server) internalError(w http.ResponseWriter, r *http.Request, err error) {

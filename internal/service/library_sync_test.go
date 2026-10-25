@@ -200,6 +200,72 @@ func TestWebDAVConnectionCreatesCollectionAndChecksWriteAccess(t *testing.T) {
 	}
 }
 
+func TestWebDAVSnapshotWriteUsesPreconditions(t *testing.T) {
+	var (
+		gotIfMatch     string
+		gotIfNoneMatch string
+	)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Fatalf("unexpected WebDAV request: %s %s", r.Method, r.URL.Path)
+		}
+		gotIfMatch = r.Header.Get("If-Match")
+		gotIfNoneMatch = r.Header.Get("If-None-Match")
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer upstream.Close()
+
+	service := &SyncService{clientFactory: func(bool) *http.Client { return upstream.Client() }}
+	record := storage.SyncAccountRecord{Account: domain.SyncAccount{
+		Provider:            "webdav",
+		Endpoint:            upstream.URL + "/dav/reflow-library.json",
+		AllowPrivateNetwork: true,
+	}}
+	document := storage.BackupDocument{Format: storage.LibrarySnapshotFormat, Version: 1}
+	if err := service.writeRemoteSnapshot(context.Background(), record, syncadapter.Credentials{}, document, true, `"abc123"`); err != nil {
+		t.Fatal(err)
+	}
+	if gotIfMatch != `"abc123"` || gotIfNoneMatch != "" {
+		t.Fatalf("expected If-Match for an existing snapshot, got If-Match=%q If-None-Match=%q", gotIfMatch, gotIfNoneMatch)
+	}
+	if err := service.writeRemoteSnapshot(context.Background(), record, syncadapter.Credentials{}, document, false, ""); err != nil {
+		t.Fatal(err)
+	}
+	if gotIfMatch != "" || gotIfNoneMatch != "*" {
+		t.Fatalf("expected If-None-Match for a missing snapshot, got If-Match=%q If-None-Match=%q", gotIfMatch, gotIfNoneMatch)
+	}
+}
+
+func TestWebDAVSnapshotWriteReportsConcurrentChange(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusPreconditionFailed)
+	}))
+	defer upstream.Close()
+
+	service := &SyncService{clientFactory: func(bool) *http.Client { return upstream.Client() }}
+	record := storage.SyncAccountRecord{Account: domain.SyncAccount{
+		Provider:            "webdav",
+		Endpoint:            upstream.URL + "/dav/reflow-library.json",
+		AllowPrivateNetwork: true,
+	}}
+	err := service.writeRemoteSnapshot(context.Background(), record, syncadapter.Credentials{}, storage.BackupDocument{}, true, `"stale"`)
+	if err == nil || syncadapter.ErrorCode(err) != "conflict" {
+		t.Fatalf("expected a conflict for a failed precondition, got %v", err)
+	}
+}
+
+func TestWebDAVRequiresTLSOutsidePrivateNetworks(t *testing.T) {
+	if err := validateLibrarySyncTransport("webdav", "http://dav.example.test/reflow-library.json", false); err == nil {
+		t.Fatal("expected plain HTTP WebDAV to be rejected without private-network access")
+	}
+	if err := validateLibrarySyncTransport("webdav", "http://127.0.0.1:8080/reflow-library.json", true); err != nil {
+		t.Fatalf("expected private-network HTTP WebDAV to be allowed: %v", err)
+	}
+	if err := validateLibrarySyncTransport("webdav", "https://dav.example.test/reflow-library.json", false); err != nil {
+		t.Fatalf("expected HTTPS WebDAV to be allowed: %v", err)
+	}
+}
+
 func TestWebDAVSnapshotWriteCreatesMissingCollectionAndRetries(t *testing.T) {
 	collectionCreated := false
 	writes := 0
@@ -232,7 +298,7 @@ func TestWebDAVSnapshotWriteCreatesMissingCollectionAndRetries(t *testing.T) {
 		AllowPrivateNetwork: true,
 	}}
 	document := storage.BackupDocument{Format: storage.LibrarySnapshotFormat, Version: 1}
-	if err := service.writeRemoteSnapshot(context.Background(), record, syncadapter.Credentials{}, document); err != nil {
+	if err := service.writeRemoteSnapshot(context.Background(), record, syncadapter.Credentials{}, document, false, ""); err != nil {
 		t.Fatal(err)
 	}
 	if !collectionCreated || writes != 2 {

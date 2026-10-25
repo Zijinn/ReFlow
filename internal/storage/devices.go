@@ -22,15 +22,16 @@ func CreatePairingCode(ctx context.Context, db *sql.DB, lifetime time.Duration) 
 	if lifetime <= 0 {
 		lifetime = 10 * time.Minute
 	}
-	random := make([]byte, 5)
+	random := make([]byte, 16)
 	if _, err := rand.Read(random); err != nil {
 		return "", time.Time{}, fmt.Errorf("generate pairing code: %w", err)
 	}
 	code := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(random)
 	expiresAt := time.Now().UTC().Add(lifetime)
 	digest := sha256.Sum256([]byte(code))
-	if _, err := db.ExecContext(ctx, `
-		DELETE FROM pairing_codes WHERE used_at IS NOT NULL OR expires_at <= ?`, formatTime(time.Now().UTC())); err != nil {
+	// A new code supersedes every outstanding one: leaving old unexpired codes
+	// alive after a restart or a second click widens the window unnecessarily.
+	if _, err := db.ExecContext(ctx, `DELETE FROM pairing_codes`); err != nil {
 		return "", time.Time{}, fmt.Errorf("clean pairing codes: %w", err)
 	}
 	_, err := db.ExecContext(ctx, `INSERT INTO pairing_codes (id, code_hash, expires_at) VALUES (?, ?, ?)`, uuid.NewString(), digest[:], formatTime(expiresAt))

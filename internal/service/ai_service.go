@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"net/url"
@@ -1082,20 +1083,20 @@ func researchEnvelope(papers []domain.ResearchPaper, tagNames map[string]string,
 
 func researchPaperBlock(paper domain.ResearchPaper, tagNames map[string]string, now time.Time) string {
 	var builder strings.Builder
-	builder.WriteString("<paper id=\"" + paper.ID + "\" kind=\"" + paper.Kind + "\">\n")
-	builder.WriteString("<title>" + strings.TrimSpace(paper.Title) + "</title>\n")
+	builder.WriteString("<paper id=\"" + html.EscapeString(paper.ID) + "\" kind=\"" + html.EscapeString(paper.Kind) + "\">\n")
+	builder.WriteString("<title>" + html.EscapeString(strings.TrimSpace(paper.Title)) + "</title>\n")
 	if authors := strings.Join(paper.Authors, ", "); authors != "" {
-		builder.WriteString("<authors>" + authors + "</authors>\n")
+		builder.WriteString("<authors>" + html.EscapeString(authors) + "</authors>\n")
 	}
 	if keywords := strings.Join(paper.Keywords, ", "); keywords != "" {
-		builder.WriteString("<keywords>" + keywords + "</keywords>\n")
+		builder.WriteString("<keywords>" + html.EscapeString(keywords) + "</keywords>\n")
 	}
 	for _, field := range []struct{ label, value string }{
 		{"status", paper.Status},
 		{"target-journal", paper.TargetJournal}, {"current-journal", paper.CurrentJournal},
 	} {
 		if trimmed := strings.TrimSpace(field.value); trimmed != "" {
-			builder.WriteString("<" + field.label + ">" + trimmed + "</" + field.label + ">\n")
+			builder.WriteString("<" + field.label + ">" + html.EscapeString(trimmed) + "</" + field.label + ">\n")
 		}
 	}
 	// One element per label: a paper can wear several, and joining them into one
@@ -1103,33 +1104,33 @@ func researchPaperBlock(paper domain.ResearchPaper, tagNames map[string]string, 
 	// stay silent, the same way the palette renders them as nothing.
 	for _, tagID := range paper.TagIDs {
 		if name := strings.TrimSpace(tagNames[tagID]); name != "" {
-			builder.WriteString("<tag>" + name + "</tag>\n")
+			builder.WriteString("<tag>" + html.EscapeString(name) + "</tag>\n")
 		}
 	}
 	if done, total, pending := summarizeResearchStages(paper.Stages); total > 0 {
 		builder.WriteString("<stages done=\"" + strconv.Itoa(done) + "\" total=\"" + strconv.Itoa(total) + "\">\n")
 		for _, name := range pending {
-			builder.WriteString("<pending>" + name + "</pending>\n")
+			builder.WriteString("<pending>" + html.EscapeString(name) + "</pending>\n")
 		}
 		builder.WriteString("</stages>\n")
 	}
 	if deadline := strings.TrimSpace(paper.Deadline); deadline != "" {
-		builder.WriteString("<deadline>" + deadline + "</deadline>\n")
+		builder.WriteString("<deadline>" + html.EscapeString(deadline) + "</deadline>\n")
 		builder.WriteString("<deadline-status>" + researchDeadlineStatus(deadline, now) + "</deadline-status>\n")
 	}
 	if next := strings.TrimSpace(paper.NextAction); next != "" {
-		builder.WriteString("<next-action>" + next + "</next-action>\n")
+		builder.WriteString("<next-action>" + html.EscapeString(next) + "</next-action>\n")
 	} else {
 		builder.WriteString("<next-action>(none recorded)</next-action>\n")
 	}
 	if notes := strings.TrimSpace(paper.Notes); notes != "" {
-		builder.WriteString("<notes>" + truncateRunes(notes, maxResearchNotesRunes) + "</notes>\n")
+		builder.WriteString("<notes>" + html.EscapeString(truncateRunes(notes, maxResearchNotesRunes)) + "</notes>\n")
 	}
 	if paper.SubmissionCount > 0 {
 		builder.WriteString("<submissions>" + strconv.Itoa(paper.SubmissionCount) + "</submissions>\n")
 	}
 	if published := researchPublishedLine(paper); published != "" {
-		builder.WriteString("<published>" + published + "</published>\n")
+		builder.WriteString("<published>" + html.EscapeString(published) + "</published>\n")
 	}
 	builder.WriteString("<idle-days>" + strconv.Itoa(researchIdleDays(paper.UpdatedAt, now)) + "</idle-days>\n")
 	builder.WriteString("</paper>")
@@ -1222,20 +1223,20 @@ func parseResearchDate(value string) (time.Time, bool) {
 }
 
 func articleEnvelope(content storage.AIEntryContent) string {
-	return "<article>\n<title>" + content.Title + "</title>\n<source>" + content.FeedTitle + "</source>\n<published-at>" + content.PublishedAt + "</published-at>\n<url>" + content.CanonicalURL + "</url>\n<content>\n" + truncateRunes(content.Content, maxAIArticleRunes) + "\n</content>\n</article>"
+	return "<article>\n<title>" + html.EscapeString(content.Title) + "</title>\n<source>" + html.EscapeString(content.FeedTitle) + "</source>\n<published-at>" + html.EscapeString(content.PublishedAt) + "</published-at>\n<url>" + html.EscapeString(content.CanonicalURL) + "</url>\n<content>\n" + html.EscapeString(truncateRunes(content.Content, maxAIArticleRunes)) + "\n</content>\n</article>"
 }
 
 func operationEnvelope(operation string, content storage.AIEntryContent) string {
 	if operation == "title_translation" {
-		return "<article-title>" + content.Title + "</article-title>"
+		return "<article-title>" + html.EscapeString(content.Title) + "</article-title>"
 	}
 	// Academic tagging reads the abstract as well as the title. For journal
 	// feeds the abstract carries the discipline and method signals that a title
 	// alone often omits; an excerpt keeps the payload small.
 	if operation == "academic_tags" {
-		envelope := "<article-title>" + content.Title + "</article-title>"
+		envelope := "<article-title>" + html.EscapeString(content.Title) + "</article-title>"
 		if excerpt := truncateRunes(content.Content, maxAIAbstractRunes); excerpt != "" {
-			envelope += "\n<article-abstract>" + excerpt + "</article-abstract>"
+			envelope += "\n<article-abstract>" + html.EscapeString(excerpt) + "</article-abstract>"
 		}
 		return envelope
 	}

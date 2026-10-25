@@ -88,7 +88,7 @@ function itemHtml(paper: ResearchPaper, index: number): string {
     <div class="ref-detail" id="${detailId}">
       <div class="d-block"><span class="d-label">摘要</span><p class="d-abstract">${abstract ? escapeHtml(abstract) : "（暂无摘要）"}</p></div>
       <div class="d-block"><span class="d-label">关键词</span><span class="d-kws">${keywords.length ? keywords.map((k) => `<span class="kw">${escapeHtml(k)}</span>`).join("") : '<span class="d-empty">（暂无关键词）</span>'}</span></div>
-      <div class="d-block"><span class="d-label">引用</span><span class="d-cit">${citations ?? "—"} 次<span class="d-src">（来源：${escapeHtml(source)}）</span></span></div>
+      <div class="d-block"><span class="d-label">引用</span><span class="d-cit">${escapeHtml(String(citations ?? "—"))} 次<span class="d-src">（来源：${escapeHtml(source)}）</span></span></div>
       ${doi ? `<div class="d-block"><span class="d-label">DOI</span><a class="d-doi" href="https://doi.org/${escapeHtml(doi)}" target="_blank" rel="noopener">https://doi.org/${escapeHtml(doi)}</a></div>` : ""}
     </div>
   </li>`

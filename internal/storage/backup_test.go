@@ -3,6 +3,7 @@ package storage
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io/fs"
 	"path/filepath"
 	"slices"
@@ -210,6 +211,64 @@ func TestRestoreRejectsUnknownTablesBeforeMutation(t *testing.T) {
 	}
 }
 
+func TestBackupExcludesRuntimeAndSecurityTablesAndSkipsThemOnRestore(t *testing.T) {
+	ctx := context.Background()
+	source, err := Open(ctx, filepath.Join(t.TempDir(), "source.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer source.Close()
+	document, err := ExportBackup(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, table := range document.Tables {
+		if _, skipped := restoreSkippedTables[table.Name]; skipped {
+			t.Fatalf("export must not carry security/runtime table %q", table.Name)
+		}
+	}
+
+	// An old or crafted backup may still carry a device row. Restore must
+	// ignore it instead of minting a bearer token for the attacker.
+	document.Tables = append(document.Tables, BackupTable{
+		Name:    "devices",
+		Columns: []string{"id", "profile_id", "name", "platform", "token_hash", "last_seen_at", "created_at", "revoked_at"},
+		Rows: [][]BackupValue{{
+			{Kind: "text", Text: "attacker-device"},
+			{Kind: "text", Text: domain.DefaultProfileID},
+			{Kind: "text", Text: "attacker"},
+			{Kind: "text", Text: "web"},
+			{Kind: "blob", Blob: "aGFzaA=="},
+			{Kind: "null"},
+			{Kind: "text", Text: "2026-01-01T00:00:00.000Z"},
+			{Kind: "null"},
+		}},
+	})
+
+	target, err := Open(ctx, filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreBackup(ctx, target, document); err != nil {
+		t.Fatal(err)
+	}
+	var devices int
+	if err := target.QueryRowContext(ctx, "SELECT COUNT(*) FROM devices WHERE id = 'attacker-device'").Scan(&devices); err != nil {
+		t.Fatal(err)
+	}
+	if devices != 0 {
+		t.Fatal("restore minted a device from a backup document")
+	}
+	var foreignKeys int
+	if err := target.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
+		t.Fatal(err)
+	}
+	if foreignKeys != 1 {
+		t.Fatalf("foreign keys were left off after restore: %d", foreignKeys)
+	}
+}
+
 func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	ctx := context.Background()
 	keyPath := filepath.Join(t.TempDir(), "master.key")
@@ -264,13 +323,8 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	if err != nil || !bytes.Equal(decryptedAI, []byte("ai-secret")) {
 		t.Fatalf("AI credential did not recover with the original key: %q %v", decryptedAI, err)
 	}
-	syncRecord, err := GetSyncAccountRecord(ctx, target, domain.DefaultProfileID, "backup-sync-account")
-	if err != nil {
-		t.Fatal(err)
-	}
-	decryptedSync, err := box.Open(syncRecord.EncryptedCredentials, []byte("reflow:sync-account:backup-sync-account"))
-	if err != nil || !bytes.Equal(decryptedSync, []byte("sync-secret")) {
-		t.Fatalf("sync credential did not recover with the original key: %q %v", decryptedSync, err)
+	if _, err := GetSyncAccountRecord(ctx, target, domain.DefaultProfileID, "backup-sync-account"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("sync account must not be restored from a portable backup: %v", err)
 	}
 	otherBox, err := secretbox.LoadOrCreate(filepath.Join(t.TempDir(), "other.key"))
 	if err != nil {

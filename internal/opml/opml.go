@@ -40,6 +40,11 @@ type outline struct {
 	Children []outline `xml:"outline,omitempty"`
 }
 
+const (
+	maxOutlineDepth   = 32
+	maxOutlineSources = 10000
+)
+
 func Parse(data []byte) ([]Source, error) {
 	// Some desktop RSS tools prepend a UTF-8 BOM. encoding/xml does not
 	// consistently accept it when the document is sent as a raw upload.
@@ -56,9 +61,15 @@ func Parse(data []byte) ([]Source, error) {
 		return nil, fmt.Errorf("parse OPML: root element is not opml")
 	}
 	result := make([]Source, 0)
-	var flatten func([]outline, []string)
-	flatten = func(items []outline, path []string) {
+	var flatten func([]outline, []string, int) error
+	flatten = func(items []outline, path []string, depth int) error {
+		if depth > maxOutlineDepth {
+			return fmt.Errorf("parse OPML: outline nesting exceeds %d levels", maxOutlineDepth)
+		}
 		for _, item := range items {
+			if len(result) >= maxOutlineSources {
+				return fmt.Errorf("parse OPML: more than %d subscriptions", maxOutlineSources)
+			}
 			title := strings.TrimSpace(item.Title)
 			if title == "" {
 				title = strings.TrimSpace(item.Text)
@@ -76,10 +87,15 @@ func Parse(data []byte) ([]Source, error) {
 			if title != "" {
 				nextPath = append(append([]string(nil), path...), title)
 			}
-			flatten(item.Children, nextPath)
+			if err := flatten(item.Children, nextPath, depth+1); err != nil {
+				return err
+			}
 		}
+		return nil
 	}
-	flatten(parsed.Body.Outlines, nil)
+	if err := flatten(parsed.Body.Outlines, nil, 0); err != nil {
+		return nil, err
+	}
 	if len(result) == 0 {
 		return nil, fmt.Errorf("parse OPML: no RSS subscriptions found")
 	}

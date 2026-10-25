@@ -44,11 +44,22 @@ func ExportLibrarySnapshot(ctx context.Context, db *sql.DB) (BackupDocument, err
 			return BackupDocument{}, err
 		}
 		makeSnapshotPortable(&table)
-		sort.Slice(table.Rows, func(i, j int) bool {
-			left, _ := json.Marshal(table.Rows[i])
-			right, _ := json.Marshal(table.Rows[j])
-			return string(left) < string(right)
-		})
+		// Compute each JSON sort key once instead of re-marshalling both rows on
+		// every comparison; a large library otherwise spends n log n full
+		// encodes before the snapshot is even written.
+		type keyedRow struct {
+			key string
+			row []BackupValue
+		}
+		keyed := make([]keyedRow, len(table.Rows))
+		for index, row := range table.Rows {
+			encoded, _ := json.Marshal(row)
+			keyed[index] = keyedRow{key: string(encoded), row: row}
+		}
+		sort.Slice(keyed, func(i, j int) bool { return keyed[i].key < keyed[j].key })
+		for index := range keyed {
+			table.Rows[index] = keyed[index].row
+		}
 		document.Tables = append(document.Tables, table)
 	}
 	if err := tx.Commit(); err != nil {
@@ -101,7 +112,7 @@ func RestoreLibrarySnapshot(ctx context.Context, db *sql.DB, document BackupDocu
 	if _, err := connection.ExecContext(ctx, "PRAGMA foreign_keys = OFF"); err != nil {
 		return fmt.Errorf("disable foreign keys for snapshot restore: %w", err)
 	}
-	defer connection.ExecContext(context.Background(), "PRAGMA foreign_keys = ON")
+	defer reenableRestoreForeignKeys(connection)
 	tx, err := connection.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin snapshot restore: %w", err)
@@ -216,18 +227,30 @@ func LibrarySnapshotFingerprint(document BackupDocument) (string, error) {
 			tables[index] = *sanitized
 		}
 	}
-	body, err := json.Marshal(struct {
-		Version       int           `json:"version"`
-		SchemaVersion int           `json:"schema_version"`
-		Tables        []BackupTable `json:"tables"`
-	}{Version: document.Version, SchemaVersion: document.SchemaVersion, Tables: tables})
-	if err != nil {
-		return "", fmt.Errorf("encode snapshot fingerprint: %w", err)
+	// Hash the document incrementally. The byte sequence is identical to
+	// marshalling the whole struct at once, but a large library never has to hold
+	// a second full JSON copy in memory just to detect that it changed.
+	digest := sha256.New()
+	_, _ = fmt.Fprintf(digest, `{"version":%d,"schema_version":%d,"tables":`, document.Version, document.SchemaVersion)
+	if tables == nil {
+		_, _ = digest.Write([]byte("null"))
+	} else {
+		_, _ = digest.Write([]byte("["))
+		for index, table := range tables {
+			if index > 0 {
+				_, _ = digest.Write([]byte(","))
+			}
+			body, err := json.Marshal(table)
+			if err != nil {
+				return "", fmt.Errorf("encode snapshot fingerprint: %w", err)
+			}
+			_, _ = digest.Write(body)
+		}
+		_, _ = digest.Write([]byte("]"))
 	}
-	digest := sha256.Sum256(body)
-	return hex.EncodeToString(digest[:]), nil
+	_, _ = digest.Write([]byte("}"))
+	return hex.EncodeToString(digest.Sum(nil)), nil
 }
-
 func sanitizeFeedsForFingerprint(table BackupTable) *BackupTable {
 	volatile := make(map[int]struct{}, len(feedsPollingColumns))
 	for columnIndex, column := range table.Columns {
