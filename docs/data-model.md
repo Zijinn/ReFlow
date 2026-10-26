@@ -299,14 +299,14 @@ Tags belong to a profile and have an ordered position, a colour, and a per-row-h
 
 ## Personal workbench tasks
 
-The task board is `任务管理`, beside the research workspace.
+The task board is `任务管理`; the deadline calendar is its own first-level workbench module beside it and the research workspace.
 
 - `task_threads` — 主线.
 - `task_layers` — 层; ordered, with an optional forced unlock. A layer unlocks when every placement in the previous layer is closed. The lock is a display/status rule, not a write gate.
 - `task_items` — 任务 card; optional `paper_id` links it to the research workspace.
 - `task_assignments` — one item placed in one layer, with its own date window and steps. `(item_id, layer_id)` is unique; one task can sit in several layers.
 - `task_steps` — checkboxes on a placement.
-- `quick_tasks` — flat 即时任务. Migration `0022_quick_task_paper.sql` adds the optional `paper_id` link used by the "next action → task" handoff; deleting a paper sets it to `NULL`.
+- `quick_tasks` — flat 即时任务. Migration `0022_quick_task_paper.sql` adds the optional `paper_id` link used by the "next action → task" handoff; deleting a paper sets it to `NULL`. Migration `0024_quick_task_tags.sql` adds a JSON `tags` array (at most 12 labels) alongside free-form notes.
 
 Derived values (`closed`, `unlocked`, `progress`, `status`, and the statistics) are computed by the server on read. Only display stamps such as `closed_at` and `done_at` are stored.
 

@@ -411,3 +411,48 @@ describe("TaskBoard writes", () => {
     expect(container.querySelectorAll(".wb-task-layer")).toHaveLength(3)
   })
 })
+
+describe("TaskBoard urgency palette", () => {
+  it("colors card edges red, amber, and green by the due window", async () => {
+    const date = (offset: number) => {
+      const value = new Date()
+      value.setDate(value.getDate() + offset)
+      return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`
+    }
+    renderBoard(
+      tree(
+        thread({
+          id: THREAD_ID,
+          layers: [layer("l-1", "Layer one", 0)],
+          items: [
+            item({
+              id: "i-overdue",
+              title: "Overdue card",
+              assignments: [assignment({ id: "a-1", layer_id: "l-1", due_date: date(-1) })],
+            }),
+            item({
+              id: "i-soon",
+              title: "Soon card",
+              assignments: [assignment({ id: "a-2", layer_id: "l-1", due_date: date(3) })],
+            }),
+            item({
+              id: "i-future",
+              title: "Future card",
+              assignments: [assignment({ id: "a-3", layer_id: "l-1", due_date: date(20) })],
+            }),
+          ],
+        }),
+      ),
+    )
+    await screen.findByText("Papers and projects")
+    expect(screen.getByText("Overdue card").closest(".wb-task-card")).toHaveClass(
+      "wb-task-card--overdue",
+    )
+    expect(screen.getByText("Soon card").closest(".wb-task-card")).toHaveClass(
+      "wb-task-card--soon",
+    )
+    expect(screen.getByText("Future card").closest(".wb-task-card")).toHaveClass(
+      "wb-task-card--future",
+    )
+  })
+})

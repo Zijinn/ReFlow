@@ -18,7 +18,7 @@ ReFlow is a local-first personal RSS reader for macOS, Windows, iPad, and the we
 - FreshRSS, Google Reader compatible services, Miniflux, Fever, Feedbin, and Nextcloud News adapters
 - Concurrent WebDAV and iCloud Drive library synchronization with conflict detection and explicit recovery choices
 - `reflow` command-line interface for AI agents: working papers, tags, literature identification from subscribed entries, and a machine-readable command catalog
-- Research workspace: working papers, submissions, publications, a deadline calendar with task range bars, quick tasks, and layered long-task threads
+- Research workspace: working papers, submissions, publications, and a first-level deadline calendar with task range bars; quick tasks carry tags, notes, dates, and layered long-task threads
 - One-click handoff from a paper's next action to a linked quick task; the same tasks appear on the timeline, the research calendar, and the unscheduled list
 - Chinese and English interfaces, light and dark themes, and five timeline views
 

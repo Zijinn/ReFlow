@@ -1,0 +1,131 @@
+.wb-gantt-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.wb-gantt-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.wb-gantt-range {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+}
+.wb-gantt-range b {
+  color: var(--text);
+  font-weight: var(--fw-semibold);
+}
+.wb-gantt-mode {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: var(--radius-full);
+  background: var(--surface-muted);
+}
+.wb-gantt-mode button {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.wb-gantt-mode button[aria-pressed="true"] {
+  background: var(--surface-raised);
+  color: var(--text);
+  box-shadow: var(--ring-hairline);
+}
+.wb-gantt-days {
+  display: grid;
+  grid-template-columns: repeat(var(--gantt-days), minmax(0, 1fr));
+  min-height: 28px;
+}
+.wb-gantt-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
+  padding: 2px 0;
+  border-left: 1px solid color-mix(in srgb, var(--border) 70%, transparent);
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+  line-height: 1.1;
+}
+.wb-gantt-day span {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+.wb-gantt-day b {
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+.wb-gantt-day--today {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+}
+.wb-gantt-day--weekend {
+  background: color-mix(in srgb, var(--text-tertiary) 4%, transparent);
+}
+.wb-gantt-track {
+  position: relative;
+  min-height: 32px;
+  border-left: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--border) 72%, transparent) 1px,
+    transparent 1px
+  );
+  background-size: calc(100% / var(--gantt-days)) 100%;
+}
+.wb-gantt-bar {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  min-width: 6px;
+  border: 1px solid color-mix(in srgb, var(--gantt-hue) 34%, transparent);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--gantt-hue) 16%, var(--surface-raised));
+  color: var(--text);
+  font-size: var(--text-2xs);
+  font-weight: var(--fw-medium);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-gantt-bar--overdue {
+  --gantt-hue: var(--wb-hue-red);
+}
+.wb-gantt-bar--soon {
+  --gantt-hue: var(--wb-hue-amber);
+}
+.wb-gantt-bar--future {
+  --gantt-hue: var(--wb-hue-green);
+}
+.wb-gantt-bar--closed,
+.wb-gantt-bar--idle {
+  --gantt-hue: var(--wb-hue-gray);
+  opacity: 0.72;
+}
+.wb-gantt-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  padding-inline: var(--space-2);
+  color: var(--text-tertiary);
+  font-size: var(--text-2xs);
+}

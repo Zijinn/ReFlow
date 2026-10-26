@@ -300,7 +300,7 @@ describe("Sidebar workbench modules and density", () => {
       workbenchModule: "tasks",
       workbenchTab: "dashboard",
       taskView: "quick",
-      expandedWorkbenchModules: { tasks: true, research: true },
+      expandedWorkbenchModules: { tasks: true, calendar: false, research: true },
     })
     renderSidebar({ appView: "workbench" })
 
@@ -308,9 +308,15 @@ describe("Sidebar workbench modules and density", () => {
     expect(within(nav).getAllByRole("button")).toHaveLength(4)
     expect(
       within(screen.getByRole("group", { name: "Research Workspace" })).getAllByRole("button"),
-    ).toHaveLength(5)
+    ).toHaveLength(4)
+
+    const calendar = screen.getByRole("button", { name: "Calendar" })
+    expect(calendar).toBeInTheDocument()
+    fireEvent.click(calendar)
+    expect(useReaderStore.getState().workbenchModule).toBe("calendar")
 
     fireEvent.click(within(nav).getByRole("button", { name: "Timeline" }))
+    expect(useReaderStore.getState().workbenchModule).toBe("tasks")
     expect(useReaderStore.getState().taskView).toBe("timeline")
     expect(within(nav).getByRole("button", { name: "Timeline" })).toHaveAttribute(
       "aria-current",
@@ -322,7 +328,7 @@ describe("Sidebar workbench modules and density", () => {
     useReaderStore.setState({
       appView: "workbench",
       workbenchModule: "research",
-      expandedWorkbenchModules: { tasks: false, research: true },
+      expandedWorkbenchModules: { tasks: false, calendar: false, research: true },
     })
     renderSidebar({ appView: "workbench" })
 

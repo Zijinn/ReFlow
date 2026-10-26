@@ -529,6 +529,7 @@ export interface QuickTask {
   id: string
   title: string
   notes: string
+  tags: string[]
   start_date: string
   due_date: string
   /** 从论文下一步行动生成的任务会带回来源论文；手动任务为 null。 */

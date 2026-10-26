@@ -723,6 +723,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // 抬头那一行 `3/13` 数的是卡（指派）而不是任务：挂在两层里的任务占两个槽位，
     // 这条口径由服务端的 stats.slots / stats.slots_closed 给，前端不再自己数。
     moduleTasks: "任务管理",
+    moduleCalendar: "日历",
     moduleResearch: "科研工作台",
     tasksModuleSubtitle: "即时任务、长期任务、时间线与脑图，把今天要做的和长期推进的分开。",
     taskStatActive: "推进中",
@@ -807,6 +808,18 @@ const messages: Record<Locale, Record<string, string>> = {
     taskQuickDeleteConfirm: "删除这条即时任务？",
     taskQuickComplete: "标记完成",
     taskQuickReopen: "重新打开",
+    taskQuickGroupOverdue: "已超期",
+    taskQuickGroupToday: "今天截止",
+    taskQuickGroupNext7: "最近七天",
+    taskQuickGroupLater: "更远",
+    taskQuickGroupUnscheduled: "未排期",
+    taskQuickNotes: "备注",
+    taskQuickTags: "标签",
+    taskQuickTagPlaceholder: "输入标签，逗号分隔",
+    taskQuickTagRemove: "移除标签",
+    taskTableTask: "任务",
+    taskTableTime: "时间",
+    taskTableAxis: "进度",
     taskTimelineWeek: "周",
     taskTimelineMonth: "月",
     taskTimelineToday: "今天",
@@ -1637,6 +1650,7 @@ const messages: Record<Locale, Record<string, string>> = {
     // item that sits in two layers owns two slots. The server already derived it
     // (stats.slots / stats.slots_closed), so the client never re-counts.
     moduleTasks: "Task management",
+    moduleCalendar: "Calendar",
     // The inner research module keeps the section's old label: those five tabs are
     // still a research workspace, only one level down inside the personal one.
     moduleResearch: "Research Workspace",
@@ -1725,6 +1739,18 @@ const messages: Record<Locale, Record<string, string>> = {
     taskQuickDeleteConfirm: "Delete this quick task?",
     taskQuickComplete: "Mark complete",
     taskQuickReopen: "Reopen",
+    taskQuickGroupOverdue: "Overdue",
+    taskQuickGroupToday: "Due today",
+    taskQuickGroupNext7: "Next 7 days",
+    taskQuickGroupLater: "Later",
+    taskQuickGroupUnscheduled: "Unscheduled",
+    taskQuickNotes: "Notes",
+    taskQuickTags: "Tags",
+    taskQuickTagPlaceholder: "Tags, comma separated",
+    taskQuickTagRemove: "Remove tag",
+    taskTableTask: "Task",
+    taskTableTime: "Time",
+    taskTableAxis: "Timeline",
     taskTimelineWeek: "Week",
     taskTimelineMonth: "Month",
     taskTimelineToday: "Today",

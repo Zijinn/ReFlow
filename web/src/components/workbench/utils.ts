@@ -217,3 +217,15 @@ export function relativeTime(raw: string, locale: string, now: Date = new Date()
   if (days < 30) return zh ? `${days} 天前` : `${days}d ago`
   return (raw || "").slice(0, 10) || raw
 }
+
+// 任务管理内的统一紧急度：过期红、7 天内黄、更远绿。科研工作台不使用这档颜色。
+export type TaskUrgency = "overdue" | "soon" | "future"
+
+export function taskUrgency(dueDate: string, now: Date = new Date()): TaskUrgency | null {
+  const due = parseDeadline(dueDate)
+  if (!due) return null
+  const days = daysUntil(due, now)
+  if (days < 0) return "overdue"
+  if (days <= 7) return "soon"
+  return "future"
+}

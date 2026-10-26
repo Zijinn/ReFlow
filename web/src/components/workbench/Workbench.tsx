@@ -46,10 +46,10 @@ import { TaskManagement } from "./TaskManagement"
 import { QUICK_TASK_QUERY_KEY, TASK_QUERY_KEY } from "./taskQueryKeys"
 import { deadlineDays, formatDeadline, parseDeadline } from "./utils"
 
-// 个人工作台的两个模块。长任务是板子，科研工作台是今天这五张表原样往下挪一层，
-// 所以选中长任务时连 .wb-nav 整条都不渲染——科研那五格的可见性、顺序、无障碍
-// 语义都和改动前一致，才谈得上"其余不动"。
+// 个人工作台的三个一级模块：任务管理、日历、科研工作台。日历从科研子标签
+// 升上来之后，科研工作台只剩四张表；选中任务或日历时不再渲染科研标签条。
 const MODULES: Array<{ id: WorkbenchModule; labelKey: string }> = [
+  { id: "calendar", labelKey: "moduleCalendar" },
   { id: "tasks", labelKey: "moduleTasks" },
   { id: "research", labelKey: "moduleResearch" },
 ]
@@ -67,7 +67,6 @@ function aiContextKey(tab: WorkbenchTab): string {
   if (tab === "research") return "aiContextResearch"
   if (tab === "submitted") return "aiContextSubmitted"
   if (tab === "published") return "aiContextPublished"
-  if (tab === "calendar") return "aiContextCalendar"
   return "aiContextOverview"
 }
 
@@ -190,16 +189,16 @@ export function Workbench(props: WorkbenchProps) {
   // submission date — so it scopes to papers carrying one and the overview spans
   // the whole workspace. An expanded row narrows the context to that single paper.
   const tabPapers = useMemo<ResearchPaper[]>(() => {
-    if (tab === "research") return research
-    if (tab === "submitted") return submitted
-    if (tab === "published") return published
-    if (tab === "calendar") {
+    if (workbenchModule === "calendar") {
       return [...research, ...submitted]
         .filter((paper) => parseDeadline(paper.deadline) !== null)
         .sort((left, right) => deadlineDays(left) - deadlineDays(right))
     }
+    if (tab === "research") return research
+    if (tab === "submitted") return submitted
+    if (tab === "published") return published
     return [...research, ...submitted, ...published]
-  }, [published, research, submitted, tab])
+  }, [published, research, submitted, tab, workbenchModule])
 
   const focusedPaper = openRowID ? tabPapers.find((paper) => paper.id === openRowID) ?? null : null
   const aiPaperIDs = useMemo(
@@ -210,7 +209,7 @@ export function Workbench(props: WorkbenchProps) {
   const calendarPapers = useMemo(() => [...research, ...submitted], [research, submitted])
   const aiContextLabel = focusedPaper
     ? `${t("aiContextFocusedPaper")} · ${truncateTitle(focusedPaper.title)}`
-    : `${t(aiContextKey(tab))} · ${tabPapers.length}`
+    : `${t(workbenchModule === "calendar" ? "aiContextCalendar" : aiContextKey(tab))} · ${tabPapers.length}`
   // The digest's per-section action bubble jumps to the paper's own view.
   // Submitted papers additionally get the existing calendar-style focus, so
   // the bubble does exactly what the calendar event click already does.
@@ -220,10 +219,11 @@ export function Workbench(props: WorkbenchProps) {
         (paper) => paper.id === paperID,
       )
       if (!found) return
+      setWorkbenchModule("research")
       if (found.kind === "submitted") setFocusPaperID(paperID)
       selectTab(found.kind)
     },
-    [published, research, selectTab, submitted],
+    [published, research, selectTab, setWorkbenchModule, submitted],
   )
   const preferences = useQuery({
     queryKey: ["preferences"],
@@ -550,21 +550,27 @@ export function Workbench(props: WorkbenchProps) {
     research: t("workingPapersSubtitle"),
     submitted: t("submissionsSubtitle"),
     published: t("publicationsSubtitle"),
-    calendar: t("calendarSubtitle"),
   }
   const title: Record<WorkbenchTab, string> = {
     dashboard: t("researchOverview"),
     research: t("workingPapers"),
     submitted: t("submissions"),
     published: t("publications"),
-    calendar: t("calendar"),
   }
 
   const isTasks = workbenchModule === "tasks"
+  const isCalendar = workbenchModule === "calendar"
+  const isResearch = workbenchModule === "research"
+  const heading = isTasks ? t("moduleTasks") : isCalendar ? t("calendar") : title[tab]
+  const subheading = isTasks
+    ? t("tasksModuleSubtitle")
+    : isCalendar
+      ? t("calendarSubtitle")
+      : subtitle[tab]
 
   return (
     <div className="wb-shell" ref={shellRef}>
-      <div className="wb-main" data-wb-tab={isTasks ? "tasks" : tab}>
+      <div className="wb-main" data-wb-tab={isTasks ? "tasks" : isCalendar ? "calendar" : tab}>
         {/* 模块切换条。它是 role="group" 而不是第二条 <nav>：这一屏本来就有一条
             导航（下面那五格），多一条同级 landmark 会让"这页有几条导航"变得读不出
             来，而这一排只是在一块板子和五张表之间二选一。 */}
@@ -581,7 +587,7 @@ export function Workbench(props: WorkbenchProps) {
             </button>
           ))}
         </div>
-        {!isTasks && (
+        {isResearch && (
           <nav className="wb-nav wb-research-nav" aria-label={t("moduleResearch")}>
             {RESEARCH_TABS.map((entry) => (
               <button
@@ -605,12 +611,12 @@ export function Workbench(props: WorkbenchProps) {
         <header className="wb-header">
           <div>
             <div className="wb-eyebrow">{t("eyebrowPersonalManagement")}</div>
-            <h1>{isTasks ? t("moduleTasks") : title[tab]}</h1>
-            <p>{isTasks ? t("tasksModuleSubtitle") : subtitle[tab]}</p>
+            <h1>{heading}</h1>
+            <p>{subheading}</p>
           </div>
           {/* 总览抬头只留日期与生成按钮；三组计数已经进了总览的指标卡。
               其他科研页仍保留原来的三格状态栏。 */}
-          {!isTasks &&
+          {isResearch &&
             (tab === "dashboard" ? (
               <div className="wb-overview-actionbar">
                 <span className="wb-overview-date">{todayLabel}</span>
@@ -665,6 +671,17 @@ export function Workbench(props: WorkbenchProps) {
             </div>
           ) : isLoading ? (
             <div className="wb-empty">{t("loading")}</div>
+          ) : isCalendar ? (
+            <CalendarPage
+              papers={calendarPapers}
+              aiProfiles={props.aiProfiles ?? []}
+              onConfigureAI={props.onConfigureAI}
+              onAskAI={props.onAskAI}
+              onSelectPaper={openPaperFromDigest}
+              quickTasks={quickTasks}
+              taskThreads={taskThreads}
+              onSelectTask={openTaskFromCalendar}
+            />
           ) : (
             <>
               {tab === "dashboard" && (
@@ -677,7 +694,13 @@ export function Workbench(props: WorkbenchProps) {
                   onConfigureAI={props.onConfigureAI}
                   onAskAI={props.onAskAI}
                   onOpenPaper={openPaperFromDigest}
-                  onNavigate={selectTab}
+                  onNavigate={(next) => {
+                    if (next === "calendar") {
+                      setWorkbenchModule("calendar")
+                      return
+                    }
+                    selectTab(next)
+                  }}
                   onOpenTasks={() => setWorkbenchModule("tasks")}
                   onOpenPreferences={props.onOpenPreferences}
                   onOpenReader={props.onOpenReader}
@@ -739,20 +762,6 @@ export function Workbench(props: WorkbenchProps) {
                   batchCitationPending={batchPending}
                   batchCitationProgress={citationProgress}
                   onCrossrefEmailChange={saveEmail}
-                />
-              )}
-              {tab === "calendar" && (
-                <CalendarPage
-                  papers={calendarPapers}
-                  aiProfiles={props.aiProfiles ?? []}
-                  onConfigureAI={props.onConfigureAI}
-                  onAskAI={props.onAskAI}
-                  // 点一格气泡回到它自己那张表：在研的截止日期落在在研页，在投的落在
-                  // 在投页——和摘要里那条跳转同一套逻辑（含"在投才设焦点行"）。
-                  onSelectPaper={openPaperFromDigest}
-                  quickTasks={quickTasks}
-                  taskThreads={taskThreads}
-                  onSelectTask={openTaskFromCalendar}
                 />
               )}
             </>

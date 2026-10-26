@@ -23,6 +23,7 @@ function quickTask(overrides: Partial<QuickTask> = {}): QuickTask {
     id: "q-1",
     title: "采购硬盘",
     notes: "",
+    tags: [],
     start_date: "2026-10-20",
     due_date: "2026-10-21",
     paper_id: null,

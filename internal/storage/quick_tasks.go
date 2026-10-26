@@ -3,10 +3,12 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/Zijinn/ReFlow/internal/domain"
 	"github.com/google/uuid"
@@ -15,8 +17,10 @@ import (
 const taskScopeQuickTask = "quick_task"
 
 const (
-	quickTaskTextLimit = 500
-	quickTaskNoteLimit = 2000
+	quickTaskTextLimit    = 500
+	quickTaskNoteLimit    = 2000
+	quickTaskTagLimit     = 12
+	quickTaskTagTextLimit = 40
 )
 
 func scanQuickTask(row interface {
@@ -24,18 +28,61 @@ func scanQuickTask(row interface {
 }) (domain.QuickTask, error) {
 	var task domain.QuickTask
 	var paperID sql.NullString
-	if err := row.Scan(&task.ID, &task.Title, &task.Notes, &task.StartDate, &task.DueDate,
+	var tagsJSON string
+	if err := row.Scan(&task.ID, &task.Title, &task.Notes, &tagsJSON, &task.StartDate, &task.DueDate,
 		&paperID, &task.CompletedAt, &task.Position); err != nil {
 		return domain.QuickTask{}, err
 	}
 	if paperID.Valid {
 		task.PaperID = &paperID.String
 	}
+	if tagsJSON != "" {
+		if err := json.Unmarshal([]byte(tagsJSON), &task.Tags); err != nil {
+			return domain.QuickTask{}, fmt.Errorf("scan quick task tags: %w", err)
+		}
+	}
+	if task.Tags == nil {
+		task.Tags = []string{}
+	}
 	task.Completed = task.CompletedAt != ""
 	return task, nil
 }
 
-const quickTaskColumns = `id, title, notes, start_date, due_date, paper_id, completed_at, position`
+const quickTaskColumns = `id, title, notes, tags, start_date, due_date, paper_id, completed_at, position`
+
+func normalizeQuickTaskTags(tags []string) ([]string, error) {
+	normalized := make([]string, 0, len(tags))
+	seen := make(map[string]struct{}, len(tags))
+	for _, raw := range tags {
+		tag := strings.TrimSpace(raw)
+		if tag == "" {
+			continue
+		}
+		if utf8.RuneCountInString(tag) > quickTaskTagTextLimit {
+			return nil, taskValidationf(taskScopeQuickTask,
+				"each tag must be at most %d characters", quickTaskTagTextLimit)
+		}
+		key := strings.ToLower(tag)
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, tag)
+	}
+	if len(normalized) > quickTaskTagLimit {
+		return nil, taskValidationf(taskScopeQuickTask,
+			"a quick task accepts at most %d tags", quickTaskTagLimit)
+	}
+	return normalized, nil
+}
+
+func marshalQuickTaskTags(tags []string) (string, error) {
+	body, err := json.Marshal(tags)
+	if err != nil {
+		return "", fmt.Errorf("encode quick task tags: %w", err)
+	}
+	return string(body), nil
+}
 
 type rowQueryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
@@ -101,13 +148,21 @@ func nextQuickTaskPosition(ctx context.Context, tx *sql.Tx, profileID string) (i
 
 // CreateQuickTask adds one flat task. Position is MIN-1 so a new task lands on
 // top, matching the research table's "new row first" convention.
-func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, startDate, dueDate string, paperID *string) (domain.QuickTask, error) {
+func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, startDate, dueDate string, paperID *string, tags []string) (domain.QuickTask, error) {
 	title = strings.TrimSpace(title)
 	if err := validateTaskRequired(taskScopeQuickTask, "title", title, quickTaskTextLimit); err != nil {
 		return domain.QuickTask{}, err
 	}
 	notes = strings.TrimSpace(notes)
 	if err := validateTaskText(taskScopeQuickTask, "notes", notes, quickTaskNoteLimit); err != nil {
+		return domain.QuickTask{}, err
+	}
+	normalizedTags, err := normalizeQuickTaskTags(tags)
+	if err != nil {
+		return domain.QuickTask{}, err
+	}
+	tagsJSON, err := marshalQuickTaskTags(normalizedTags)
+	if err != nil {
 		return domain.QuickTask{}, err
 	}
 	if err := validateTaskDate(taskScopeQuickTask, "start_date", startDate); err != nil {
@@ -141,9 +196,9 @@ func CreateQuickTask(ctx context.Context, db *sql.DB, profileID, title, notes, s
 		return domain.QuickTask{}, err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO quick_tasks
-		(id, profile_id, title, notes, start_date, due_date, paper_id, completed_at, position, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
-		id, profileID, title, notes, startDate, dueDate, linkedPaper, position, now, now); err != nil {
+		(id, profile_id, title, notes, tags, start_date, due_date, paper_id, completed_at, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', ?, ?, ?)`,
+		id, profileID, title, notes, tagsJSON, startDate, dueDate, linkedPaper, position, now, now); err != nil {
 		if strings.Contains(err.Error(), "FOREIGN KEY constraint failed") {
 			return domain.QuickTask{}, taskValidationf(taskScopeQuickTask, "paper_id does not exist")
 		}
@@ -177,6 +232,18 @@ func UpdateQuickTask(ctx context.Context, db *sql.DB, profileID, id string, patc
 		}
 		sets = append(sets, "notes = ?")
 		args = append(args, notes)
+	}
+	if patch.Tags != nil {
+		normalizedTags, err := normalizeQuickTaskTags(*patch.Tags)
+		if err != nil {
+			return domain.QuickTask{}, err
+		}
+		tagsJSON, err := marshalQuickTaskTags(normalizedTags)
+		if err != nil {
+			return domain.QuickTask{}, err
+		}
+		sets = append(sets, "tags = ?")
+		args = append(args, tagsJSON)
 	}
 	startDate, dueDate := current.StartDate, current.DueDate
 	if patch.StartDate != nil {

@@ -49,7 +49,10 @@ import {
   updateTaskThread,
 } from "../../api/client"
 import type { TaskFocus } from "../../store/reader"
+import { GanttDays, GanttToolbar } from "./gantt"
+import { ganttBar, useGanttWindow, type GanttWindow } from "./ganttUtils"
 import { TASK_QUERY_KEY } from "./taskQueryKeys"
+import "./gantt.css"
 import type {
   ListResponse,
   ResearchKind,
@@ -66,7 +69,7 @@ import { useOnlineState } from "../../lib/online"
 import { toast } from "../../store/toast"
 import { ConfirmDialog } from "../ConfirmDialog"
 import { DatePickerCell, EmptyState, ExpandToggle, InlineText } from "./shared"
-import { parseDeadline, relativeTime } from "./utils"
+import { parseDeadline, relativeTime, taskUrgency } from "./utils"
 
 // 整棵树只有一个 queryKey：`GET /tasks/threads` 把层、任务、指派、步和全部派生
 // 字段（unlocked / progress / status / stats）一次带回来。写之后一律失效重取，
@@ -130,6 +133,7 @@ interface CardContext {
   onPane: (pane: CardPane | null) => void
   addingStep: string | null
   onAddingStep: (assignmentID: string | null) => void
+  gantt: GanttWindow
 }
 
 // ── 纯派生小工具：只读服务端已经算好的字段，不重算任何口径 ──────────────
@@ -186,8 +190,12 @@ function clampProgress(value: number): number {
 function cardEdgeClass(item: TaskItem, assignment: TaskAssignment): string {
   const { done, total } = stepCounts(assignment.steps)
   if (assignment.closed || (total > 0 && done === total)) return "wb-task-card--closed"
-  if (item.status === "overdue") return "wb-task-card--overdue"
-  if (item.status === "locked" || item.status === "unstarted") return "wb-task-card--idle"
+  const urgency = taskUrgency(assignment.due_date)
+  if (item.status === "overdue" || urgency === "overdue") return "wb-task-card--overdue"
+  if (item.status === "locked") return "wb-task-card--idle"
+  if (urgency === "soon") return "wb-task-card--soon"
+  if (urgency === "future") return "wb-task-card--future"
+  if (item.status === "unstarted") return "wb-task-card--idle"
   return "wb-task-card--active"
 }
 
@@ -516,12 +524,15 @@ function TaskCard(props: {
 
   const adding = ctx.addingStep === assignment.id
   const canComplete = !assignment.closed && layer.unlocked
+  const urgency = assignment.closed ? null : taskUrgency(assignment.due_date)
+  const bar = ganttBar(assignment.start_date, assignment.due_date, ctx.gantt.windowStart, ctx.gantt.dayCount)
 
   return (
     <article
       className={`wb-task-card ${cardEdgeClass(item, assignment)}`}
       data-assignment-id={assignment.id}
     >
+      <div className="wb-task-card-main">
       <div className="wb-task-card-head">
         <ExpandToggle
           expanded={expanded}
@@ -568,13 +579,35 @@ function TaskCard(props: {
           )}
         </div>
       )}
-      <div className="wb-task-card-meta">
+      </div>
+      <div className="wb-task-card-meta" data-urgency={urgency ?? undefined}>
         {shortDate(assignment.start_date)} – {shortDate(assignment.due_date)} · {done}/{total}{" "}
         {t("taskStepUnit")}
       </div>
+      <div
+        className="wb-gantt-track"
+        style={{ "--gantt-days": ctx.gantt.dayCount } as CSSProperties}
+      >
+        {bar ? (
+          <span
+            className={`wb-gantt-bar wb-gantt-bar--${
+              assignment.closed
+                ? "closed"
+                : item.status === "locked"
+                  ? "idle"
+                  : urgency ?? "future"
+            }`}
+            style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
+            role="img"
+            aria-label={`${assignment.start_date || "—"} – ${assignment.due_date || "—"}`}
+          />
+        ) : !assignment.start_date && !assignment.due_date ? (
+          <span className="wb-gantt-empty">{t("taskTimelineUnscheduled")}</span>
+        ) : null}
+      </div>
       {expanded ? (
         <div className="wb-task-card-body">
-          <div className="wb-task-dates">
+          <div className="wb-task-dates" data-urgency={urgency ?? undefined}>
             <span className="wb-task-date-label">{t("taskStartDate")}</span>
             <DatePickerCell
               value={assignment.start_date}
@@ -949,6 +982,7 @@ export function TaskBoard(props: {
   const [pane, setPane] = useState<CardPane | null>(null)
   const [showArchived, setShowArchived] = useState(false)
   const [confirm, setConfirm] = useState<{ message: string; action: () => void } | null>(null)
+  const gantt = useGanttWindow()
 
   const treeQuery = useQuery({
     queryKey: TASK_QUERY_KEY,
@@ -1111,6 +1145,7 @@ export function TaskBoard(props: {
     onPane: setPane,
     addingStep,
     onAddingStep: setAddingStep,
+    gantt,
   }
 
   // 逐条 memo，与 Workbench 那三张论文表同一写法：`?? []` 每次渲染都是新数组，
@@ -1149,18 +1184,30 @@ export function TaskBoard(props: {
     )
   } else {
     body = (
-      <>
-        {visible.map((thread) => (
-          <ThreadSection key={thread.id} thread={thread} ctx={ctx} />
-        ))}
-        {showArchived &&
-          archived.map((thread) => <ThreadSection key={thread.id} thread={thread} ctx={ctx} />)}
-      </>
+      <div className="wb-task-table-scroll">
+        <div className="wb-task-table">
+          <div className="wb-task-table-head">
+            <span>{t("taskTableTask")}</span>
+            <span>{t("taskTableTime")}</span>
+            <div className="wb-task-axis" aria-label={t("taskTableAxis")}>
+              <GanttDays window={gantt} />
+            </div>
+          </div>
+          {visible.map((thread) => (
+            <ThreadSection key={thread.id} thread={thread} ctx={ctx} />
+          ))}
+          {showArchived &&
+            archived.map((thread) => <ThreadSection key={thread.id} thread={thread} ctx={ctx} />)}
+        </div>
+      </div>
     )
   }
 
   return (
     <div className="wb-task-board">
+      {(visible.length > 0 || (showArchived && archived.length > 0)) && (
+        <GanttToolbar window={gantt} />
+      )}
       {body}
       {(visible.length > 0 || (showArchived && archived.length > 0)) && (
         <footer className="wb-task-foot">

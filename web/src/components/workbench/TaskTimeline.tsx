@@ -13,7 +13,7 @@ import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
 import { toast } from "../../store/toast"
 import { QUICK_TASK_QUERY_KEY, TASK_QUERY_KEY } from "./taskQueryKeys"
-import { formatDeadline, parseDeadline } from "./utils"
+import { formatDeadline, parseDeadline, taskUrgency, type TaskUrgency } from "./utils"
 
 type TimelineMode = "week" | "month"
 type TimelineState = "active" | "closed" | "overdue" | "idle"
@@ -27,6 +27,7 @@ interface TimelineRow {
   start: string
   due: string
   state: TimelineState
+  urgency: TaskUrgency | null
 }
 
 interface TimelineLayer {
@@ -211,6 +212,7 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
           : task.due_date && task.due_date < todayValue()
             ? "overdue"
             : "active",
+        urgency: task.completed ? null : taskUrgency(due),
         }
       }),
     [quickTasks, t],
@@ -251,6 +253,7 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
                   start,
                   due,
                   state: stateForItem(item.status, assignment.closed),
+                  urgency: assignment.closed ? null : taskUrgency(due),
                   }
                 }),
             )
@@ -275,6 +278,7 @@ export function TaskTimeline(props: { offline?: boolean; onNewQuick: () => void 
               start: "",
               due: "",
               state: stateForItem(item.status, item.closed),
+              urgency: null,
             })),
         ),
     [threads],
@@ -611,7 +615,9 @@ function TimelineBar(props: {
   return (
     <button
       type="button"
-      className={`wb-tm-tl-bar wb-tm-tl-bar--${row.state} ${drag ? "wb-tm-tl-bar--dragging" : ""}`}
+      className={`wb-tm-tl-bar wb-tm-tl-bar--${row.state} ${
+        row.urgency && row.urgency !== "overdue" ? `wb-tm-tl-bar--${row.urgency}` : ""
+      } ${drag ? "wb-tm-tl-bar--dragging" : ""}`}
       style={{
         left: `calc(${left}% + ${((drag?.delta ?? 0) / dayCount) * 100}%)`,
         width: `${width}%`,

@@ -12,7 +12,7 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 	db := newTaskTestDB(t)
 
 	first, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
-		"整理报销单", "", "2026-10-20", "2026-10-24", nil)
+		"整理报销单", "", "2026-10-20", "2026-10-24", nil, nil)
 	if err != nil {
 		t.Fatalf("create quick task: %v", err)
 	}
@@ -20,7 +20,7 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 		t.Fatalf("unexpected new quick task: %+v", first)
 	}
 
-	second, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "预约体检", "", "", "", nil)
+	second, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "预约体检", "", "", "", nil, nil)
 	if err != nil {
 		t.Fatalf("create second quick task: %v", err)
 	}
@@ -29,10 +29,10 @@ func TestQuickTaskCRUDAndDateRules(t *testing.T) {
 	}
 
 	// A due date without a start date is legal; a window running backwards is not.
-	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "倒序", "", "2026-10-24", "2026-10-20", nil); err == nil {
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "倒序", "", "2026-10-24", "2026-10-20", nil, nil); err == nil {
 		t.Fatal("due_date before start_date must be rejected")
 	}
-	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "坏日期", "", "2026-02-30", "", nil); err == nil {
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "坏日期", "", "2026-02-30", "", nil, nil); err == nil {
 		t.Fatal("impossible calendar dates must be rejected")
 	}
 
@@ -91,7 +91,7 @@ func TestQuickTaskPaperLink(t *testing.T) {
 	}
 	paperID := "paper-1"
 	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
-		"补齐稳健性检验", "", "", "", &paperID)
+		"补齐稳健性检验", "", "", "", &paperID, nil)
 	if err != nil {
 		t.Fatalf("create linked quick task: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestQuickTaskPaperLink(t *testing.T) {
 
 	missing := "paper-missing"
 	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
-		"坏关联", "", "", "", &missing); err == nil {
+		"坏关联", "", "", "", &missing, nil); err == nil {
 		t.Fatal("a quick task must not link to a paper outside the profile")
 	}
 	if _, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
@@ -136,7 +136,7 @@ func TestQuickTaskPaperLink(t *testing.T) {
 	}
 
 	unlinked, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
-		"独立任务", "", "", "", nil)
+		"独立任务", "", "", "", nil, nil)
 	if err != nil {
 		t.Fatalf("create unlinked quick task: %v", err)
 	}
@@ -158,5 +158,37 @@ func TestTaskThreadMapMarkdownRoundTrip(t *testing.T) {
 	loaded := taskThread(t, ctx, db, thread)
 	if loaded.MapMarkdown != source {
 		t.Fatalf("map markdown did not round-trip: %q", loaded.MapMarkdown)
+	}
+}
+
+func TestQuickTaskTagsNormalizeAndRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	db := newTaskTestDB(t)
+
+	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
+		"带标签的任务", "", "", "", nil, []string{" 写作 ", "写作", "urgent"})
+	if err != nil {
+		t.Fatalf("create tagged quick task: %v", err)
+	}
+	if len(task.Tags) != 2 || task.Tags[0] != "写作" || task.Tags[1] != "urgent" {
+		t.Fatalf("tags did not normalize: %+v", task.Tags)
+	}
+
+	cleared, err := UpdateQuickTask(ctx, db, domain.DefaultProfileID, task.ID,
+		domain.QuickTaskPatch{Tags: &[]string{}})
+	if err != nil {
+		t.Fatalf("clear quick task tags: %v", err)
+	}
+	if cleared.Tags == nil || len(cleared.Tags) != 0 {
+		t.Fatalf("clearing tags must return an empty list, not null: %+v", cleared.Tags)
+	}
+
+	tooMany := make([]string, quickTaskTagLimit+1)
+	for index := range tooMany {
+		tooMany[index] = "tag-" + string(rune('a'+index))
+	}
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID,
+		"标签过多", "", "", "", nil, tooMany); err == nil {
+		t.Fatal("a quick task must reject more than the tag limit")
 	}
 }

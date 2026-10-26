@@ -14,10 +14,10 @@ export type AccentTheme =
 export type CanvasTheme = "aurora" | "meadow" | "orchid" | "slate"
 export type SSEState = "live" | "reconnecting"
 export type AppView = "reader" | "workbench"
-// 个人工作台里的两个模块：科研工作台（原有的五张表）与长任务板。默认科研——
-// 第一次进来的人肌肉记忆不变；用过长任务之后，下次回来停在他自己选的那一模块。
-export type WorkbenchModule = "tasks" | "research"
-export type WorkbenchTab = "dashboard" | "research" | "submitted" | "published" | "calendar"
+// 个人工作台分为任务管理、截止日期日历与科研工作台三个一级模块。默认科研——
+// 第一次进来的人肌肉记忆不变；用过其他模块之后，下次回来停在他自己选的那一块。
+export type WorkbenchModule = "tasks" | "calendar" | "research"
+export type WorkbenchTab = "dashboard" | "research" | "submitted" | "published"
 export type TaskView = "quick" | "long" | "timeline" | "mindmap"
 export type SidebarDensity = "compact" | "comfortable"
 export interface TaskFocus {
@@ -196,7 +196,7 @@ export const useReaderStore = create<ReaderStore>()(
       taskView: "quick",
       taskFocus: null,
       // 两个模块的二级菜单各管各的：默认展开当前模块，另一个可随时点开。
-      expandedWorkbenchModules: { tasks: false, research: true },
+      expandedWorkbenchModules: { tasks: false, calendar: false, research: true },
       // 订阅列表默认走宽松档；需要更密时可在订阅栏一键切回紧凑档。
       sidebarDensity: "comfortable",
       // 只存用户拖过的列：没落键的列在 CSS 里退回 width: var(--wb-col-w, 默认)，
@@ -292,13 +292,25 @@ export const useReaderStore = create<ReaderStore>()(
     }),
     {
       name: "reflow-reader-preferences",
-      version: 1,
+      version: 2,
       // 旧版本默认紧凑，升级后第一次打开订阅列表时把它放宽一次；之后用户
-      // 自己选的档位照常保留。
+      // 自己选的档位照常保留。日历从科研子标签升为一级模块后，旧的 calendar
+      // 子标签回到科研总览，避免落在一条已经不存在的标签上。
       migrate: (persisted, version) => {
         const state = persisted as PersistedReaderState
-        if (version < 1) return { ...state, sidebarDensity: "comfortable" as const }
-        return state
+        let next = state
+        if (version < 1) next = { ...next, sidebarDensity: "comfortable" as const }
+        if (version < 2) {
+          next = {
+            ...next,
+            workbenchTab: String(next.workbenchTab) === "calendar" ? "dashboard" : next.workbenchTab,
+            expandedWorkbenchModules: {
+              ...next.expandedWorkbenchModules,
+              calendar: next.expandedWorkbenchModules?.calendar ?? false,
+            },
+          }
+        }
+        return next
       },
       partialize: persistedReaderState,
     },

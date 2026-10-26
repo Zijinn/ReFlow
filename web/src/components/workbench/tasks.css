@@ -198,25 +198,62 @@
 /* 卡面横排 + 末尾那颗虚线新建位 */
 .wb-task-cards {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: stretch;
   gap: var(--space-5);
 }
 .wb-task-card {
   --wb-task-edge: var(--border-strong);
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  flex: 1 1 300px;
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) 150px minmax(300px, 1.6fr);
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+  flex: none;
+  width: 100%;
   min-width: 0;
-  max-width: 420px;
-  padding: var(--space-6) var(--space-7) var(--space-6) var(--space-8);
+  max-width: none;
+  padding: var(--space-5) var(--space-7) var(--space-5) var(--space-8);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface-raised);
   box-shadow: var(--ring-hairline);
   transition: box-shadow var(--dur-base) var(--ease);
+}
+.wb-task-card-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.wb-task-card-body,
+.wb-task-card-foot {
+  grid-column: 1 / -1;
+}
+.wb-task-table-scroll {
+  overflow-x: auto;
+}
+.wb-task-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 980px;
+}
+.wb-task-table-head {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.2fr) 150px minmax(300px, 1.6fr);
+  gap: var(--space-4);
+  align-items: center;
+  padding: 0 calc(var(--space-8) * 2);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+}
+.wb-task-axis {
+  min-width: 0;
+}
+.wb-task-axis .wb-gantt-days {
+  border-bottom: 1px solid var(--border);
 }
 /* 状态色只画在左缘这三像素上：整张卡涂色会让一排卡变成一块色板，
    而这一块板子要读的是"哪一颗还没收口"。 */
@@ -239,6 +276,12 @@
 }
 .wb-task-card--overdue {
   --wb-task-edge: var(--wb-hue-red);
+}
+.wb-task-card--soon {
+  --wb-task-edge: var(--wb-hue-amber);
+}
+.wb-task-card--future {
+  --wb-task-edge: var(--wb-hue-green);
 }
 .wb-task-card--idle {
   --wb-task-edge: var(--wb-hue-gray);
@@ -279,6 +322,18 @@
   font-size: var(--text-sm);
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+}
+.wb-task-card-meta[data-urgency="overdue"],
+.wb-task-dates[data-urgency="overdue"] .wb-date-btn {
+  color: var(--danger-strong);
+}
+.wb-task-card-meta[data-urgency="soon"],
+.wb-task-dates[data-urgency="soon"] .wb-date-btn {
+  color: var(--warning-strong);
+}
+.wb-task-card-meta[data-urgency="future"],
+.wb-task-dates[data-urgency="future"] .wb-date-btn {
+  color: var(--wb-hue-green-ink);
 }
 .wb-task-card-foot {
   display: flex;

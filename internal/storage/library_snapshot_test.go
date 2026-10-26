@@ -402,7 +402,7 @@ func TestLibrarySnapshotRoundTripsQuickTasks(t *testing.T) {
 	}
 	defer db.Close()
 
-	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "扬州报销整理", "", "2026-10-12", "2026-10-14", nil)
+	task, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "扬州报销整理", "发票两张", "2026-10-12", "2026-10-14", nil, []string{"报销", "财务"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -421,7 +421,8 @@ func TestLibrarySnapshotRoundTripsQuickTasks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("quick task missing after snapshot restore: %v", err)
 	}
-	if restored.Title != "扬州报销整理" || restored.StartDate != "2026-10-12" || restored.DueDate != "2026-10-14" {
+	if restored.Title != "扬州报销整理" || restored.StartDate != "2026-10-12" || restored.DueDate != "2026-10-14" ||
+		restored.Notes != "发票两张" || len(restored.Tags) != 2 || restored.Tags[0] != "报销" {
 		t.Fatalf("snapshot restore lost quick task fields: %+v", restored)
 	}
 }
@@ -441,7 +442,7 @@ func TestLibrarySnapshotIsEmptyCountsQuickTasks(t *testing.T) {
 	if !LibrarySnapshotIsEmpty(document) {
 		t.Fatal("empty database snapshot should be considered empty")
 	}
-	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "只有即时任务", "", "", "", nil); err != nil {
+	if _, err := CreateQuickTask(ctx, db, domain.DefaultProfileID, "只有即时任务", "", "", "", nil, nil); err != nil {
 		t.Fatal(err)
 	}
 	document, err = ExportLibrarySnapshot(ctx, db)

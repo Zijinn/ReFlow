@@ -1092,6 +1092,7 @@ export function listQuickTasks(signal?: AbortSignal): Promise<ListResponse<Quick
 export function createQuickTask(input: {
   title: string
   notes?: string
+  tags?: string[]
   start_date?: string
   due_date?: string
   paper_id?: string | null
@@ -1107,6 +1108,7 @@ export function updateQuickTask(
   patch: {
     title?: string
     notes?: string
+    tags?: string[]
     start_date?: string
     due_date?: string
     paper_id?: string | null

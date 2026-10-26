@@ -2,6 +2,7 @@ import {
   ArrowsInLineVertical,
   ArrowsOutLineVertical,
   Books,
+  CalendarBlank,
   CaretDown,
   CaretRight,
   CircleNotch,
@@ -188,6 +189,19 @@ export function Sidebar(props: SidebarProps) {
       </nav>
       {props.appView === "workbench" && (
         <nav className="sidebar-workbench-nav" aria-label={t("workbench")}>
+          <button
+            className="sidebar-workbench-nav__item"
+            type="button"
+            aria-current={workbenchModule === "calendar" ? "page" : undefined}
+            onClick={() => setWorkbenchModule("calendar")}
+          >
+            <CalendarBlank
+              aria-hidden="true"
+              size={19}
+              weight={workbenchModule === "calendar" ? "fill" : "regular"}
+            />
+            <span>{t("moduleCalendar")}</span>
+          </button>
           <button
             className="sidebar-workbench-nav__item"
             type="button"

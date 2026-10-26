@@ -107,6 +107,45 @@
   font-size: var(--text-xs);
   color: var(--text-tertiary);
 }
+.wb-tm-quick-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.wb-tm-quick-group + .wb-tm-quick-group {
+  margin-top: var(--space-6);
+}
+.wb-tm-quick-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0 var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+}
+.wb-tm-quick-group-head b {
+  color: var(--text-tertiary);
+  font-weight: var(--fw-medium);
+  font-variant-numeric: tabular-nums;
+}
+.wb-tm-quick-group-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  margin-left: var(--space-2);
+  background: var(--border);
+}
+.wb-tm-quick-group-head--warn {
+  color: var(--danger-strong);
+}
+.wb-tm-quick-group-head--soon {
+  color: var(--warning-strong);
+}
+.wb-tm-quick-group-head--future {
+  color: var(--wb-hue-green-ink);
+}
 .wb-tm-quick-list {
   display: flex;
   flex-direction: column;
@@ -115,11 +154,52 @@
   padding: 0;
   list-style: none;
 }
-.wb-tm-quick-row {
+.wb-tm-quick-table-scroll {
+  overflow-x: auto;
+}
+.wb-tm-quick-table {
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
   gap: var(--space-4);
-  padding: var(--space-5) var(--space-6);
+  min-width: 1040px;
+}
+.wb-tm-quick-table-head,
+.wb-tm-quick-row {
+  display: grid;
+  grid-template-columns:
+    24px minmax(170px, 1.1fr) minmax(120px, 0.7fr) 210px
+    minmax(140px, 0.8fr) minmax(280px, 1.5fr) 32px;
+  align-items: center;
+  gap: var(--space-3);
+}
+.wb-tm-quick-table-head {
+  align-items: center;
+  padding: 0 var(--space-5);
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  font-weight: var(--fw-semibold);
+}
+.wb-tm-quick-table-head > span:nth-child(3),
+.wb-tm-quick-table-head > span:nth-child(4),
+.wb-tm-quick-table-head > span:nth-child(5) {
+  text-align: center;
+}
+.wb-tm-quick-table .wb-tm-quick-tags,
+.wb-tm-quick-table .wb-tm-quick-dates {
+  justify-content: center;
+}
+.wb-tm-quick-table .wb-tm-quick-notes {
+  display: block;
+  text-align: center;
+}
+.wb-tm-quick-axis {
+  min-width: 0;
+}
+.wb-tm-quick-axis .wb-gantt-days {
+  border-bottom: 1px solid var(--border);
+}
+.wb-tm-quick-row {
+  padding: var(--space-4) var(--space-5);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
@@ -152,17 +232,17 @@
   outline: none;
   box-shadow: var(--focus-ring);
 }
-.wb-tm-quick-main {
-  flex: 1;
+.wb-tm-quick-name {
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  padding-top: 2px;
 }
-.wb-tm-quick-main .wb-editable {
+.wb-tm-quick-name .wb-editable {
   font-size: var(--text-md);
   font-weight: var(--fw-semibold);
   overflow-wrap: anywhere;
+}
+.wb-tm-quick-row .wb-gantt-track {
+  margin-top: 2px;
 }
 .wb-tm-quick-dates {
   display: flex;
@@ -171,13 +251,84 @@
   flex-wrap: wrap;
   color: var(--text-tertiary);
 }
-.wb-tm-quick-overdue {
-  margin-left: var(--space-2);
+.wb-tm-quick-dates[data-urgency="overdue"] .wb-date-btn {
+  color: var(--danger-strong);
+}
+.wb-tm-quick-dates[data-urgency="soon"] .wb-date-btn {
+  color: var(--warning-strong);
+}
+.wb-tm-quick-dates[data-urgency="future"] .wb-date-btn {
+  color: var(--wb-hue-green-ink);
+}
+.wb-tm-quick-tags {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.wb-tm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-muted);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+.wb-tm-tag-remove {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  line-height: 1;
+  cursor: pointer;
+}
+.wb-tm-tag-remove:hover {
+  color: var(--danger-strong);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.wb-tm-tag-add {
+  padding: 1px var(--space-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-full);
+  background: transparent;
+  color: var(--text-tertiary);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.wb-tm-tag-add:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-strong);
+}
+.wb-tm-tag-input {
+  width: 150px;
+  min-height: 24px;
+  padding: 1px var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: var(--text-xs);
+}
+.wb-tm-quick-notes {
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .wb-tm-quick-row--done {
   opacity: 0.66;
 }
-.wb-tm-quick-row--done .wb-tm-quick-main .wb-editable {
+.wb-tm-quick-row--done .wb-tm-quick-name .wb-editable {
   text-decoration: line-through;
 }
 .wb-tm-quick-done {
@@ -474,6 +625,12 @@
 }
 .wb-tm-tl-bar--active {
   --tm-bar-hue: var(--accent);
+}
+.wb-tm-tl-bar--soon {
+  --tm-bar-hue: var(--wb-hue-amber);
+}
+.wb-tm-tl-bar--future {
+  --tm-bar-hue: var(--wb-hue-green);
 }
 .wb-tm-tl-bar--closed {
   --tm-bar-hue: var(--wb-hue-green);
@@ -846,6 +1003,14 @@
 .wb-tm-quick-dates .wb-date-btn {
   min-width: 120px;
   white-space: nowrap;
+}
+.wb-tm-quick-table .wb-tm-quick-dates {
+  flex-wrap: nowrap;
+  font-size: var(--text-xs);
+}
+.wb-tm-quick-table .wb-tm-quick-dates .wb-date-btn {
+  min-width: 0;
+  padding-inline: var(--space-1);
 }
 .wb-tm-quick-add .wb-date-value,
 .wb-tm-quick-dates .wb-date-value {

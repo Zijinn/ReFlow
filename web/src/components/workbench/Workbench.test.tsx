@@ -99,6 +99,7 @@ function quickTask(overrides: Partial<QuickTask> = {}): QuickTask {
     id: "q-1",
     title: "Focus task",
     notes: "",
+    tags: [],
     start_date: formatDeadline(new Date()),
     due_date: formatDeadline(new Date(Date.now() + 2 * 86_400_000)),
     paper_id: null,
@@ -200,6 +201,11 @@ function renderWorkbench(props: WorkbenchProps = {}) {
 function goToTab(name: RegExp) {
   const nav = screen.getByRole("navigation")
   fireEvent.click(within(nav).getByRole("button", { name }))
+}
+
+function goToCalendar() {
+  const modules = screen.getByRole("group", { name: "Workspace" })
+  fireEvent.click(within(modules).getByRole("button", { name: "Calendar" }))
 }
 
 beforeEach(() => {
@@ -502,7 +508,7 @@ describe("Workbench navigation", () => {
   it("keeps the tab bar on top of the content, not in a side rail", async () => {
     renderWorkbench()
     const nav = await screen.findByRole("navigation", { name: "Research Workspace" })
-    expect(nav.querySelectorAll(".wb-nav-item")).toHaveLength(5)
+    expect(nav.querySelectorAll(".wb-nav-item")).toHaveLength(4)
     // 它上面只剩模块切换那一排（长任务 / 科研工作台）。那一排是 role="group"
     // 而不是第二条导航，所以"内容之上第一条导航"这条断言仍然成立。
     expect(document.querySelector(".wb-main nav")).toBe(nav)
@@ -518,7 +524,7 @@ describe("Workbench navigation", () => {
       }),
     ]
     renderWorkbench()
-    goToTab(/Deadline calendar/)
+    goToCalendar()
     fireEvent.click(await screen.findByRole("button", { name: /Submitted One/ }))
     // The click switches to the submissions table and opens that row.
     expect(await screen.findByRole("button", { name: "Collapse details" })).toBeInTheDocument()
@@ -537,7 +543,7 @@ describe("Workbench navigation", () => {
       }),
     ]
     renderWorkbench()
-    goToTab(/Deadline calendar/)
+    goToCalendar()
     const event = await screen.findByRole("button", { name: /Robustness Rewrite/ })
     expect(event.querySelector(".wb-cal-event-code")?.textContent).toBe("R001")
     fireEvent.click(event)
@@ -566,6 +572,7 @@ describe("Next action → tasks", () => {
       id: "q-next",
       title: "Run robustness checks",
       notes: "",
+      tags: [],
       start_date: formatDeadline(new Date()),
       due_date: dueISO,
       paper_id: "r-next",
@@ -593,8 +600,8 @@ describe("Task focus and linked chip", () => {
   it("jumps from a calendar bar to the task and keeps its focus id", async () => {
     vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask({ id: "q-focus" })] })
     renderWorkbench()
-    goToTab(/Deadline calendar/)
-    await waitFor(() => expect(useReaderStore.getState().workbenchTab).toBe("calendar"))
+    goToCalendar()
+    await waitFor(() => expect(useReaderStore.getState().workbenchModule).toBe("calendar"))
     const bars = await screen.findAllByRole("button", { name: /Focus task/ })
     const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView")
     fireEvent.click(bars[0]!)
@@ -754,7 +761,7 @@ describe("Workbench AI panel", () => {
       paper({ id: "s-none", kind: "submitted", title: "No deadline", deadline: "next week" }),
     ]
     const { container } = renderWorkbench(panelProps)
-    goToTab(/Deadline calendar/)
+    goToCalendar()
     expect((await ask("plan my week")).paperIDs).toEqual(["r-soon", "s-soon", "s-late"])
     expect(contextLabel(container)).toContain("Deadline papers in the calendar · 3")
   })

@@ -70,6 +70,7 @@ function quickTask(overrides: Partial<QuickTask> = {}): QuickTask {
     id: "q-1",
     title: "Quick task",
     notes: "",
+    tags: [],
     start_date: "",
     due_date: "",
     paper_id: null,

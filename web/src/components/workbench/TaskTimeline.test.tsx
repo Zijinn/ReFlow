@@ -30,6 +30,7 @@ const quick: QuickTask = {
   id: "q-1",
   title: "采购硬盘",
   notes: "",
+  tags: [],
   start_date: relativeDate(-2),
   due_date: relativeDate(0),
   paper_id: null,
@@ -120,5 +121,6 @@ describe("TaskTimeline", () => {
     expect((await screen.findAllByText("修改正文")).length).toBeGreaterThan(0)
     expect(screen.getAllByText("采购硬盘").length).toBeGreaterThan(0)
     expect(document.querySelectorAll(".wb-tm-tl-bar").length).toBe(2)
+    expect(document.querySelectorAll(".wb-tm-tl-bar--soon").length).toBe(2)
   })
 })
