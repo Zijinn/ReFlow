@@ -18,12 +18,20 @@ vi.mock("../../api/client", async (importOriginal) => {
   }
 })
 
+// The timeline opens on the current week, so fixed fixture dates drift out of
+// view as time passes. Anchor the bars around today instead.
+function relativeDate(days: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
+}
+
 const quick: QuickTask = {
   id: "q-1",
   title: "采购硬盘",
   notes: "",
-  start_date: "2026-10-20",
-  due_date: "2026-10-22",
+  start_date: relativeDate(-2),
+  due_date: relativeDate(0),
   paper_id: null,
   completed_at: "",
   completed: false,
@@ -66,8 +74,8 @@ const thread: TaskThread = {
           layer_id: "l-1",
           layer_position: 0,
           position: 0,
-          start_date: "2026-10-19",
-          due_date: "2026-10-25",
+          start_date: relativeDate(-3),
+          due_date: relativeDate(1),
           closed: false,
           closed_at: "",
           steps: [{ id: "s-1", name: "改摘要", done: false, position: 0, done_at: "" }],
