@@ -84,8 +84,12 @@ export default defineConfig(({ mode }) => {
       port: Number.isFinite(devPort) ? devPort : 4173,
       strictPort: true,
       proxy: {
-        "/api": devAPITarget,
-        "/healthz": devAPITarget,
+        // Keep the browser's Host header: WebKit/Chromium send Origin on POST,
+        // and rewriting only Host makes the API server see a cross-origin
+        // request (Origin 4173 vs Host 7381). The Go server is the only target,
+        // so virtual-host routing is not needed here.
+        "/api": { target: devAPITarget, changeOrigin: false },
+        "/healthz": { target: devAPITarget, changeOrigin: false },
       },
     },
     test: {

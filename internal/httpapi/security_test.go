@@ -84,10 +84,11 @@ func TestOriginValidationRejectsUntrustedWebsites(t *testing.T) {
 	}
 }
 
-func TestWailsShellOriginCanCreateQuickTasks(t *testing.T) {
+func TestWailsShellOriginCanWriteQuickTasks(t *testing.T) {
 	server := newTestServer(t)
 	server.ConfigureSecurity(false, nil, nil)
 
+	taskID := ""
 	for _, origin := range []string{"wails://localhost", "http://wails.localhost", "https://wails.localhost"} {
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/quick",
 			strings.NewReader(`{"title":"from desktop"}`))
@@ -99,6 +100,34 @@ func TestWailsShellOriginCanCreateQuickTasks(t *testing.T) {
 		if recorder.Code != http.StatusCreated {
 			t.Fatalf("expected %s accepted for the Wails shell, got %d: %s", origin, recorder.Code, recorder.Body.String())
 		}
+		var created struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &created); err != nil || created.ID == "" {
+			t.Fatalf("expected a created quick task, got %s: %v", recorder.Body.String(), err)
+		}
+		taskID = created.ID
+	}
+
+	// Every desktop write goes through the same origin guard, not just create.
+	patch := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/quick/"+taskID,
+		strings.NewReader(`{"completed":true}`))
+	patch.Header.Set("Origin", "wails://localhost")
+	patch.Header.Set("Content-Type", "application/json")
+	patch.Header.Set("X-Wails-Window-ID", "main")
+	recorder := httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, patch)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected a desktop quick-task update, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	remove := httptest.NewRequest(http.MethodDelete, "/api/v1/tasks/quick/"+taskID, nil)
+	remove.Header.Set("Origin", "wails://localhost")
+	remove.Header.Set("X-Wails-Window-ID", "main")
+	recorder = httptest.NewRecorder()
+	server.Handler().ServeHTTP(recorder, remove)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected a desktop quick-task delete, got %d: %s", recorder.Code, recorder.Body.String())
 	}
 
 	blocked := httptest.NewRecorder()
