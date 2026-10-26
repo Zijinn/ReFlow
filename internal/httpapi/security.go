@@ -119,7 +119,7 @@ func (s *Server) cors(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if !s.originAllowed(origin, r.Host) {
+		if !s.originAllowed(origin, r.Host) && !wailsOriginAllowed(r, origin) {
 			writeProblem(w, r, http.StatusForbidden, "origin_not_allowed", "Origin not allowed", "This origin is not trusted by ReFlow Server.")
 			return
 		}
@@ -147,6 +147,22 @@ func (s *Server) originAllowed(origin, requestHost string) bool {
 		}
 	}
 	return false
+}
+
+// WebKit sends an Origin header on same-origin POSTs, and the desktop shell's
+// page lives on a non-HTTP scheme. Wails stamps its own request header, so the
+// known shell origins can be trusted without opening the API to arbitrary
+// custom-scheme pages.
+func wailsOriginAllowed(r *http.Request, origin string) bool {
+	if r.Header.Get("X-Wails-Window-ID") == "" {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(origin)) {
+	case "wails://localhost", "wails://wails", "http://wails.localhost", "https://wails.localhost":
+		return true
+	default:
+		return false
+	}
 }
 
 func publicAPIPath(path string) bool {

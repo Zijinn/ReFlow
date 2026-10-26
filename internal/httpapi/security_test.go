@@ -84,6 +84,45 @@ func TestOriginValidationRejectsUntrustedWebsites(t *testing.T) {
 	}
 }
 
+func TestWailsShellOriginCanCreateQuickTasks(t *testing.T) {
+	server := newTestServer(t)
+	server.ConfigureSecurity(false, nil, nil)
+
+	for _, origin := range []string{"wails://localhost", "http://wails.localhost", "https://wails.localhost"} {
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/quick",
+			strings.NewReader(`{"title":"from desktop"}`))
+		request.Header.Set("Origin", origin)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-Wails-Window-ID", "main")
+		recorder := httptest.NewRecorder()
+		server.Handler().ServeHTTP(recorder, request)
+		if recorder.Code != http.StatusCreated {
+			t.Fatalf("expected %s accepted for the Wails shell, got %d: %s", origin, recorder.Code, recorder.Body.String())
+		}
+	}
+
+	blocked := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/quick",
+		strings.NewReader(`{"title":"without shell header"}`))
+	request.Header.Set("Origin", "wails://localhost")
+	request.Header.Set("Content-Type", "application/json")
+	server.Handler().ServeHTTP(blocked, request)
+	if blocked.Code != http.StatusForbidden {
+		t.Fatalf("expected a Wails origin without the shell header to be rejected, got %d", blocked.Code)
+	}
+
+	blocked = httptest.NewRecorder()
+	request = httptest.NewRequest(http.MethodPost, "/api/v1/tasks/quick",
+		strings.NewReader(`{"title":"from web"}`))
+	request.Header.Set("Origin", "https://evil.example")
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Wails-Window-ID", "main")
+	server.Handler().ServeHTTP(blocked, request)
+	if blocked.Code != http.StatusForbidden {
+		t.Fatalf("expected the shell header not to admit a web origin, got %d", blocked.Code)
+	}
+}
+
 func TestTrustedProxyIngressAllowsExternalHostButRequiresToken(t *testing.T) {
 	server := newTestServer(t)
 	server.ConfigureSecurity(true, nil, []netip.Prefix{netip.MustParsePrefix("127.0.0.1/32")})
