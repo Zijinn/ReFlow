@@ -4,7 +4,7 @@ Unicode true
 !include "FileFunc.nsh"
 
 !ifndef VERSION
-  !define VERSION "2.0.9"
+  !define VERSION "2.0.10"
 !endif
 !ifndef APP_EXE
   !error "APP_EXE must point to ReFlow.exe"
