@@ -11,6 +11,7 @@ vi.mock("../../api/client", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../api/client")>()
   return {
     ...actual,
+    getDidaSyncStatus: vi.fn(),
     listQuickTasks: vi.fn(),
     listResearchPapers: vi.fn(),
     listResearchTags: vi.fn(),
@@ -49,6 +50,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useReaderStore.setState({ locale: "en-US", taskView: "quick" })
   vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask()] })
+  vi.mocked(api.getDidaSyncStatus).mockResolvedValue({ available: true, project: "Reflow" })
   vi.mocked(api.listTaskThreads).mockResolvedValue({ items: [] })
   vi.mocked(api.listResearchPapers).mockResolvedValue({ items: [] })
   vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })

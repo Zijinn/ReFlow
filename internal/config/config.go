@@ -25,6 +25,9 @@ type Config struct {
 	LogLevel       string
 	LANMode        bool
 	RSSHubBase     string
+	DidaProject    string
+	DidaCommand    string
+	DidaStatePath  string
 	AllowedOrigins []string
 	TrustedProxies []netip.Prefix
 }
@@ -43,6 +46,9 @@ func Load() (Config, error) {
 		TLSKeyPath:     strings.TrimSpace(os.Getenv("REFLOW_TLS_KEY_PATH")),
 		LogLevel:       strings.ToLower(envOr("REFLOW_LOG_LEVEL", "info")),
 		RSSHubBase:     envOr("REFLOW_RSSHUB_BASE", "https://rsshub.app"),
+		DidaProject:    envOr("REFLOW_DIDA_PROJECT", "Reflow"),
+		DidaCommand:    envOr("REFLOW_DIDA_COMMAND", "dida"),
+		DidaStatePath:  strings.TrimSpace(os.Getenv("REFLOW_DIDA_STATE")),
 		AllowedOrigins: splitList(os.Getenv("REFLOW_ALLOWED_ORIGINS")),
 	}
 	cfg.TrustedProxies, err = parseTrustedProxies(os.Getenv("REFLOW_TRUSTED_PROXIES"))

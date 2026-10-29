@@ -19,7 +19,10 @@ vi.mock("../../api/client", async (importOriginal) => {
     ...actual,
     createQuickTask: vi.fn(),
     deleteQuickTask: vi.fn(),
+    getDidaSyncStatus: vi.fn(),
     listQuickTasks: vi.fn(),
+    pullTasksFromDida: vi.fn(),
+    pushTasksToDida: vi.fn(),
     updateQuickTask: vi.fn(),
   }
 })
@@ -55,6 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useReaderStore.setState({ locale: "en-US" })
   vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask()] })
+  vi.mocked(api.getDidaSyncStatus).mockResolvedValue({ available: true, project: "Reflow" })
   vi.mocked(api.createQuickTask).mockResolvedValue(quickTask({ id: "q-new" }))
   vi.mocked(api.updateQuickTask).mockResolvedValue(quickTask({ completed: true }))
   vi.mocked(api.deleteQuickTask).mockResolvedValue(undefined)
@@ -123,6 +127,22 @@ describe("QuickTasks", () => {
       if (urgency) expect(dates).toHaveAttribute("data-urgency", urgency)
       else expect(dates).not.toHaveAttribute("data-urgency")
     }
+  })
+
+  it("pushes tasks to Dida from the header", async () => {
+    const { container } = renderQuick()
+    await within(container).findByText("采购硬盘")
+    vi.mocked(api.pushTasksToDida).mockResolvedValue({
+      project: { id: "p-1", name: "Reflow" },
+      dry_run: false,
+      state_file: "",
+      created_in_dida: 1,
+      created_in_reflow: 0,
+      updated_in_dida: 0,
+      updated_in_reflow: 0,
+    })
+    fireEvent.click(within(container).getByRole("button", { name: "Push to Dida" }))
+    await waitFor(() => expect(api.pushTasksToDida).toHaveBeenCalledTimes(1))
   })
 
   it("edits tags and notes on a quick task", async () => {

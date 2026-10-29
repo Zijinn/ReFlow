@@ -1,11 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarBlank, Check, Lightning, Plus, Trash, WarningCircle } from "@phosphor-icons/react"
+import { CalendarBlank, Check, CloudArrowDown, CloudArrowUp, Lightning, Plus, Trash, WarningCircle } from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
 import {
+  APIError,
   createQuickTask,
   deleteQuickTask,
+  getDidaSyncStatus,
   listQuickTasks,
+  pullTasksFromDida,
+  pushTasksToDida,
   updateQuickTask,
 } from "../../api/client"
 import type { QuickTask } from "../../api/types"
@@ -76,6 +80,11 @@ export function QuickTasks(props: {
   const [showCompleted, setShowCompleted] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
   const gantt = useGanttWindow()
+  const didaStatus = useQuery({
+    queryKey: ["dida-sync-status"],
+    queryFn: getDidaSyncStatus,
+    staleTime: 60_000,
+  })
 
   const tasksQuery = useQuery({
     queryKey: QUICK_TASK_QUERY_KEY,
@@ -116,6 +125,28 @@ export function QuickTasks(props: {
     onSuccess: invalidate,
     onError: () => toast(t("taskDeleteFailed")),
   })
+  const didaMutation = useMutation({
+    mutationFn: (direction: "push" | "pull") =>
+      direction === "push" ? pushTasksToDida() : pullTasksFromDida(),
+    onSuccess: (result, direction) => {
+      invalidate()
+      const count =
+        direction === "push"
+          ? result.created_in_dida + result.updated_in_dida
+          : result.created_in_reflow + result.updated_in_reflow
+      toast(
+        t(direction === "push" ? "taskDidaPushDone" : "taskDidaPullDone").replace(
+          "{count}",
+          String(count),
+        ),
+      )
+    },
+    onError: (error) => {
+      if (error instanceof APIError && error.code === "dida_sync_busy") toast(t("taskDidaBusy"))
+      else if (error instanceof APIError && error.status === 503) toast(t("taskDidaUnavailable"))
+      else toast(t("taskDidaFailed"))
+    },
+  })
 
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data?.items])
   useEffect(() => {
@@ -155,6 +186,10 @@ export function QuickTasks(props: {
   const update = (id: string, patch: Parameters<typeof updateQuickTask>[1]) => {
     if (!requireOnline()) return
     updateMutation.mutate({ id, patch })
+  }
+  const syncDida = (direction: "push" | "pull") => {
+    if (!requireOnline() || !didaStatus.data?.available || didaMutation.isPending) return
+    didaMutation.mutate(direction)
   }
 
   let body
@@ -274,6 +309,36 @@ export function QuickTasks(props: {
               {overdueCount} {t("taskTimelineStatOverdue")}
             </span>
           )}
+          <div className="wb-tm-dida-actions">
+            <button
+              type="button"
+              className="wb-btn"
+              disabled={!online || !didaStatus.data?.available || didaMutation.isPending}
+              title={
+                didaStatus.data?.available
+                  ? `${t("taskDidaPush")} · ${didaStatus.data.project}`
+                  : t("taskDidaUnavailable")
+              }
+              onClick={() => syncDida("push")}
+            >
+              <CloudArrowUp size={14} weight="bold" aria-hidden="true" />
+              {t("taskDidaPush")}
+            </button>
+            <button
+              type="button"
+              className="wb-btn"
+              disabled={!online || !didaStatus.data?.available || didaMutation.isPending}
+              title={
+                didaStatus.data?.available
+                  ? `${t("taskDidaPull")} · ${didaStatus.data.project}`
+                  : t("taskDidaUnavailable")
+              }
+              onClick={() => syncDida("pull")}
+            >
+              <CloudArrowDown size={14} weight="bold" aria-hidden="true" />
+              {t("taskDidaPull")}
+            </button>
+          </div>
           {props.onOpenTimeline && (
             <button type="button" className="wb-btn" onClick={props.onOpenTimeline}>
               <CalendarBlank size={14} aria-hidden="true" />

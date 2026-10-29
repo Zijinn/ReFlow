@@ -44,6 +44,7 @@ func main() {
 	handler.ConfigureAI(box)
 	handler.SetRSSHubBase(cfg.RSSHubBase)
 	handler.ConfigureSecurity(cfg.LANMode, cfg.AllowedOrigins, cfg.TrustedProxies)
+	handler.ConfigureDida(cfg.DidaProject, cfg.DidaCommand, cfg.DidaStatePath)
 	appContext, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if err := handler.Start(appContext); err != nil {

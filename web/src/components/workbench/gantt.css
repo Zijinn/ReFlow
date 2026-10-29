@@ -11,6 +11,20 @@
   gap: var(--space-2);
   flex-wrap: wrap;
 }
+/* "今天" is a page-level action, not a raised glass control. Seat it at the
+   same visual level as the date range it belongs to. */
+.wb-gantt-nav .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn) {
+  position: relative;
+  top: 2px;
+  background-color: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: var(--ring-hairline);
+}
+.wb-gantt-nav .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn):hover {
+  background-color: var(--surface-raised);
+  border-color: var(--border-strong);
+  box-shadow: var(--ring-hairline);
+}
 .wb-gantt-range {
   display: flex;
   align-items: baseline;

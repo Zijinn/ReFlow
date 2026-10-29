@@ -525,6 +525,37 @@ export interface TaskThread {
 }
 
 /** 即时任务：扁平的一条，不挂层、不参与解锁链。 */
+
+export interface DidaSyncStatus {
+  available: boolean
+  project: string
+  command?: string
+  reason?: string
+}
+
+export interface DidaSyncAction {
+  action: string
+  reflow_id?: string
+  dida_id?: string
+  title?: string
+  reason?: string
+}
+
+export interface DidaSyncResult {
+  project: { id: string; name: string; kind?: string }
+  dry_run: boolean
+  seed?: string
+  state_file: string
+  created_in_dida: number
+  created_in_reflow: number
+  updated_in_dida: number
+  updated_in_reflow: number
+  actions?: DidaSyncAction[]
+  conflicts?: DidaSyncAction[]
+  orphans?: DidaSyncAction[]
+  skipped?: DidaSyncAction[]
+}
+
 export interface QuickTask {
   id: string
   title: string

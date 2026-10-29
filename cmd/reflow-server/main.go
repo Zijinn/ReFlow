@@ -44,6 +44,7 @@ func main() {
 	api.ConfigureAI(box)
 	api.SetRSSHubBase(cfg.RSSHubBase)
 	api.ConfigureSecurity(cfg.LANMode, cfg.AllowedOrigins, cfg.TrustedProxies)
+	api.ConfigureDida(cfg.DidaProject, cfg.DidaCommand, cfg.DidaStatePath)
 	if err := api.Start(ctx); err != nil {
 		logger.Error("start application services", "error", err)
 		os.Exit(1)

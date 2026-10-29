@@ -53,6 +53,26 @@
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
 }
+.wb-tm-dida-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+/* These three verbs sit on the page itself, not on a floating toolbar: keep the
+   glass highlight and the 8px lift off them so they read as labels, not overlays. */
+.wb-tm-quick-meta .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn) {
+  position: relative;
+  top: 2px;
+  background-color: var(--surface-raised);
+  border-color: var(--border);
+  box-shadow: var(--ring-hairline);
+}
+.wb-tm-quick-meta .wb-btn:not(.wb-btn--primary):not(.wb-flow-btn):hover {
+  background-color: var(--surface-raised);
+  border-color: var(--border-strong);
+  box-shadow: var(--ring-hairline);
+}
 .wb-tm-overdue-text {
   display: inline-flex;
   align-items: center;

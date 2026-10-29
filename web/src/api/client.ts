@@ -39,6 +39,8 @@ import type {
   TaskStep,
   TaskThread,
   QuickTask,
+  DidaSyncResult,
+  DidaSyncStatus,
 } from "./types"
 import { entryDetailCacheKey, entryPageCacheKey, readCache, writeCache } from "../offline/database"
 import type { ReaderAnnotation } from "../lib/annotations"
@@ -1126,4 +1128,16 @@ export function deleteQuickTask(quickTaskID: string): Promise<void> {
   return request<void>(`/api/v1/tasks/quick/${encodeURIComponent(quickTaskID)}`, {
     method: "DELETE",
   })
+}
+
+export function getDidaSyncStatus(): Promise<DidaSyncStatus> {
+  return request<DidaSyncStatus>("/api/v1/tasks/dida")
+}
+
+export function pushTasksToDida(): Promise<DidaSyncResult> {
+  return request<DidaSyncResult>("/api/v1/tasks/dida/push", { method: "POST" })
+}
+
+export function pullTasksFromDida(): Promise<DidaSyncResult> {
+  return request<DidaSyncResult>("/api/v1/tasks/dida/pull", { method: "POST" })
 }
