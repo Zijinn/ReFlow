@@ -576,3 +576,52 @@ func TestTaskRoutesOverdueNeedsAnOpenLayer(t *testing.T) {
 		t.Fatalf("the strip should move that card between cells: %+v", board.Stats)
 	}
 }
+
+// The Wails asset handler forwards a request body without a Content-Length.
+// Task writes must sniff the body rather than trust the length, or every desktop
+// create lands titleless and every desktop completion turns into a no-op.
+func TestTaskWritesSurviveAMissingContentLength(t *testing.T) {
+	handler := newTestServer(t).Handler()
+
+	create := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/quick",
+		strings.NewReader(`{"title":"desktop task"}`))
+	create.ContentLength = 0
+	create.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, create)
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("create without content length: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var task domain.QuickTask
+	if err := json.Unmarshal(recorder.Body.Bytes(), &task); err != nil {
+		t.Fatalf("decode created task: %v", err)
+	}
+	if task.Title != "desktop task" {
+		t.Fatalf("creation dropped the payload: title = %q", task.Title)
+	}
+
+	complete := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/quick/"+task.ID,
+		strings.NewReader(`{"completed":true}`))
+	complete.ContentLength = 0
+	complete.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, complete)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("complete without content length: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var updated domain.QuickTask
+	if err := json.Unmarshal(recorder.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode updated task: %v", err)
+	}
+	if !updated.Completed {
+		t.Fatal("completion dropped the payload")
+	}
+
+	// A genuinely omitted body keeps its documented default: decoded as {}.
+	empty := httptest.NewRequest(http.MethodPatch, "/api/v1/tasks/quick/"+task.ID, nil)
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, empty)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("bodyless update: %d %s", recorder.Code, recorder.Body.String())
+	}
+}

@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
@@ -475,9 +476,18 @@ func (s *Server) publishTasksUpdated(threadID string, fields map[string]string) 
 // create call on the board has a server-side default for everything it accepts, and
 // the owner adding a layer by clicking 加一层 should not have to invent an empty JSON
 // document to send with it.
+//
+// The body is sniffed instead of trusting ContentLength: the Wails shell forwards
+// the payload without a Content-Length, so a length check would drop every desktop
+// task write on the floor.
 func decodeTaskJSON(w http.ResponseWriter, r *http.Request, target any) error {
-	if r.ContentLength == 0 {
-		r.Body = io.NopCloser(strings.NewReader("{}"))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxJSONBodyBytes))
+	if err != nil {
+		return err
 	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		body = []byte("{}")
+	}
+	r.Body = io.NopCloser(bytes.NewReader(body))
 	return decodeJSON(w, r, target)
 }
