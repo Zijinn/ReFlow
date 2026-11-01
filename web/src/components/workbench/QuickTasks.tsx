@@ -14,7 +14,7 @@ import {
   Trash,
   WarningCircle,
 } from "@phosphor-icons/react"
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
 import {
   APIError,
@@ -96,6 +96,17 @@ export function QuickTasks(props: {
   const [dueDate, setDueDate] = useState("")
   const [showCompleted, setShowCompleted] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
+  const [checkAnimation, setCheckAnimation] = useState<{
+    id: string
+    kind: "complete" | "reopen"
+  } | null>(null)
+  const [toggleBusy, setToggleBusy] = useState(false)
+  const pendingLayout = useRef<{
+    before: Map<string, DOMRect>
+    id: string
+    direction: "complete" | "reopen"
+    hadFocus: boolean
+  } | null>(null)
   const [remindersBusy, setRemindersBusy] = useState(false)
   const [remindersPreview, setRemindersPreview] = useState<{
     direction: RemindersSyncDirection
@@ -238,7 +249,9 @@ export function QuickTasks(props: {
     if (remindersBusy) return
     const status = remindersStatus.data
     if (!status?.available) {
-      toast(status?.permission_required ? t("taskRemindersPermission") : t("taskRemindersUnavailable"))
+      toast(
+        status?.permission_required ? t("taskRemindersPermission") : t("taskRemindersUnavailable"),
+      )
       return
     }
     if (direction === "merge" && !status.last_sync) {
@@ -263,6 +276,44 @@ export function QuickTasks(props: {
     : (remindersStatus.data?.reason ?? t("taskRemindersUnavailable"))
 
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data?.items])
+  useLayoutEffect(() => {
+    const pending = pendingLayout.current
+    if (!pending) return
+    pendingLayout.current = null
+    for (const row of document.querySelectorAll<HTMLElement>("[data-quick-task-id]")) {
+      const id = row.dataset.quickTaskId
+      if (!id) continue
+      const before = pending.before.get(id)
+      if (!before) continue
+      const after = row.getBoundingClientRect()
+      const dx = before.left - after.left
+      const dy = before.top - after.top
+      const moving = id === pending.id
+      if (!moving && Math.abs(dx) < 1 && Math.abs(dy) < 1) continue
+      row.style.transition = "none"
+      row.style.transform = `translate(${dx}px, ${dy}px)`
+      if (moving) {
+        row.style.opacity = pending.direction === "complete" ? "1" : "0.66"
+      }
+      // Force the starting transform to paint before enabling the transition.
+      void row.offsetHeight
+      window.requestAnimationFrame(() => {
+        row.style.transition = "transform 300ms cubic-bezier(0.2, 0.75, 0.2, 1), opacity 300ms ease"
+        row.style.transform = "translate(0, 0)"
+        if (moving) row.style.opacity = ""
+      })
+      window.setTimeout(() => {
+        row.style.transition = ""
+        row.style.transform = ""
+        row.style.opacity = ""
+      }, 360)
+    }
+    if (pending.hadFocus) {
+      document
+        .querySelector<HTMLElement>(`[data-quick-task-id="${pending.id}"] .wb-tm-check`)
+        ?.focus({ preventScroll: true })
+    }
+  }, [tasksQuery.data])
   useEffect(() => {
     if (!focus || focus.kind !== "quick") return
     const row = document.querySelector(`[data-quick-task-id="${focus.id}"]`)
@@ -300,6 +351,66 @@ export function QuickTasks(props: {
   const update = (id: string, patch: Parameters<typeof updateQuickTask>[1]) => {
     if (!requireOnline()) return
     updateMutation.mutate({ id, patch })
+  }
+  const captureRowRects = () => {
+    const rects = new Map<string, DOMRect>()
+    for (const row of document.querySelectorAll<HTMLElement>("[data-quick-task-id]")) {
+      const id = row.dataset.quickTaskId
+      if (id) rects.set(id, row.getBoundingClientRect())
+    }
+    return rects
+  }
+  const toggleTask = async (task: QuickTask, hadFocus: boolean) => {
+    if (toggleBusy || !requireOnline()) return
+    const next = !task.completed
+    const direction = next ? "complete" : "reopen"
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ?? false
+    const before = reduced ? null : captureRowRects()
+    setToggleBusy(true)
+    if (!reduced) {
+      setCheckAnimation({ id: task.id, kind: direction })
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, direction === "complete" ? 280 : 230),
+      )
+    }
+    try {
+      const updated = await updateQuickTask(task.id, { completed: next })
+      if (next) setShowCompleted(true)
+      if (!reduced && before) {
+        if (next) {
+          // Let the expanded completed section commit before the row moves into it.
+          await new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+        }
+        pendingLayout.current = { before, id: task.id, direction, hadFocus }
+      }
+      queryClient.setQueryData(
+        QUICK_TASK_QUERY_KEY,
+        (current: { items: QuickTask[] } | undefined) =>
+          current
+            ? {
+                ...current,
+                items: current.items.map((item) => (item.id === task.id ? updated : item)),
+              }
+            : current,
+      )
+      setCheckAnimation(null)
+      if (reduced) {
+        setToggleBusy(false)
+        if (hadFocus) {
+          window.setTimeout(() => {
+            document
+              .querySelector<HTMLElement>(`[data-quick-task-id="${task.id}"] .wb-tm-check`)
+              ?.focus({ preventScroll: true })
+          }, 0)
+        }
+      } else {
+        window.setTimeout(() => setToggleBusy(false), 380)
+      }
+    } catch {
+      setCheckAnimation(null)
+      setToggleBusy(false)
+      toast(t("taskUpdateFailed"))
+    }
   }
   const syncDida = (direction: "push" | "pull") => {
     if (!requireOnline() || !didaStatus.data?.available || didaMutation.isPending) return
@@ -370,6 +481,13 @@ export function QuickTasks(props: {
                     task={task}
                     window={gantt}
                     onUpdate={update}
+                    onToggle={(task, hadFocus) => {
+                      void toggleTask(task, hadFocus)
+                    }}
+                    toggleBusy={toggleBusy}
+                    checkAnimation={
+                      checkAnimation?.id === task.id ? checkAnimation.kind : undefined
+                    }
                     onDelete={() => setConfirm(task.id)}
                   />
                 ))}
@@ -396,6 +514,13 @@ export function QuickTasks(props: {
                       task={task}
                       window={gantt}
                       onUpdate={update}
+                      onToggle={(task, hadFocus) => {
+                        void toggleTask(task, hadFocus)
+                      }}
+                      toggleBusy={toggleBusy}
+                      checkAnimation={
+                        checkAnimation?.id === task.id ? checkAnimation.kind : undefined
+                      }
                       onDelete={() => setConfirm(task.id)}
                     />
                   ))}
@@ -416,7 +541,9 @@ export function QuickTasks(props: {
           <p>{t("taskQuickSubtitle")}</p>
         </div>
         <div className="wb-tm-quick-meta">
-          <span>{open.length} {t("taskQuickOpenUnit")}</span>
+          <span>
+            {open.length} {t("taskQuickOpenUnit")}
+          </span>
           {overdueCount > 0 && (
             <span className="wb-tm-overdue-text">
               <WarningCircle size={13} weight="fill" aria-hidden="true" />
@@ -462,7 +589,11 @@ export function QuickTasks(props: {
                 title={remindersTitle}
                 onClick={() => requestRemindersSync("merge")}
               >
-                <span className="wb-tm-reminders-dot" data-state={remindersState} aria-hidden="true" />
+                <span
+                  className="wb-tm-reminders-dot"
+                  data-state={remindersState}
+                  aria-hidden="true"
+                />
                 <BellSimple size={14} aria-hidden="true" />
                 {t("taskRemindersSync")}
               </button>
@@ -479,11 +610,7 @@ export function QuickTasks(props: {
                   </button>
                 </DropdownMenu.Trigger>
                 <DropdownMenu.Portal>
-                  <DropdownMenu.Content
-                    className="wb-tm-reminders-menu"
-                    align="end"
-                    sideOffset={6}
-                  >
+                  <DropdownMenu.Content className="wb-tm-reminders-menu" align="end" sideOffset={6}>
                     {remindersStatus.data?.available ? (
                       <>
                         <DropdownMenu.Item
@@ -609,10 +736,7 @@ export function QuickTasks(props: {
                   ),
                 )
                 .replace("{pull}", String(remindersPreview.result.created_in_reflow))
-                .replace(
-                  "{update}",
-                  String(remindersPreview.result.updated_in_reflow),
-                )
+                .replace("{update}", String(remindersPreview.result.updated_in_reflow))
             : ""
         }
         onOpenChange={(openState) => {
@@ -711,10 +835,13 @@ function QuickRow(props: {
   task: QuickTask
   window: ReturnType<typeof useGanttWindow>
   onUpdate: (id: string, patch: Parameters<typeof updateQuickTask>[1]) => void
+  onToggle: (task: QuickTask, hadFocus: boolean) => void
+  toggleBusy: boolean
+  checkAnimation?: "complete" | "reopen"
   onDelete: () => void
 }) {
   const { t } = useTranslation()
-  const { task, window, onUpdate, onDelete } = props
+  const { task, window, onUpdate, onToggle, toggleBusy, checkAnimation, onDelete } = props
   const urgency = task.completed ? null : taskUrgency(task.due_date)
   const bar = ganttBar(task.start_date, task.due_date, window.windowStart, window.dayCount)
   return (
@@ -727,9 +854,16 @@ function QuickRow(props: {
         className="wb-tm-check"
         aria-pressed={task.completed}
         aria-label={task.completed ? t("taskQuickReopen") : t("taskQuickComplete")}
-        onClick={() => onUpdate(task.id, { completed: !task.completed })}
+        aria-busy={checkAnimation ? true : undefined}
+        aria-disabled={toggleBusy || undefined}
+        data-anim={checkAnimation}
+        onClick={(event) => {
+          if (!toggleBusy) onToggle(task, document.activeElement === event.currentTarget)
+        }}
       >
-        {task.completed ? <Check size={12} weight="bold" aria-hidden="true" /> : null}
+        <svg className="wb-tm-check-icon" viewBox="0 0 16 16" aria-hidden="true">
+          <path className="wb-tm-check-path" d="M3.2 8.4 6.6 11.8 12.8 4.6" />
+        </svg>
       </button>
       <div className="wb-tm-quick-name">
         <InlineText
@@ -761,14 +895,11 @@ function QuickRow(props: {
         multiline
         onCommit={(value) => onUpdate(task.id, { notes: value })}
       />
-      <div
-        className="wb-gantt-track"
-        style={{ "--gantt-days": window.dayCount } as CSSProperties}
-      >
+      <div className="wb-gantt-track" style={{ "--gantt-days": window.dayCount } as CSSProperties}>
         {bar ? (
           <span
             className={`wb-gantt-bar wb-gantt-bar--${
-              task.completed ? "closed" : urgency ?? "future"
+              task.completed ? "closed" : (urgency ?? "future")
             }`}
             style={{ left: `${bar.left}%`, width: `${bar.width}%` }}
             role="img"

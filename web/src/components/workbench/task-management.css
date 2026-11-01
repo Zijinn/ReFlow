@@ -289,33 +289,74 @@
   border-radius: var(--radius-xl);
   background: var(--surface-raised);
   box-shadow: var(--elev-raised);
-  transition: box-shadow var(--dur-base) var(--ease), border-color var(--dur-base) var(--ease);
+  transition:
+    box-shadow var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease);
 }
 .wb-tm-quick-row:hover {
   border-color: var(--border-strong);
   box-shadow: var(--elev-raised);
 }
 .wb-tm-check {
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: none;
+  box-sizing: border-box;
   width: 20px;
   height: 20px;
   margin-top: 1px;
+  padding: 0;
+  line-height: 0;
   border: 1.5px solid var(--border-strong);
   border-radius: var(--radius-full);
   color: var(--accent-on, #fff);
   background: transparent;
   cursor: pointer;
-  transition: background-color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 .wb-tm-check[aria-pressed="true"] {
   border-color: var(--accent);
   background: var(--accent);
 }
+.wb-tm-check[aria-disabled="true"] {
+  cursor: default;
+}
 .wb-tm-check:focus-visible {
   outline: none;
   box-shadow: var(--focus-ring);
+}
+.wb-tm-check-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  overflow: visible;
+}
+.wb-tm-check-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 16;
+  stroke-dashoffset: 16;
+}
+.wb-tm-check[aria-pressed="true"] .wb-tm-check-path {
+  stroke-dashoffset: 0;
+}
+.wb-tm-check[data-anim="complete"] {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.wb-tm-check[data-anim="complete"] .wb-tm-check-path {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 180ms var(--ease);
+}
+.wb-tm-check[data-anim="reopen"] .wb-tm-check-path {
+  stroke-dashoffset: 16;
+  transition: stroke-dashoffset 160ms var(--ease);
 }
 .wb-tm-quick-name {
   min-width: 0;
@@ -674,7 +715,11 @@
   position: relative;
   min-height: 38px;
   border-left: 1px solid var(--border);
-  background-image: linear-gradient(to right, color-mix(in srgb, var(--border) 72%, transparent) 1px, transparent 1px);
+  background-image: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--border) 72%, transparent) 1px,
+    transparent 1px
+  );
   background-size: calc(100% / var(--tm-days)) 100%;
 }
 .wb-tm-tl-bar {
@@ -698,7 +743,9 @@
   overflow: hidden;
   cursor: grab;
   touch-action: none;
-  transition: box-shadow var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  transition:
+    box-shadow var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
 .wb-tm-tl-bar:hover {
   border-color: color-mix(in srgb, var(--tm-bar-hue) 52%, transparent);
@@ -858,7 +905,11 @@
 }
 .wb-tm-mind-preview {
   background:
-    radial-gradient(600px 300px at 0% 0%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 60%),
+    radial-gradient(
+      600px 300px at 0% 0%,
+      color-mix(in srgb, var(--accent) 4%, transparent),
+      transparent 60%
+    ),
     var(--surface-raised);
 }
 .wb-tm-mind-map {
@@ -1075,7 +1126,8 @@
 @media (prefers-reduced-motion: reduce) {
   .wb-tm-quick-row,
   .wb-tm-tl-bar,
-  .wb-tm-check {
+  .wb-tm-check,
+  .wb-tm-check-path {
     transition: none;
   }
 }

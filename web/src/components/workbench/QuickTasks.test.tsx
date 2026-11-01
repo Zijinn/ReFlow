@@ -121,9 +121,17 @@ describe("QuickTasks", () => {
   it("completes a task and exposes the timeline jump", async () => {
     renderQuick()
     await screen.findByText("采购硬盘")
-    fireEvent.click(screen.getByRole("button", { name: "Mark complete" }))
+    const check = screen.getByRole("button", { name: "Mark complete" })
+    fireEvent.click(check)
+    await waitFor(() => expect(check).toHaveAttribute("data-anim", "complete"))
+    expect(check.querySelector(".wb-tm-check-path")).toBeTruthy()
     await waitFor(() =>
       expect(api.updateQuickTask).toHaveBeenCalledWith("q-1", { completed: true }),
+    )
+    const toggle = await screen.findByRole("button", { name: /Completed/ })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(toggle.closest(".wb-tm-quick-done")?.querySelector("ul")?.textContent).toContain(
+      "采购硬盘",
     )
   })
 
