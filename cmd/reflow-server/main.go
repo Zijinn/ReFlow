@@ -45,6 +45,7 @@ func main() {
 	api.SetRSSHubBase(cfg.RSSHubBase)
 	api.ConfigureSecurity(cfg.LANMode, cfg.AllowedOrigins, cfg.TrustedProxies)
 	api.ConfigureDida(cfg.DidaProject, cfg.DidaCommand, cfg.DidaStatePath)
+	api.ConfigureReminders(cfg.RemindersList, cfg.RemindersStatePath)
 	if err := api.Start(ctx); err != nil {
 		logger.Error("start application services", "error", err)
 		os.Exit(1)

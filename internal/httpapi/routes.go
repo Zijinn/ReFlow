@@ -124,6 +124,8 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/v1/tasks/dida", s.didaStatus)
 	mux.HandleFunc("POST /api/v1/tasks/dida/push", s.didaPush)
 	mux.HandleFunc("POST /api/v1/tasks/dida/pull", s.didaPull)
+	mux.HandleFunc("GET /api/v1/tasks/reminders", s.remindersStatus)
+	mux.HandleFunc("POST /api/v1/tasks/reminders/sync", s.remindersSync)
 	mux.HandleFunc("GET /api/v1/integrations/zotero/status", s.getZoteroStatus)
 	mux.HandleFunc("GET /api/v1/entries/{entryID}/zotero", s.getEntryZoteroStatus)
 	mux.HandleFunc("POST /api/v1/entries/{entryID}/zotero", s.saveEntryToZotero)

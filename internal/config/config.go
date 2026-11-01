@@ -15,21 +15,23 @@ import (
 const defaultAddress = "127.0.0.1:7381"
 
 type Config struct {
-	Address        string
-	DataDir        string
-	DBPath         string
-	MasterKeyPath  string
-	WebDir         string
-	TLSCertPath    string
-	TLSKeyPath     string
-	LogLevel       string
-	LANMode        bool
-	RSSHubBase     string
-	DidaProject    string
-	DidaCommand    string
-	DidaStatePath  string
-	AllowedOrigins []string
-	TrustedProxies []netip.Prefix
+	Address            string
+	DataDir            string
+	DBPath             string
+	MasterKeyPath      string
+	WebDir             string
+	TLSCertPath        string
+	TLSKeyPath         string
+	LogLevel           string
+	LANMode            bool
+	RSSHubBase         string
+	DidaProject        string
+	DidaCommand        string
+	DidaStatePath      string
+	RemindersList      string
+	RemindersStatePath string
+	AllowedOrigins     []string
+	TrustedProxies     []netip.Prefix
 }
 
 func Load() (Config, error) {
@@ -39,17 +41,19 @@ func Load() (Config, error) {
 	}
 
 	cfg := Config{
-		Address:        envOr("REFLOW_ADDR", defaultAddress),
-		DataDir:        envOr("REFLOW_DATA_DIR", dataDir),
-		WebDir:         envOr("REFLOW_WEB_DIR", "web/dist"),
-		TLSCertPath:    strings.TrimSpace(os.Getenv("REFLOW_TLS_CERT_PATH")),
-		TLSKeyPath:     strings.TrimSpace(os.Getenv("REFLOW_TLS_KEY_PATH")),
-		LogLevel:       strings.ToLower(envOr("REFLOW_LOG_LEVEL", "info")),
-		RSSHubBase:     envOr("REFLOW_RSSHUB_BASE", "https://rsshub.app"),
-		DidaProject:    envOr("REFLOW_DIDA_PROJECT", "Reflow"),
-		DidaCommand:    envOr("REFLOW_DIDA_COMMAND", "dida"),
-		DidaStatePath:  strings.TrimSpace(os.Getenv("REFLOW_DIDA_STATE")),
-		AllowedOrigins: splitList(os.Getenv("REFLOW_ALLOWED_ORIGINS")),
+		Address:            envOr("REFLOW_ADDR", defaultAddress),
+		DataDir:            envOr("REFLOW_DATA_DIR", dataDir),
+		WebDir:             envOr("REFLOW_WEB_DIR", "web/dist"),
+		TLSCertPath:        strings.TrimSpace(os.Getenv("REFLOW_TLS_CERT_PATH")),
+		TLSKeyPath:         strings.TrimSpace(os.Getenv("REFLOW_TLS_KEY_PATH")),
+		LogLevel:           strings.ToLower(envOr("REFLOW_LOG_LEVEL", "info")),
+		RSSHubBase:         envOr("REFLOW_RSSHUB_BASE", "https://rsshub.app"),
+		DidaProject:        envOr("REFLOW_DIDA_PROJECT", "Reflow"),
+		DidaCommand:        envOr("REFLOW_DIDA_COMMAND", "dida"),
+		DidaStatePath:      strings.TrimSpace(os.Getenv("REFLOW_DIDA_STATE")),
+		RemindersList:      envOr("REFLOW_REMINDERS_LIST", "Reflow"),
+		RemindersStatePath: strings.TrimSpace(os.Getenv("REFLOW_REMINDERS_STATE")),
+		AllowedOrigins:     splitList(os.Getenv("REFLOW_ALLOWED_ORIGINS")),
 	}
 	cfg.TrustedProxies, err = parseTrustedProxies(os.Getenv("REFLOW_TRUSTED_PROXIES"))
 	if err != nil {

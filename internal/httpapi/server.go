@@ -22,6 +22,7 @@ import (
 	"github.com/Zijinn/ReFlow/internal/event"
 	feedcore "github.com/Zijinn/ReFlow/internal/feed"
 	"github.com/Zijinn/ReFlow/internal/job"
+	"github.com/Zijinn/ReFlow/internal/reminders"
 	"github.com/Zijinn/ReFlow/internal/secretbox"
 	"github.com/Zijinn/ReFlow/internal/service"
 	"github.com/Zijinn/ReFlow/internal/storage"
@@ -29,23 +30,27 @@ import (
 )
 
 type Server struct {
-	db            *sql.DB
-	logger        *slog.Logger
-	webDir        string
-	feeds         *service.FeedService
-	syncs         *service.SyncService
-	ai            *service.AIService
-	zotero        *service.ZoteroService
-	research      *service.ResearchService
-	jobs          *job.Manager
-	events        *event.Hub
-	security      SecurityConfig
-	handler       http.Handler
-	pairs         *pairingLimiter
-	didaProject   string
-	didaCommand   string
-	didaStatePath string
-	didaMu        sync.Mutex
+	db                 *sql.DB
+	logger             *slog.Logger
+	webDir             string
+	feeds              *service.FeedService
+	syncs              *service.SyncService
+	ai                 *service.AIService
+	zotero             *service.ZoteroService
+	research           *service.ResearchService
+	jobs               *job.Manager
+	events             *event.Hub
+	security           SecurityConfig
+	handler            http.Handler
+	pairs              *pairingLimiter
+	didaProject        string
+	didaCommand        string
+	didaStatePath      string
+	didaMu             sync.Mutex
+	remindersList      string
+	remindersStatePath string
+	remindersMu        sync.Mutex
+	remindersRemote    reminders.RemoteStore
 }
 
 func New(db *sql.DB, logger *slog.Logger, webDir string) *Server {
@@ -61,6 +66,7 @@ func NewWithFetcher(db *sql.DB, logger *slog.Logger, webDir string, fetcher *fee
 		zotero: service.NewZoteroService(db, fetcher), research: service.NewResearchService(db),
 		jobs: manager, events: hub, pairs: newPairingLimiter(),
 		didaProject: "Reflow", didaCommand: "dida",
+		remindersList: "Reflow", remindersRemote: reminders.NewJXAStore(),
 	}
 	manager.Register("feed.refresh", func(ctx context.Context, current domain.Job, progress job.ProgressFunc) error {
 		var payload struct {
@@ -209,6 +215,16 @@ func (s *Server) ConfigureAI(box *secretbox.Box) {
 		}
 		return err
 	})
+}
+
+func (s *Server) ConfigureReminders(list, statePath string) {
+	if value := strings.TrimSpace(list); value != "" {
+		s.remindersList = value
+	}
+	s.remindersStatePath = strings.TrimSpace(statePath)
+	if s.remindersRemote == nil {
+		s.remindersRemote = reminders.NewJXAStore()
+	}
 }
 
 func (s *Server) ConfigureDida(project, command, statePath string) {

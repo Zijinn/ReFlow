@@ -1,5 +1,19 @@
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarBlank, Check, CloudArrowDown, CloudArrowUp, Lightning, Plus, Trash, WarningCircle } from "@phosphor-icons/react"
+import {
+  ArrowsClockwise,
+  BellSimple,
+  CalendarBlank,
+  CaretDown,
+  Check,
+  CloudArrowDown,
+  CloudArrowUp,
+  GearSix,
+  Lightning,
+  Plus,
+  Trash,
+  WarningCircle,
+} from "@phosphor-icons/react"
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 
 import {
@@ -7,12 +21,15 @@ import {
   createQuickTask,
   deleteQuickTask,
   getDidaSyncStatus,
+  getRemindersSyncStatus,
   listQuickTasks,
   pullTasksFromDida,
   pushTasksToDida,
+  syncTasksWithReminders,
   updateQuickTask,
 } from "../../api/client"
-import type { QuickTask } from "../../api/types"
+import type { QuickTask, RemindersSyncDirection, RemindersSyncResult } from "../../api/types"
+import { openAutomationSettings } from "../../lib/desktop"
 import { useTranslation } from "../../lib/i18n"
 import { useOnlineState } from "../../lib/online"
 import { toast } from "../../store/toast"
@@ -79,10 +96,20 @@ export function QuickTasks(props: {
   const [dueDate, setDueDate] = useState("")
   const [showCompleted, setShowCompleted] = useState(false)
   const [confirm, setConfirm] = useState<string | null>(null)
+  const [remindersBusy, setRemindersBusy] = useState(false)
+  const [remindersPreview, setRemindersPreview] = useState<{
+    direction: RemindersSyncDirection
+    result: RemindersSyncResult
+  } | null>(null)
   const gantt = useGanttWindow()
   const didaStatus = useQuery({
     queryKey: ["dida-sync-status"],
     queryFn: getDidaSyncStatus,
+    staleTime: 60_000,
+  })
+  const remindersStatus = useQuery({
+    queryKey: ["reminders-sync-status"],
+    queryFn: getRemindersSyncStatus,
     staleTime: 60_000,
   })
 
@@ -147,6 +174,93 @@ export function QuickTasks(props: {
       else toast(t("taskDidaFailed"))
     },
   })
+
+  const remindersError = (error: unknown) => {
+    if (error instanceof APIError) {
+      if (error.code === "reminders_permission_denied") toast(t("taskRemindersPermission"))
+      else if (error.code === "reminders_sync_busy") toast(t("taskRemindersBusy"))
+      else if (error.code === "reminders_unavailable") toast(t("taskRemindersUnavailable"))
+      else toast(t("taskRemindersFailed"))
+      return
+    }
+    toast(t("taskRemindersFailed"))
+  }
+
+  const remindersSummary = (result: RemindersSyncResult) => {
+    const count =
+      result.created_in_reminders +
+      result.created_in_reflow +
+      result.updated_in_reminders +
+      result.updated_in_reflow
+    const conflicts = result.conflicts?.length ?? 0
+    return (
+      t("taskRemindersDone").replace("{count}", String(count)) +
+      (conflicts > 0 ? t("taskRemindersConflictSuffix").replace("{count}", String(conflicts)) : "")
+    )
+  }
+
+  const executeRemindersSync = async (
+    direction: RemindersSyncDirection,
+    dryRun: boolean,
+  ): Promise<void> => {
+    if (remindersBusy) return
+    setRemindersBusy(true)
+    try {
+      let result = await syncTasksWithReminders(direction, dryRun)
+      if (dryRun) {
+        const total =
+          result.created_in_reminders +
+          result.created_in_reflow +
+          result.updated_in_reminders +
+          result.updated_in_reflow
+        if (total > 0) {
+          setRemindersPreview({ direction, result })
+          return
+        }
+        result = await syncTasksWithReminders(direction, false)
+      }
+      invalidate()
+      void queryClient.invalidateQueries({ queryKey: ["reminders-sync-status"] })
+      void remindersStatus.refetch()
+      toast(remindersSummary(result))
+      const dueKept = result.skipped?.length ?? 0
+      if (dueKept > 0) {
+        toast(t("taskRemindersDueKept").replace("{count}", String(dueKept)))
+      }
+    } catch (error) {
+      remindersError(error)
+    } finally {
+      setRemindersBusy(false)
+    }
+  }
+
+  const requestRemindersSync = (direction: RemindersSyncDirection) => {
+    if (remindersBusy) return
+    const status = remindersStatus.data
+    if (!status?.available) {
+      toast(status?.permission_required ? t("taskRemindersPermission") : t("taskRemindersUnavailable"))
+      return
+    }
+    if (direction === "merge" && !status.last_sync) {
+      void executeRemindersSync(direction, true)
+      return
+    }
+    void executeRemindersSync(direction, false)
+  }
+
+  const remindersVisible = Boolean(
+    remindersStatus.data?.available || remindersStatus.data?.permission_required,
+  )
+  const remindersState = remindersStatus.data?.permission_required
+    ? "warning"
+    : remindersStatus.data?.available
+      ? remindersStatus.data.last_sync
+        ? "ok"
+        : "idle"
+      : "off"
+  const remindersTitle = remindersStatus.data?.available
+    ? `${t("taskRemindersSync")} · ${remindersStatus.data.list_name}`
+    : (remindersStatus.data?.reason ?? t("taskRemindersUnavailable"))
 
   const tasks = useMemo(() => tasksQuery.data?.items ?? [], [tasksQuery.data?.items])
   useEffect(() => {
@@ -339,6 +453,93 @@ export function QuickTasks(props: {
               {t("taskDidaPull")}
             </button>
           </div>
+          {remindersVisible && (
+            <div className="wb-tm-reminders" data-state={remindersState}>
+              <button
+                type="button"
+                className="wb-btn wb-tm-reminders-main"
+                disabled={remindersBusy || !remindersStatus.data?.available}
+                title={remindersTitle}
+                onClick={() => requestRemindersSync("merge")}
+              >
+                <span className="wb-tm-reminders-dot" data-state={remindersState} aria-hidden="true" />
+                <BellSimple size={14} aria-hidden="true" />
+                {t("taskRemindersSync")}
+              </button>
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger asChild>
+                  <button
+                    type="button"
+                    className="wb-btn wb-tm-reminders-more"
+                    aria-label={t("taskRemindersMore")}
+                    title={t("taskRemindersMore")}
+                    disabled={remindersBusy}
+                  >
+                    <CaretDown size={12} weight="bold" aria-hidden="true" />
+                  </button>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Portal>
+                  <DropdownMenu.Content
+                    className="wb-tm-reminders-menu"
+                    align="end"
+                    sideOffset={6}
+                  >
+                    {remindersStatus.data?.available ? (
+                      <>
+                        <DropdownMenu.Item
+                          className="wb-tm-reminders-item"
+                          onSelect={() => requestRemindersSync("merge")}
+                        >
+                          <ArrowsClockwise size={14} aria-hidden="true" />
+                          {t("taskRemindersSyncNow")}
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item
+                          className="wb-tm-reminders-item"
+                          onSelect={() => requestRemindersSync("push")}
+                        >
+                          <CloudArrowUp size={14} aria-hidden="true" />
+                          {t("taskRemindersPush")}
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item
+                          className="wb-tm-reminders-item"
+                          onSelect={() => requestRemindersSync("pull")}
+                        >
+                          <CloudArrowDown size={14} aria-hidden="true" />
+                          {t("taskRemindersPull")}
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Separator className="wb-tm-reminders-separator" />
+                        <DropdownMenu.Item
+                          className="wb-tm-reminders-item wb-tm-reminders-status"
+                          disabled
+                        >
+                          {t("taskRemindersLastSync")}:{" "}
+                          {remindersStatus.data.last_sync
+                            ? new Date(remindersStatus.data.last_sync).toLocaleString()
+                            : t("taskRemindersNeverSynced")}
+                        </DropdownMenu.Item>
+                      </>
+                    ) : (
+                      <DropdownMenu.Item
+                        className="wb-tm-reminders-item wb-tm-reminders-status"
+                        disabled
+                      >
+                        {remindersTitle}
+                      </DropdownMenu.Item>
+                    )}
+                    {remindersStatus.data?.permission_required && (
+                      <DropdownMenu.Item
+                        className="wb-tm-reminders-item"
+                        onSelect={() => void openAutomationSettings()}
+                      >
+                        <GearSix size={14} aria-hidden="true" />
+                        {t("taskRemindersOpenSettings")}
+                      </DropdownMenu.Item>
+                    )}
+                  </DropdownMenu.Content>
+                </DropdownMenu.Portal>
+              </DropdownMenu.Root>
+            </div>
+          )}
           {props.onOpenTimeline && (
             <button type="button" className="wb-btn" onClick={props.onOpenTimeline}>
               <CalendarBlank size={14} aria-hidden="true" />
@@ -395,6 +596,34 @@ export function QuickTasks(props: {
       <GanttToolbar window={gantt} />
 
       {body}
+      <ConfirmDialog
+        open={remindersPreview !== null}
+        message={
+          remindersPreview
+            ? t("taskRemindersPreview")
+                .replace(
+                  "{push}",
+                  String(
+                    remindersPreview.result.created_in_reminders +
+                      remindersPreview.result.updated_in_reminders,
+                  ),
+                )
+                .replace("{pull}", String(remindersPreview.result.created_in_reflow))
+                .replace(
+                  "{update}",
+                  String(remindersPreview.result.updated_in_reflow),
+                )
+            : ""
+        }
+        onOpenChange={(openState) => {
+          if (!openState) setRemindersPreview(null)
+        }}
+        onConfirm={() => {
+          const direction = remindersPreview?.direction ?? "merge"
+          setRemindersPreview(null)
+          void executeRemindersSync(direction, false)
+        }}
+      />
       <ConfirmDialog
         open={confirm !== null}
         message={t("taskQuickDeleteConfirm")}

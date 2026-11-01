@@ -38,6 +38,20 @@ export function trackDesktopPlatform({ intervalMs = 50, maxTicks = 100 } = {}) {
   }, intervalMs)
 }
 
+export async function openAutomationSettings() {
+  const url = "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation"
+  if (desktopPlatform() === "macos") {
+    try {
+      const { Browser } = await import("@wailsio/runtime")
+      await Browser.OpenURL(url)
+      return
+    } catch {
+      // Fall through to the browser opener when the runtime is not present.
+    }
+  }
+  window.open(url, "_blank", "noopener,noreferrer")
+}
+
 export async function controlDesktopWindow(action: DesktopWindowAction) {
   if (desktopPlatform() !== "windows") return
 

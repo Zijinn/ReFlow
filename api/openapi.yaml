@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: ReFlow API
-  version: 2.0.12
+  version: 2.1.0
   description: Versioned API shared by ReFlow desktop, PWA, and future mobile clients.
   license:
     name: GPL-3.0-only
@@ -2467,6 +2467,50 @@ paths:
           $ref: "#/components/responses/Problem"
         "503":
           $ref: "#/components/responses/Problem"
+  /api/v1/tasks/reminders:
+    get:
+      operationId: getRemindersSyncStatus
+      tags: [tasks]
+      description: Report whether Apple Reminders is reachable and which local list is used.
+      responses:
+        "200":
+          description: Reminders sync availability.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemindersStatus"
+  /api/v1/tasks/reminders/sync:
+    post:
+      operationId: syncTasksWithReminders
+      tags: [tasks]
+      description: >
+        Merge 即时任务 with the configured local Apple Reminders list. ReFlow wins
+        conflicts; completion and due dates flow both ways. The request never
+        deletes tasks from either side.
+      parameters:
+        - name: direction
+          in: query
+          schema: { type: string, enum: [merge, push, pull], default: merge }
+        - name: dry_run
+          in: query
+          schema: { type: boolean, default: false }
+      responses:
+        "200":
+          description: The sync plan and what was written.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RemindersSyncResult"
+        "400":
+          $ref: "#/components/responses/Problem"
+        "403":
+          $ref: "#/components/responses/Problem"
+        "409":
+          $ref: "#/components/responses/Problem"
+        "502":
+          $ref: "#/components/responses/Problem"
+        "503":
+          $ref: "#/components/responses/Problem"
   /api/v1/tasks/quick/{quickTaskId}:
     parameters:
       - name: quickTaskId
@@ -3816,6 +3860,61 @@ components:
         action: { type: string }
         reflow_id: { type: string }
         dida_id: { type: string }
+        title: { type: string }
+        reason: { type: string }
+    RemindersStatus:
+      type: object
+      required: [available, list_name, list_exists, reminder_count, linked_tasks]
+      properties:
+        available: { type: boolean }
+        list_name: { type: string }
+        list_id: { type: string }
+        list_exists: { type: boolean }
+        reminder_count: { type: integer }
+        linked_tasks: { type: integer }
+        last_sync: { type: string }
+        permission_required: { type: boolean }
+        reason: { type: string }
+    RemindersSyncResult:
+      type: object
+      required: [direction, dry_run, list, state_file, created_in_reminders, created_in_reflow, updated_in_reminders, updated_in_reflow]
+      properties:
+        direction: { type: string, enum: [merge, push, pull] }
+        dry_run: { type: boolean }
+        list:
+          type: object
+          required: [name]
+          properties:
+            id: { type: string }
+            name: { type: string }
+        state_file: { type: string }
+        created_in_reminders: { type: integer }
+        created_in_reflow: { type: integer }
+        updated_in_reminders: { type: integer }
+        updated_in_reflow: { type: integer }
+        conflicts:
+          type: array
+          items:
+            $ref: "#/components/schemas/RemindersSyncAction"
+        orphans:
+          type: array
+          items:
+            $ref: "#/components/schemas/RemindersSyncAction"
+        skipped:
+          type: array
+          items:
+            $ref: "#/components/schemas/RemindersSyncAction"
+        actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RemindersSyncAction"
+    RemindersSyncAction:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string }
+        reflow_id: { type: string }
+        reminder_id: { type: string }
         title: { type: string }
         reason: { type: string }
     Problem:

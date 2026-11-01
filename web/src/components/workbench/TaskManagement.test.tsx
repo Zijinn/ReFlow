@@ -12,6 +12,8 @@ vi.mock("../../api/client", async (importOriginal) => {
   return {
     ...actual,
     getDidaSyncStatus: vi.fn(),
+    getRemindersSyncStatus: vi.fn(),
+    syncTasksWithReminders: vi.fn(),
     listQuickTasks: vi.fn(),
     listResearchPapers: vi.fn(),
     listResearchTags: vi.fn(),
@@ -51,6 +53,13 @@ beforeEach(() => {
   useReaderStore.setState({ locale: "en-US", taskView: "quick" })
   vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask()] })
   vi.mocked(api.getDidaSyncStatus).mockResolvedValue({ available: true, project: "Reflow" })
+  vi.mocked(api.getRemindersSyncStatus).mockResolvedValue({
+    available: false,
+    list_name: "Reflow",
+    list_exists: false,
+    reminder_count: 0,
+    linked_tasks: 0,
+  })
   vi.mocked(api.listTaskThreads).mockResolvedValue({ items: [] })
   vi.mocked(api.listResearchPapers).mockResolvedValue({ items: [] })
   vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })

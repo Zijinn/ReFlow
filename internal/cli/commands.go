@@ -7,6 +7,7 @@ func AllCommands() []Command {
 	out = append(out, paperCommands()...)
 	out = append(out, taskCommands()...)
 	out = append(out, syncCommands()...)
+	out = append(out, remindersCommands()...)
 	out = append(out, tagCommands()...)
 	out = append(out, entryCommands()...)
 	out = append(out, subscriptionCommands()...)

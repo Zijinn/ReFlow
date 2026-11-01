@@ -556,6 +556,43 @@ export interface DidaSyncResult {
   skipped?: DidaSyncAction[]
 }
 
+export interface RemindersSyncStatus {
+  available: boolean
+  list_name: string
+  list_id?: string
+  list_exists: boolean
+  reminder_count: number
+  linked_tasks: number
+  last_sync?: string
+  permission_required?: boolean
+  reason?: string
+}
+
+export type RemindersSyncDirection = "merge" | "push" | "pull"
+
+export interface RemindersSyncAction {
+  action: string
+  reflow_id?: string
+  reminder_id?: string
+  title?: string
+  reason?: string
+}
+
+export interface RemindersSyncResult {
+  direction: RemindersSyncDirection
+  dry_run: boolean
+  list: { id?: string; name: string }
+  state_file: string
+  created_in_reminders: number
+  created_in_reflow: number
+  updated_in_reminders: number
+  updated_in_reflow: number
+  conflicts?: RemindersSyncAction[]
+  orphans?: RemindersSyncAction[]
+  skipped?: RemindersSyncAction[]
+  actions?: RemindersSyncAction[]
+}
+
 export interface QuickTask {
   id: string
   title: string

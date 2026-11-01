@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { QuickTask } from "../../api/types"
 import { useReaderStore } from "../../store/reader"
@@ -20,6 +20,8 @@ vi.mock("../../api/client", async (importOriginal) => {
     createQuickTask: vi.fn(),
     deleteQuickTask: vi.fn(),
     getDidaSyncStatus: vi.fn(),
+    getRemindersSyncStatus: vi.fn(),
+    syncTasksWithReminders: vi.fn(),
     listQuickTasks: vi.fn(),
     pullTasksFromDida: vi.fn(),
     pushTasksToDida: vi.fn(),
@@ -54,17 +56,50 @@ function renderQuick(onOpenTimeline = vi.fn()) {
   )
 }
 
+afterEach(() => cleanup())
+
 beforeEach(() => {
   vi.clearAllMocks()
   useReaderStore.setState({ locale: "en-US" })
   vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [quickTask()] })
   vi.mocked(api.getDidaSyncStatus).mockResolvedValue({ available: true, project: "Reflow" })
+  vi.mocked(api.getRemindersSyncStatus).mockResolvedValue({
+    available: false,
+    list_name: "Reflow",
+    list_exists: false,
+    reminder_count: 0,
+    linked_tasks: 0,
+  })
   vi.mocked(api.createQuickTask).mockResolvedValue(quickTask({ id: "q-new" }))
   vi.mocked(api.updateQuickTask).mockResolvedValue(quickTask({ completed: true }))
   vi.mocked(api.deleteQuickTask).mockResolvedValue(undefined)
 })
 
 describe("QuickTasks", () => {
+  it("syncs with Apple Reminders from the split button", async () => {
+    vi.mocked(api.getRemindersSyncStatus).mockResolvedValue({
+      available: true,
+      list_name: "Reflow",
+      list_exists: true,
+      reminder_count: 1,
+      linked_tasks: 1,
+      last_sync: "2026-11-01T00:00:00Z",
+    })
+    vi.mocked(api.syncTasksWithReminders).mockResolvedValue({
+      direction: "merge",
+      dry_run: false,
+      list: { id: "list-1", name: "Reflow" },
+      state_file: "/tmp/reminders-sync.json",
+      created_in_reminders: 1,
+      created_in_reflow: 0,
+      updated_in_reminders: 0,
+      updated_in_reflow: 0,
+    })
+    renderQuick()
+    fireEvent.click(await screen.findByRole("button", { name: "Reminders" }))
+    await waitFor(() => expect(api.syncTasksWithReminders).toHaveBeenCalledWith("merge", false))
+  })
+
   it("lists quick tasks and creates one from the inline form", async () => {
     renderQuick()
     expect(await screen.findByText("采购硬盘")).toBeInTheDocument()

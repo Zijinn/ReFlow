@@ -41,6 +41,9 @@ import type {
   QuickTask,
   DidaSyncResult,
   DidaSyncStatus,
+  RemindersSyncResult,
+  RemindersSyncStatus,
+  RemindersSyncDirection,
 } from "./types"
 import { entryDetailCacheKey, entryPageCacheKey, readCache, writeCache } from "../offline/database"
 import type { ReaderAnnotation } from "../lib/annotations"
@@ -1140,4 +1143,19 @@ export function pushTasksToDida(): Promise<DidaSyncResult> {
 
 export function pullTasksFromDida(): Promise<DidaSyncResult> {
   return request<DidaSyncResult>("/api/v1/tasks/dida/pull", { method: "POST" })
+}
+
+export function getRemindersSyncStatus(): Promise<RemindersSyncStatus> {
+  return request<RemindersSyncStatus>("/api/v1/tasks/reminders")
+}
+
+export function syncTasksWithReminders(
+  direction: RemindersSyncDirection,
+  dryRun = false,
+): Promise<RemindersSyncResult> {
+  const query = new URLSearchParams({ direction })
+  if (dryRun) query.set("dry_run", "true")
+  return request<RemindersSyncResult>(`/api/v1/tasks/reminders/sync?${query.toString()}`, {
+    method: "POST",
+  })
 }

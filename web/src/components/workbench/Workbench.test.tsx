@@ -33,6 +33,8 @@ vi.mock("../../api/client", async (importOriginal) => {
     listAIResults: vi.fn(),
     listPreferences: vi.fn(() => Promise.resolve({ items: {} })),
     getDidaSyncStatus: vi.fn(),
+    getRemindersSyncStatus: vi.fn(),
+    syncTasksWithReminders: vi.fn(),
     listQuickTasks: vi.fn(),
     listResearchPapers: vi.fn(),
     listResearchTags: vi.fn(),
@@ -236,6 +238,13 @@ beforeEach(() => {
   vi.mocked(api.listResearchTags).mockResolvedValue({ tags: [] })
   vi.mocked(api.listQuickTasks).mockResolvedValue({ items: [] })
   vi.mocked(api.getDidaSyncStatus).mockResolvedValue({ available: true, project: "Reflow" })
+  vi.mocked(api.getRemindersSyncStatus).mockResolvedValue({
+    available: false,
+    list_name: "Reflow",
+    list_exists: false,
+    reminder_count: 0,
+    linked_tasks: 0,
+  })
   vi.mocked(api.listTaskThreads).mockResolvedValue({ items: [] })
   vi.mocked(api.createResearchTag).mockImplementation((name) =>
     Promise.resolve({ id: `tag-${name}`, name, position: 0, color: "", color_enabled: true }),
