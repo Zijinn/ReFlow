@@ -49,10 +49,6 @@ func QueryStatus(ctx context.Context, remote RemoteStore, listName, statePath st
 		listName = "Reflow"
 	}
 	status := Status{ListName: listName}
-	if ok, reason := Available(); !ok {
-		status.Reason = reason
-		return status, nil
-	}
 	if strings.TrimSpace(statePath) == "" {
 		path, err := DefaultStatePath()
 		if err == nil {

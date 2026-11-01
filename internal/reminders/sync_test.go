@@ -326,6 +326,20 @@ func TestSyncLinksCreatedRemindersByMarkerNotResultOrder(t *testing.T) {
 	}
 }
 
+func TestQueryStatusUsesStoreAvailability(t *testing.T) {
+	_, remote, state := newTestSync(t)
+	remote.exists = true
+	remote.list = List{ID: "list-1", Name: "Reflow"}
+	remote.reminders = []Reminder{{ID: "r1", Name: "One"}}
+	status, err := QueryStatus(context.Background(), remote, "Reflow", state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Available || !status.ListExists || status.ReminderCount != 1 {
+		t.Fatalf("status = %+v", status)
+	}
+}
+
 func TestReminderDateToLocalHonorsTimezone(t *testing.T) {
 	shanghai := time.FixedZone("Asia/Shanghai", 8*3600)
 	if got := reminderDateToLocalIn("2026-11-04T16:00:00Z", shanghai); got != "2026-11-05" {
