@@ -546,8 +546,20 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 		remoteByID[task.ID] = task
 	}
 
+	localOpen := 0
+	for _, task := range local {
+		if !task.Completed {
+			localOpen++
+		}
+	}
+	remoteOpen := 0
+	for _, task := range remote {
+		if task.Status != -1 && task.Status != 2 {
+			remoteOpen++
+		}
+	}
 	if len(project.Links) == 0 {
-		if len(local) == 0 && len(remote) == 0 {
+		if localOpen == 0 && remoteOpen == 0 {
 			return nil, nil
 		}
 		switch direction {
@@ -558,12 +570,12 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 		default:
 			if seed == "" {
 				switch {
-				case len(local) == 0:
+				case localOpen == 0:
 					seed = "dida"
-				case len(remote) == 0:
+				case remoteOpen == 0:
 					seed = "reflow"
 				default:
-					return nil, usage("both ReFlow and the Dida list already contain tasks; " +
+					return nil, usage("both ReFlow and the Dida list already contain open tasks; " +
 						"choose --seed reflow or --seed dida for the first merge")
 				}
 			}
@@ -573,6 +585,9 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 		switch seed {
 		case "reflow":
 			for _, task := range sortedQuickTasks(local) {
+				if task.Completed {
+					continue
+				}
 				copied := task
 				actions = append(actions, DidaSyncAction{Action: "create_dida", ReflowID: task.ID, Title: task.Title, local: &copied})
 			}
@@ -580,6 +595,9 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 			for _, task := range sortedDidaTasks(remote) {
 				if task.Status == -1 {
 					actions = append(actions, DidaSyncAction{Action: "skip", DidaID: task.ID, Title: task.Title, Reason: "Dida task is abandoned (status -1)"})
+					continue
+				}
+				if task.Status == 2 {
 					continue
 				}
 				copied := task
@@ -622,6 +640,11 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 				Title: localTask.Title, Reason: "Dida task is abandoned (status -1)"})
 			continue
 		}
+		if localTask.Completed || remoteTask.Status == 2 {
+			// Completed tasks are terminal. Keep the link for history, but do
+			// not push completion, edits, or reopening to either side.
+			continue
+		}
 		localSnap := localSnapshot(localTask)
 		remoteSnap := remoteSnapshot(remoteTask, localTask.Tags)
 		localChanged := snapshotHash(localSnap) != link.ReflowHash
@@ -661,6 +684,9 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 
 	if direction != "pull" {
 		for _, task := range sortedQuickTasks(local) {
+			if task.Completed {
+				continue
+			}
 			if _, linked := linkedReflow[task.ID]; linked {
 				continue
 			}
@@ -681,6 +707,9 @@ func planDidaSync(project *DidaProjectState, local []DidaSyncTask, remote []dida
 			}
 			if task.Status == -1 {
 				actions = append(actions, DidaSyncAction{Action: "skip", DidaID: task.ID, Title: task.Title, Reason: "Dida task is abandoned (status -1)"})
+				continue
+			}
+			if task.Status == 2 {
 				continue
 			}
 			copied := task

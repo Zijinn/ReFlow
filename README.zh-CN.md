@@ -16,7 +16,7 @@ ReFlow 是一款本地优先的 RSS 阅读器，支持 macOS、Windows、iPad �
 - 可选的外语标题双语展示，以及打开文章时自动翻译内容
 - FreshRSS、Google Reader、Miniflux、Fever、Feedbin 和 Nextcloud News 同步
 - WebDAV 与 iCloud Drive 资料库同步，支持冲突检测和明确恢复
-- `reflow` 命令行工具，让 AI 代理或脚本在应用外操作科研工作台和即时任务：创建任务、维护标签、同步 Dida365 或 Apple 提醒事项、从订阅文章识别文献
+- `reflow` 命令行工具，让 AI 代理或脚本在应用外操作科研工作台和即时任务：创建任务、维护标签、同步 Dida365 或 Apple 提醒事项、从订阅文章识别文献。外部任务同步只流转未完成的即时任务，已完成任务留在 ReFlow。
 - 科研工作台：在研、在投、已发表三张表；独立的截止日期日历一级入口；即时任务支持名称、标签、时间与备注、分层长期任务，并可在任务页推送/拉取 Dida 清单
 
 Apple 提醒事项同步是本地、可选的功能：ReFlow 使用专用的 `Reflow` 清单（可用 `REFLOW_REMINDERS_LIST` 修改），映射保存在 `~/Library/Application Support/reflow/reminders-sync.json`，首次使用需要在 macOS“系统设置 → 隐私与安全性 → 自动化”中允许 ReFlow 控制提醒事项。标题、备注、截止日期和完成状态双向同步；开始日期、标签和论文关联只留在 ReFlow。Apple 脚本接口无法清除已有的截止日期，因此在 ReFlow 清空截止日时，提醒事项会保留原日期并给出提示，而不是把旧日期重新拉回来。

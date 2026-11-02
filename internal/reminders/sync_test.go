@@ -120,14 +120,14 @@ func syncOnce(t *testing.T, local *fakeLocal, remote *fakeRemote, statePath stri
 	return result
 }
 
-func TestSyncPushesAndCompletesLocalTasks(t *testing.T) {
+func TestSyncPushesOnlyOpenLocalTasks(t *testing.T) {
 	local, remote, state := newTestSync(t)
 	local.tasks = []Task{
 		{ID: "a", Title: "First", Notes: "notes", DueDate: "2026-11-05", Position: 1},
 		{ID: "b", Title: "Second", Completed: true, Position: 2},
 	}
 	result := syncOnce(t, local, remote, state, "merge", false)
-	if result.CreatedInReminders != 2 || len(remote.reminders) != 2 {
+	if result.CreatedInReminders != 1 || len(remote.reminders) != 1 {
 		t.Fatalf("push result = %+v, reminders = %+v", result, remote.reminders)
 	}
 	first := remote.reminders[0]
@@ -137,19 +137,16 @@ func TestSyncPushesAndCompletesLocalTasks(t *testing.T) {
 	if _, marker := splitMarker(first.Notes); marker != "a" {
 		t.Fatalf("first reminder marker = %q, notes = %q", marker, first.Notes)
 	}
-	if !remote.reminders[1].Completed {
-		t.Fatalf("completed task did not stay completed: %+v", remote.reminders[1])
-	}
 	stateFile, err := loadState(state)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(stateFile.Lists["Reflow"].Links) != 2 {
-		t.Fatalf("state links = %+v", stateFile.Lists["Reflow"].Links)
+	if len(stateFile.Lists["Reflow"].Links) != 1 {
+		t.Fatalf("completed task should not be linked: %+v", stateFile.Lists["Reflow"].Links)
 	}
 }
 
-func TestSyncPullsUnmarkedReminders(t *testing.T) {
+func TestSyncPullsOnlyOpenUnmarkedReminders(t *testing.T) {
 	local, remote, state := newTestSync(t)
 	remote.exists = true
 	remote.list = List{ID: "list-1", Name: "Reflow"}
@@ -158,16 +155,47 @@ func TestSyncPullsUnmarkedReminders(t *testing.T) {
 		{ID: "r2", Name: "Manual two", Completed: true},
 	}
 	result := syncOnce(t, local, remote, state, "merge", false)
-	if result.CreatedInReflow != 2 || len(local.tasks) != 2 {
+	if result.CreatedInReflow != 1 || len(local.tasks) != 1 {
 		t.Fatalf("pull result = %+v, local = %+v", result, local.tasks)
 	}
-	if local.tasks[0].DueDate != "2026-11-06" || !local.tasks[1].Completed {
+	if local.tasks[0].DueDate != "2026-11-06" {
 		t.Fatalf("imported tasks = %+v", local.tasks)
 	}
 	for _, reminder := range remote.reminders {
-		if _, marker := splitMarker(reminder.Notes); marker == "" {
+		_, marker := splitMarker(reminder.Notes)
+		if reminder.ID == "r1" && marker == "" {
 			t.Fatalf("imported reminder was not stamped: %+v", reminder)
 		}
+		if reminder.ID == "r2" && marker != "" {
+			t.Fatalf("completed reminder should not be imported or stamped: %+v", reminder)
+		}
+	}
+}
+
+func TestSyncStopsLinkedTasksAfterCompletion(t *testing.T) {
+	local, remote, state := newTestSync(t)
+	local.tasks = []Task{
+		{ID: "local-done", Title: "Local done", Position: 1},
+		{ID: "remote-done", Title: "Remote done", Position: 2},
+	}
+	syncOnce(t, local, remote, state, "merge", false)
+	if len(remote.reminders) != 2 {
+		t.Fatalf("initial sync = %+v", remote.reminders)
+	}
+
+	local.tasks[0].Completed = true
+	local.tasks[0].Title = "Local completed edit"
+	remote.reminders[1].Completed = true
+	remote.reminders[1].Name = "Remote completed edit"
+	result := syncOnce(t, local, remote, state, "merge", false)
+	if result.UpdatedInReminders != 0 || result.UpdatedInReflow != 0 {
+		t.Fatalf("completed links were synchronized: %+v", result)
+	}
+	if remote.reminders[0].Completed || remote.reminders[0].Name != "Local done" {
+		t.Fatalf("local completion flowed to Reminders: %+v", remote.reminders[0])
+	}
+	if local.tasks[1].Completed || local.tasks[1].Title != "Remote done" {
+		t.Fatalf("remote completion flowed to ReFlow: %+v", local.tasks[1])
 	}
 }
 

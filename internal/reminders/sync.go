@@ -372,6 +372,11 @@ func buildPlan(state *ListState, local []Task, remote []Reminder, direction stri
 			continue
 		}
 		result.matched[link.ReminderID] = true
+		if localTask.Completed || remoteTask.Completed {
+			// Completed tasks are terminal. Keep the link for history, but do
+			// not push completion, edits, or reopening to either side.
+			continue
+		}
 		handlePair(result, localTask, remoteTask, link, direction)
 	}
 
@@ -395,12 +400,18 @@ func buildPlan(state *ListState, local []Task, remote []Reminder, direction stri
 			})
 		}
 		result.matched[chosen.ID] = true
-		handlePair(result, task, chosen, &Link{ReminderID: chosen.ID}, direction)
 		result.adoptions = append(result.adoptions, adoption{ReflowID: task.ID, ReminderID: chosen.ID})
+		if task.Completed || chosen.Completed {
+			continue
+		}
+		handlePair(result, task, chosen, &Link{ReminderID: chosen.ID}, direction)
 	}
 
 	if direction != "pull" {
 		for _, task := range sortedTasks(local) {
+			if task.Completed {
+				continue
+			}
 			if linkedReflow[task.ID] {
 				continue
 			}
@@ -418,6 +429,9 @@ func buildPlan(state *ListState, local []Task, remote []Reminder, direction stri
 
 	if direction != "push" {
 		for _, reminder := range sortedReminders(remote) {
+			if reminder.Completed {
+				continue
+			}
 			if result.matched[reminder.ID] {
 				continue
 			}

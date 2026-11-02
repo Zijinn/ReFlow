@@ -17,7 +17,7 @@ ReFlow is a local-first personal RSS reader for macOS, Windows, iPad, and the we
 - Optional bilingual foreign-title display and automatic article translation when opened
 - FreshRSS, Google Reader compatible services, Miniflux, Fever, Feedbin, and Nextcloud News adapters
 - Concurrent WebDAV and iCloud Drive library synchronization with conflict detection and explicit recovery choices
-- `reflow` command-line interface for AI agents: working papers, tags, quick tasks, Dida365 and Apple Reminders task synchronization, literature identification from subscribed entries, and a machine-readable command catalog
+- `reflow` command-line interface for AI agents: working papers, tags, quick tasks, Dida365 and Apple Reminders task synchronization, literature identification from subscribed entries, and a machine-readable command catalog. Only open quick tasks participate in external task sync; completed tasks stay in ReFlow.
 - Research workspace: working papers, submissions, publications, and a first-level deadline calendar with task range bars; quick tasks carry tags, notes, dates, and layered long-task threads; push/pull them to a Dida365 list, or merge them with Apple Reminders on macOS from the task page
 
 Apple Reminders sync is local and opt-in: ReFlow uses a dedicated `Reflow` list (configurable with `REFLOW_REMINDERS_LIST`), stores its mapping in `~/Library/Application Support/reflow/reminders-sync.json`, and needs one-time macOS Automation permission. Titles, notes, due dates and completion flow both ways; start dates, tags and paper links stay in ReFlow. Apple’s scripting API cannot clear an existing due date, so clearing it in ReFlow leaves the reminder date in place and reports a warning instead of pulling it back.

@@ -60,6 +60,59 @@ func TestPlanDidaSyncKeepsReflowOnConflict(t *testing.T) {
 	}
 }
 
+func TestPlanDidaSyncSkipsCompletedTasks(t *testing.T) {
+	project := &DidaProjectState{Links: map[string]*didaLink{}}
+	local := []DidaSyncTask{
+		{ID: "open", Title: "Open"},
+		{ID: "done", Title: "Done", Completed: true},
+	}
+	actions, err := planDidaSync(project, local, nil, "merge", "", &DidaSyncResult{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) != 1 || actions[0].Action != "create_dida" || actions[0].ReflowID != "open" {
+		t.Fatalf("completed local task was synchronized: %+v", actions)
+	}
+
+	remote := []didaTask{
+		{ID: "d-open", Title: "Dida open", Status: 0},
+		{ID: "d-done", Title: "Dida done", Status: 2},
+	}
+	actions, err = planDidaSync(project, nil, remote, "merge", "dida", &DidaSyncResult{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) != 1 || actions[0].Action != "create_reflow" || actions[0].DidaID != "d-open" {
+		t.Fatalf("completed Dida task was imported: %+v", actions)
+	}
+
+	actions, err = planDidaSync(&DidaProjectState{Links: map[string]*didaLink{}},
+		[]DidaSyncTask{{ID: "local-done", Title: "Done", Completed: true}},
+		[]didaTask{{ID: "d-open", Title: "Dida open", Status: 0}}, "merge", "", &DidaSyncResult{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) != 1 || actions[0].Action != "create_reflow" || actions[0].DidaID != "d-open" {
+		t.Fatalf("completed local tasks blocked the Dida seed: %+v", actions)
+	}
+
+	project = &DidaProjectState{Links: map[string]*didaLink{
+		"local-done": {DidaID: "d-open", ReflowHash: "old", DidaHash: "old"},
+		"local-open": {DidaID: "d-done", ReflowHash: "old", DidaHash: "old"},
+	}}
+	local = []DidaSyncTask{
+		{ID: "local-done", Title: "Local done", Completed: true},
+		{ID: "local-open", Title: "Local open"},
+	}
+	actions, err = planDidaSync(project, local, remote, "merge", "", &DidaSyncResult{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) != 0 {
+		t.Fatalf("a completed linked task was synchronized: %+v", actions)
+	}
+}
+
 func TestPlanDidaSyncLeavesMissingRowsAsOrphans(t *testing.T) {
 	project := &DidaProjectState{Links: map[string]*didaLink{
 		"r-missing": {DidaID: "d-1", ReflowHash: "x", DidaHash: "y"},
