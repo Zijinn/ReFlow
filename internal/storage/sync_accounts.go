@@ -276,16 +276,6 @@ func UpsertSyncMapping(ctx context.Context, db *sql.DB, accountID, localKind, lo
 	return nil
 }
 
-func FindSyncMappingByRemote(ctx context.Context, db *sql.DB, accountID, localKind, remoteID string) (string, error) {
-	var localID string
-	err := db.QueryRowContext(ctx, `SELECT local_id FROM sync_mappings
-		WHERE account_id = ? AND local_kind = ? AND remote_id = ?`, accountID, localKind, remoteID).Scan(&localID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", ErrNotFound
-	}
-	return localID, err
-}
-
 func FindFeedByCanonicalURL(ctx context.Context, db *sql.DB, profileID, canonicalURL string) (domain.Feed, error) {
 	feed, err := scanFeed(db.QueryRowContext(ctx, `
 		SELECT `+qualifiedFeedColumns("f")+` FROM feeds f
@@ -298,9 +288,26 @@ func FindFeedByCanonicalURL(ctx context.Context, db *sql.DB, profileID, canonica
 }
 
 func FindEntryForSync(ctx context.Context, db *sql.DB, accountID, remoteID, feedRemoteID, guid, canonicalURL string) (string, error) {
-	if localID, err := FindSyncMappingByRemote(ctx, db, accountID, "entry", remoteID); err == nil {
-		return localID, nil
-	} else if !errors.Is(err, ErrNotFound) {
+	var mappedID string
+	err := db.QueryRowContext(ctx, `
+		SELECT m.local_id FROM sync_mappings m
+		JOIN entries e ON e.id = m.local_id
+		JOIN subscriptions s ON s.feed_id = e.feed_id
+		JOIN sync_accounts a ON a.profile_id = s.profile_id AND a.id = m.account_id
+		WHERE m.account_id = ? AND m.local_kind = 'entry' AND m.remote_id = ?`,
+		accountID, remoteID).Scan(&mappedID)
+	if err == nil {
+		return mappedID, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	// The mapping is stale: the entry was deleted or is no longer subscribed
+	// in this account's profile. Remove it so the next sync can re-match by
+	// canonical URL or GUID instead of failing on every remote state update.
+	if _, err := db.ExecContext(ctx,
+		"DELETE FROM sync_mappings WHERE account_id = ? AND local_kind = 'entry' AND remote_id = ?",
+		accountID, remoteID); err != nil {
 		return "", err
 	}
 	if canonicalURL != "" {

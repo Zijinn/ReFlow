@@ -55,7 +55,7 @@ AI is optional. Provider keys are encrypted with the installation master key and
 
 ## Development
 
-Requirements: Go 1.25+, Node.js 22+, and pnpm 11.
+Requirements: Go 1.26+, Node.js 22+, and pnpm 11.
 
 ```bash
 pnpm install
@@ -98,9 +98,9 @@ make cli
 
 SQLite is authoritative. Library data lives in the operating-system configuration directory named `ReFlow`. The rename is complete and no legacy data directory is read, so an existing library must be restored from a full local backup or re-synced from the cloud. The database and owner-only `master.key` must be kept together when restoring a full local backup.
 
-Portable backups contain library content, research data, and tasks, but deliberately exclude device pairings, queued jobs, and sync-account credentials. Re-pair devices and re-authenticate sync accounts after a restore; this keeps a backup from minting credentials or scheduling remote work.
+Portable backups contain library content, research data, and tasks, but deliberately exclude device pairings, queued jobs, sync-account credentials, and AI provider profiles. Re-pair devices, re-authenticate sync accounts, and re-create AI profiles after a restore; this keeps a backup from minting credentials, scheduling remote work, or redirecting article content to a new endpoint.
 
-ReFlow binds to loopback by default. LAN access must be enabled explicitly and uses one-time device pairing, hashed bearer tokens, scoped origins, and optional TLS. Reverse proxies must be explicitly listed by exact IP or CIDR in `REFLOW_TRUSTED_PROXIES`; only the immediate peer is classified, forwarded-address headers are ignored for authorization, and protected APIs still require a paired device token. Feed, synchronization, WebDAV, and AI HTTP endpoints share redirect validation, response limits, and SSRF protections; private network access requires an account-level opt-in.
+ReFlow binds to loopback by default. LAN access must be enabled explicitly and uses one-time device pairing, hashed bearer tokens, and scoped origins. Non-loopback LAN listeners require TLS; when a trusted reverse proxy terminates TLS, set `REFLOW_ALLOW_INSECURE_LAN=true` explicitly. Reverse proxies must be listed by exact IP or CIDR in `REFLOW_TRUSTED_PROXIES`; only the immediate peer is classified, forwarded-address headers are ignored for authorization, and protected APIs still require a paired device token. Feed, synchronization, WebDAV, and AI HTTP endpoints share redirect validation, response limits, and SSRF protections; remote synchronization and AI endpoints require HTTPS unless private-network access is enabled, and private network access requires an account-level opt-in.
 
 ## License
 

@@ -48,7 +48,7 @@ iCloud 模式依赖操作系统将 `iCloud Drive/ReFlow/reflow-library.json` 同
 
 ## 开发
 
-需要 Go 1.25+、Node.js 22+ 和 pnpm 11：
+需要 Go 1.26+、Node.js 22+ 和 pnpm 11：
 
 ```bash
 pnpm install

@@ -375,6 +375,9 @@ func PruneReadEntries(ctx context.Context, db *sql.DB, profileID string, publish
 	if _, err := tx.ExecContext(ctx, "DELETE FROM entries_fts WHERE entry_id IN ("+selection+")", profileID, cutoff, profileID); err != nil {
 		return 0, fmt.Errorf("prune search index: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM sync_mappings WHERE local_kind = 'entry' AND local_id IN ("+selection+")", profileID, cutoff, profileID); err != nil {
+		return 0, fmt.Errorf("prune sync mappings: %w", err)
+	}
 	result, err := tx.ExecContext(ctx, "DELETE FROM entries WHERE id IN ("+selection+")", profileID, cutoff, profileID)
 	if err != nil {
 		return 0, fmt.Errorf("prune read entries: %w", err)
@@ -516,6 +519,9 @@ func escapeFTSQuery(value string) string {
 // to LIKE when any word is shorter than three runes: the trigram tokenizer
 // cannot index or match tokens below three characters.
 func appendSearchFilter(query, joins string, conditions []string, args []any) (string, []string, []any) {
+	// A NUL byte makes the FTS5 query parser return an error instead of a
+	// normal empty result; treat it as whitespace before tokenizing.
+	query = strings.ReplaceAll(query, "\x00", " ")
 	words := strings.Fields(query)
 	useFTS := len(words) > 0
 	for _, word := range words {

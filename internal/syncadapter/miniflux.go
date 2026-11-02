@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const minifluxPageSize = 1000
+
 type minifluxAdapter struct{ baseClient }
 
 func (a *minifluxAdapter) Pull(ctx context.Context, cursor string) (Delta, error) {
@@ -27,40 +29,50 @@ func (a *minifluxAdapter) Pull(ctx context.Context, cursor string) (Delta, error
 	if err := decodeJSONResponse(feedsResponse, &feeds); err != nil {
 		return Delta{}, err
 	}
-	query := url.Values{"limit": {"1000"}, "order": {"changed_at"}, "direction": {"asc"}}
-	if cursor != "" {
-		query.Set("changed_after", cursor)
-	}
-	entriesResponse, err := a.request(ctx, http.MethodGet, "v1/entries", query, nil)
-	if err != nil {
-		return Delta{}, err
-	}
-	var entries struct {
-		Entries []struct {
-			ID        int64  `json:"id"`
-			FeedID    int64  `json:"feed_id"`
-			Status    string `json:"status"`
-			Starred   bool   `json:"starred"`
-			URL       string `json:"url"`
-			ChangedAt string `json:"changed_at"`
-		} `json:"entries"`
-	}
-	if err := decodeJSONResponse(entriesResponse, &entries); err != nil {
-		return Delta{}, err
-	}
-	delta := Delta{Subscriptions: make([]Subscription, 0, len(feeds)), States: make([]ItemState, 0, len(entries.Entries)), Cursor: cursor}
+	delta := Delta{Subscriptions: make([]Subscription, 0, len(feeds)), States: make([]ItemState, 0), Cursor: cursor}
 	for _, item := range feeds {
 		delta.Subscriptions = append(delta.Subscriptions, Subscription{RemoteID: strconv.FormatInt(item.ID, 10), Title: item.Title, FeedURL: item.FeedURL, Folder: item.Category.Title})
 	}
-	for _, item := range entries.Entries {
-		read := item.Status == "read" || item.Status == "removed"
-		delta.States = append(delta.States, ItemState{
-			RemoteID: strconv.FormatInt(item.ID, 10), FeedRemoteID: strconv.FormatInt(item.FeedID, 10),
-			CanonicalURL: item.URL, Read: &read, Starred: &item.Starred, RemoteUpdated: item.ChangedAt,
-		})
-		if changedAt, parseErr := time.Parse(time.RFC3339, item.ChangedAt); parseErr == nil && changedAt.Unix() > parseInt64(delta.Cursor) {
-			delta.Cursor = strconv.FormatInt(changedAt.Unix(), 10)
+	offset := 0
+	for page := 0; page < maxSyncPages; page++ {
+		query := url.Values{"limit": {strconv.Itoa(minifluxPageSize)}, "order": {"id"}, "direction": {"asc"}}
+		if cursor != "" {
+			query.Set("changed_after", cursor)
 		}
+		if offset > 0 {
+			query.Set("offset", strconv.Itoa(offset))
+		}
+		entriesResponse, err := a.request(ctx, http.MethodGet, "v1/entries", query, nil)
+		if err != nil {
+			return Delta{}, err
+		}
+		var entries struct {
+			Entries []struct {
+				ID        int64  `json:"id"`
+				FeedID    int64  `json:"feed_id"`
+				Status    string `json:"status"`
+				Starred   bool   `json:"starred"`
+				URL       string `json:"url"`
+				ChangedAt string `json:"changed_at"`
+			} `json:"entries"`
+		}
+		if err := decodeJSONResponse(entriesResponse, &entries); err != nil {
+			return Delta{}, err
+		}
+		for _, item := range entries.Entries {
+			read := item.Status == "read" || item.Status == "removed"
+			delta.States = append(delta.States, ItemState{
+				RemoteID: strconv.FormatInt(item.ID, 10), FeedRemoteID: strconv.FormatInt(item.FeedID, 10),
+				CanonicalURL: item.URL, Read: &read, Starred: &item.Starred, RemoteUpdated: item.ChangedAt,
+			})
+			if changedAt, parseErr := time.Parse(time.RFC3339, item.ChangedAt); parseErr == nil && changedAt.Unix() > parseInt64(delta.Cursor) {
+				delta.Cursor = strconv.FormatInt(changedAt.Unix(), 10)
+			}
+		}
+		if len(entries.Entries) < minifluxPageSize {
+			break
+		}
+		offset += len(entries.Entries)
 	}
 	return delta, nil
 }

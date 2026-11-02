@@ -25,12 +25,31 @@ func TestGoogleReaderCompatibleContract(t *testing.T) {
 				case "/reader/api/0/subscription/list":
 					serveFixture(t, w, "google_reader_subscriptions.json")
 				case "/reader/api/0/stream/items/ids":
-					if strings.Contains(r.URL.Query().Get("s"), "starred") {
+					stream := r.URL.Query().Get("s")
+					switch {
+					case strings.Contains(stream, "starred"):
 						serveFixture(t, w, "google_reader_starred.json")
-					} else {
+					case strings.HasSuffix(stream, "/read"):
+						serveFixture(t, w, "google_reader_read.json")
+					default:
+						if got := r.URL.Query().Get("ot"); got != "" {
+							t.Errorf("deprecated older-than cursor was sent: %q", got)
+						}
+						if got := r.URL.Query().Get("nt"); got != "1700000000000000" {
+							t.Errorf("newer-than cursor = %q", got)
+						}
 						serveFixture(t, w, "google_reader_unread.json")
 					}
 				case "/reader/api/0/stream/items/contents":
+					if r.Method != http.MethodPost {
+						t.Errorf("item contents must be POST, got %s", r.Method)
+					}
+					if err := r.ParseForm(); err != nil {
+						t.Fatal(err)
+					}
+					if got := r.PostForm.Get("i"); got != "tag:google.com,2005:reader/item/0001" {
+						t.Errorf("item contents ids = %q", got)
+					}
 					serveFixture(t, w, "google_reader_contents.json")
 				case "/reader/api/0/edit-tag":
 					if err := r.ParseForm(); err != nil {
@@ -111,10 +130,13 @@ func TestMinifluxContract(t *testing.T) {
 	mu.Lock()
 	joined := strings.Join(paths, "\n")
 	mu.Unlock()
-	for _, expected := range []string{"changed_after=1700000000", "PUT /v1/entries", "GET /v1/entries/101", "PUT /v1/entries/101/bookmark"} {
+	for _, expected := range []string{"changed_after=1700000000", "order=id", "PUT /v1/entries", "GET /v1/entries/101", "PUT /v1/entries/101/bookmark"} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("missing %q in requests:\n%s", expected, joined)
 		}
+	}
+	if strings.Contains(joined, "order=changed_at") {
+		t.Fatalf("unsupported Miniflux order parameter was sent:\n%s", joined)
 	}
 }
 
@@ -203,6 +225,11 @@ func TestNextcloudNewsContract(t *testing.T) {
 		switch r.URL.Path {
 		case "/index.php/apps/news/api/v1-3/feeds":
 			serveFixture(t, w, "nextcloud_feeds.json")
+		case "/index.php/apps/news/api/v1-3/items/updated":
+			if got := r.URL.Query().Get("lastModified"); got != "400" {
+				t.Errorf("lastModified cursor = %q", got)
+			}
+			serveFixture(t, w, "nextcloud_items.json")
 		case "/index.php/apps/news/api/v1-3/items":
 			serveFixture(t, w, "nextcloud_items.json")
 		default:
@@ -221,7 +248,7 @@ func TestNextcloudNewsContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	state := stateByRemoteID(t, delta, "401")
-	if delta.Cursor != "401" || state.GUID != "article-401" || state.FeedRemoteID != "12" {
+	if delta.Cursor != "1710000000" || state.GUID != "article-401" || state.FeedRemoteID != "12" {
 		t.Fatalf("unexpected Nextcloud delta: %+v", delta)
 	}
 	read, starred := true, false

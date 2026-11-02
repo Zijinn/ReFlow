@@ -26,11 +26,15 @@ func (a *nextcloudAdapter) Pull(ctx context.Context, cursor string) (Delta, erro
 	if err := decodeJSONResponse(feedsResponse, &feeds); err != nil {
 		return Delta{}, err
 	}
-	query := url.Values{"type": {"3"}, "getRead": {"false"}, "batchSize": {"1000"}}
+	route := "index.php/apps/news/api/v1-3/items"
+	query := url.Values{"type": {"3"}, "getRead": {"true"}, "batchSize": {"1000"}}
 	if cursor != "" {
-		query.Set("offset", cursor)
+		// offset is a page offset, not an item ID. Use the endpoint that reports
+		// every item changed since the stored lastModified cursor.
+		route = "index.php/apps/news/api/v1-3/items/updated"
+		query.Set("lastModified", cursor)
 	}
-	itemsResponse, err := a.request(ctx, http.MethodGet, "index.php/apps/news/api/v1-3/items", query, nil)
+	itemsResponse, err := a.request(ctx, http.MethodGet, route, query, nil)
 	if err != nil {
 		return Delta{}, err
 	}
@@ -63,8 +67,8 @@ func (a *nextcloudAdapter) Pull(ctx context.Context, cursor string) (Delta, erro
 			GUID: item.GUID, CanonicalURL: item.URL, Read: &read, Starred: &item.Starred,
 			RemoteUpdated: strconv.FormatInt(item.LastModified, 10),
 		})
-		if item.ID > parseInt64(delta.Cursor) {
-			delta.Cursor = strconv.FormatInt(item.ID, 10)
+		if item.LastModified > parseInt64(delta.Cursor) {
+			delta.Cursor = strconv.FormatInt(item.LastModified, 10)
 		}
 	}
 	return delta, nil

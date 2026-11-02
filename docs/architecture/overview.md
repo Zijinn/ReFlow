@@ -85,7 +85,7 @@ RSS is pull-based by default: the scheduler polls due feeds every minute, while 
 
 ## Authentication modes
 
-Loopback mode accepts a short-lived bootstrap secret injected into the desktop webview. LAN mode requires a paired device token and should use HTTPS for installable PWA clients. The server can terminate TLS directly with `REFLOW_TLS_CERT_PATH` and `REFLOW_TLS_KEY_PATH`, or sit behind a trusted reverse proxy. Pairing codes are one-time, expire quickly, and are only displayed on an already trusted client. Device tokens are random, shown once, stored hashed on the server, and revocable.
+Loopback traffic from the local machine is trusted without a bearer token; non-loopback listeners require a paired device token. LAN mode requires TLS unless `REFLOW_ALLOW_INSECURE_LAN=true` is set explicitly for a trusted TLS-terminating reverse proxy. The server can terminate TLS directly with `REFLOW_TLS_CERT_PATH` and `REFLOW_TLS_KEY_PATH`. Pairing codes are one-time, expire quickly, and are only displayed on an already trusted client. Device tokens are random, shown once, stored hashed on the server, and revocable.
 
 ## Content safety
 

@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Zijinn/ReFlow/internal/aiprovider"
 	"github.com/Zijinn/ReFlow/internal/domain"
 	"github.com/Zijinn/ReFlow/internal/service"
 	"github.com/Zijinn/ReFlow/internal/storage"
@@ -343,6 +344,19 @@ func (s *Server) requireAI(w http.ResponseWriter, r *http.Request) bool {
 }
 
 func (s *Server) aiRequestError(w http.ResponseWriter, r *http.Request, err error) {
+	var providerError *aiprovider.Error
+	if errors.As(err, &providerError) {
+		status := http.StatusBadGateway
+		code := "ai_provider_error"
+		if providerError.Code == "rate_limited" {
+			status = http.StatusTooManyRequests
+			code = "ai_rate_limited"
+		} else if providerError.Code == "authentication_error" {
+			code = "ai_authentication_error"
+		}
+		writeProblem(w, r, status, code, "AI provider error", aiprovider.PublicMessage(err))
+		return
+	}
 	switch {
 	case errors.Is(err, storage.ErrNotFound):
 		s.storageError(w, r, err)

@@ -269,32 +269,32 @@ function listInfo(list) {
 }
 
 function snapshot(list) {
-  const reminders = list.reminders();
-  const ids = list.reminders.id();
-  const names = list.reminders.name();
-  const bodies = list.reminders.body();
-  const completed = list.reminders.completed();
-  const allDay = list.reminders.alldayDueDate();
-  const due = list.reminders.dueDate();
-  const modified = list.reminders.modificationDate();
+  // Read one reminder object at a time. Fetching separate id/name/body arrays
+  // lets a concurrent edit in Reminders shift the indexes between AppleEvents,
+  // so the snapshot (and later updates) could describe the wrong reminder.
   const output = [];
-  for (let i = 0; i < ids.length; i++) {
-    output.push({
-      id: ids[i],
-      name: names[i] || "",
-      notes: bodies[i] || "",
-      due_date: iso(allDay[i] || due[i]),
-      completed: !!completed[i],
-      modified_at: iso(modified[i])
-    });
+  for (const reminder of list.reminders()) {
+    try {
+      output.push({
+        id: reminder.id(),
+        name: reminder.name() || "",
+        notes: reminder.body() || "",
+        due_date: iso(reminder.alldayDueDate() || reminder.dueDate()),
+        completed: !!reminder.completed(),
+        modified_at: iso(reminder.modificationDate())
+      });
+    } catch (error) {
+      // The reminder disappeared while we were reading it; skip that row.
+    }
   }
   return output;
 }
 
 function findReminder(list, id) {
-  const ids = list.reminders.id();
-  const index = ids.indexOf(id);
-  return index >= 0 ? list.reminders[index] : null;
+  for (const reminder of list.reminders()) {
+    if (reminder.id() === id) return reminder;
+  }
+  return null;
 }
 
 function parseDate(value) {
@@ -310,8 +310,8 @@ function applyOperations(list, operations) {
         const properties = { name: operation.name || "ReFlow 任务" };
         if (operation.notes) properties.body = operation.notes;
         if (operation.due_date) properties.alldayDueDate = parseDate(operation.due_date);
-        list.reminders.push(app.Reminder(properties));
-        const created = list.reminders[list.reminders.length - 1];
+        const created = app.Reminder(properties);
+        list.reminders.push(created);
         const id = created.id();
         if (operation.completed) created.completed = true;
         results.push({ key: operation.key || "", reminder_id: id, action: "create", ok: true });

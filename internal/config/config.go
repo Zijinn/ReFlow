@@ -24,6 +24,7 @@ type Config struct {
 	TLSKeyPath         string
 	LogLevel           string
 	LANMode            bool
+	AllowInsecureLAN   bool
 	RSSHubBase         string
 	DidaProject        string
 	DidaCommand        string
@@ -66,6 +67,12 @@ func Load() (Config, error) {
 			return Config{}, fmt.Errorf("parse REFLOW_LAN_MODE: %w", err)
 		}
 	}
+	if raw := os.Getenv("REFLOW_ALLOW_INSECURE_LAN"); raw != "" {
+		cfg.AllowInsecureLAN, err = strconv.ParseBool(raw)
+		if err != nil {
+			return Config{}, fmt.Errorf("parse REFLOW_ALLOW_INSECURE_LAN: %w", err)
+		}
+	}
 
 	if dbPath := os.Getenv("REFLOW_DB_PATH"); dbPath != "" {
 		cfg.DBPath = dbPath
@@ -95,6 +102,9 @@ func (c Config) Validate() error {
 
 	if !c.LANMode && !isLoopbackHost(host) {
 		return errors.New("non-loopback REFLOW_ADDR requires REFLOW_LAN_MODE=true")
+	}
+	if c.LANMode && !isLoopbackHost(host) && c.TLSCertPath == "" && !c.AllowInsecureLAN {
+		return errors.New("LAN mode without TLS would expose pairing codes and device tokens in plaintext; configure REFLOW_TLS_CERT_PATH/REFLOW_TLS_KEY_PATH or set REFLOW_ALLOW_INSECURE_LAN=true when a trusted reverse proxy terminates TLS")
 	}
 
 	switch c.LogLevel {

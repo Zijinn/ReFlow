@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -60,6 +61,58 @@ func TestLANModeRequiresPairedDeviceToken(t *testing.T) {
 	server.Handler().ServeHTTP(authorized, authorizedRequest)
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("paired request failed: %d %s", authorized.Code, authorized.Body.String())
+	}
+}
+
+func TestWritesAreRejectedDuringRestore(t *testing.T) {
+	server := newTestServer(t)
+	if err := server.jobs.EnterMaintenance(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	defer server.jobs.ExitMaintenance()
+
+	writeResponse := httptest.NewRecorder()
+	writeRequest := httptest.NewRequest(http.MethodPost, "/api/v1/tags", strings.NewReader(`{"name":"new"}`))
+	writeRequest.RemoteAddr = "127.0.0.1:40000"
+	writeRequest.Host = "127.0.0.1:7381"
+	server.Handler().ServeHTTP(writeResponse, writeRequest)
+	if writeResponse.Code != http.StatusServiceUnavailable {
+		t.Fatalf("write during restore = %d, want 503: %s", writeResponse.Code, writeResponse.Body.String())
+	}
+
+	readResponse := httptest.NewRecorder()
+	readRequest := httptest.NewRequest(http.MethodGet, "/api/v1/feeds", nil)
+	readRequest.RemoteAddr = "127.0.0.1:40001"
+	readRequest.Host = "127.0.0.1:7381"
+	server.Handler().ServeHTTP(readResponse, readRequest)
+	if readResponse.Code != http.StatusOK {
+		t.Fatalf("read during restore = %d, want 200: %s", readResponse.Code, readResponse.Body.String())
+	}
+}
+
+func TestPairingLimiterEnforcesPerPeerAndGlobalBudgets(t *testing.T) {
+	limiter := newPairingLimiter()
+	for attempt := 0; attempt < pairingPerPeer; attempt++ {
+		if !limiter.allow("192.0.2.10") {
+			t.Fatalf("attempt %d was unexpectedly blocked", attempt)
+		}
+	}
+	if limiter.allow("192.0.2.10") {
+		t.Fatal("per-peer pairing budget was not enforced")
+	}
+	if !limiter.allow("192.0.2.11") {
+		t.Fatal("a different peer was blocked by another peer's budget")
+	}
+
+	global := newPairingLimiter()
+	allowed := 0
+	for index := 0; index < pairingGlobalLimit+5; index++ {
+		if global.allow("198.51.100." + strconv.Itoa(index%250+1)) {
+			allowed++
+		}
+	}
+	if allowed != pairingGlobalLimit {
+		t.Fatalf("global pairing budget allowed %d attempts, want %d", allowed, pairingGlobalLimit)
 	}
 }
 
@@ -306,11 +359,10 @@ func TestSecurityHeadersKeepCSPForWebClients(t *testing.T) {
 }
 
 func TestSecurityHeadersAllowWailsResources(t *testing.T) {
-	handler := (&Server{}).securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	handler := (&Server{desktopCSP: true}).securityHeaders(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	request := httptest.NewRequest(http.MethodGet, "/", nil)
-	request.Header.Set("X-Wails-Window-ID", "main")
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 

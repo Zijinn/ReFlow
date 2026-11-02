@@ -37,22 +37,20 @@ func TestHealth(t *testing.T) {
 }
 
 func TestSecurityHeaders(t *testing.T) {
-	handler := newTestServer(t).Handler()
 	for _, test := range []struct {
-		name   string
-		header string
-		want   string
+		name    string
+		desktop bool
+		want    string
 	}{
 		{name: "browser", want: "form-action 'none'"},
-		{name: "wails", header: "X-Wails-Window-ID", want: "wails://"},
+		{name: "desktop", desktop: true, want: "wails://"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			server := newTestServer(t)
+			server.SetDesktopCSP(test.desktop)
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodGet, "/api/v1/status", nil)
-			if test.header != "" {
-				request.Header.Set(test.header, "test-window")
-			}
-			handler.ServeHTTP(recorder, request)
+			server.Handler().ServeHTTP(recorder, request)
 			if got := recorder.Header().Get("X-Frame-Options"); got != "DENY" {
 				t.Fatalf("X-Frame-Options = %q", got)
 			}

@@ -144,6 +144,11 @@ func (s *SyncService) CreateAccount(ctx context.Context, input SyncAccountInput)
 	if err := validateLibrarySyncTransport(provider, endpoint, allowPrivate); err != nil {
 		return domain.SyncAccount{}, err
 	}
+	if !isLibrarySyncProvider(provider) {
+		if err := validateRemoteTransport(endpoint, allowPrivate); err != nil {
+			return domain.SyncAccount{}, err
+		}
+	}
 	if s.box == nil {
 		return domain.SyncAccount{}, errors.New("credential encryption is not configured")
 	}
@@ -197,6 +202,11 @@ func (s *SyncService) UpdateAccount(ctx context.Context, accountID string, input
 	}
 	if err := validateLibrarySyncTransport(record.Account.Provider, endpoint, allowPrivate); err != nil {
 		return domain.SyncAccount{}, err
+	}
+	if !isLibrarySyncProvider(record.Account.Provider) {
+		if err := validateRemoteTransport(endpoint, allowPrivate); err != nil {
+			return domain.SyncAccount{}, err
+		}
 	}
 	patch := storage.SyncAccountPatch{
 		Name: input.Name, Endpoint: input.Endpoint, Enabled: input.Enabled,
@@ -298,6 +308,9 @@ func (s *SyncService) Run(ctx context.Context, accountID string, progress SyncPr
 			mode = strings.ToLower(strings.TrimSpace(requestedMode[0]))
 		}
 		return s.runLibrarySync(ctx, record, credentials, mode, progress, startedAt)
+	}
+	if err := validateRemoteTransport(record.Account.Endpoint, record.Account.AllowPrivateNetwork); err != nil {
+		return result, err
 	}
 	adapter, err := syncadapter.New(record.Account.Provider, record.Account.Endpoint, credentials, s.clientFactory(record.Account.AllowPrivateNetwork))
 	if err != nil {
@@ -430,6 +443,11 @@ func (s *SyncService) applyRemoteState(ctx context.Context, account domain.SyncA
 	_, err = storage.UpdateEntryState(ctx, s.db, domain.DefaultProfileID, entryID, domain.EntryStatePatch{
 		MutationID: mutationID, IsRead: remote.Read, IsStarred: remote.Starred,
 	})
+	if errors.Is(err, storage.ErrNotFound) {
+		// The entry disappeared between lookup and update. Skip this remote
+		// state instead of failing the whole account sync forever.
+		return false, nil
+	}
 	return err == nil, err
 }
 

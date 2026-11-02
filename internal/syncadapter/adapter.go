@@ -17,6 +17,8 @@ import (
 
 var ErrAuthentication = errors.New("sync authentication failed")
 
+const maxSyncPages = 10
+
 type Error struct {
 	Code       string
 	StatusCode int

@@ -40,6 +40,7 @@ func main() {
 
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	handler := httpapi.New(db, logger, desktopWebDir(cfg.WebDir))
+	handler.SetDesktopCSP(true)
 	handler.ConfigureSync(box)
 	handler.ConfigureAI(box)
 	handler.SetRSSHubBase(cfg.RSSHubBase)

@@ -1,6 +1,6 @@
 module github.com/Zijinn/ReFlow
 
-go 1.25.0
+go 1.26.0
 
 require (
 	codeberg.org/readeck/go-readability/v2 v2.1.2
@@ -8,7 +8,7 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/mmcdole/gofeed v1.3.0
 	github.com/wailsapp/wails/v3 v3.0.0-alpha2.117
-	golang.org/x/net v0.53.0
+	golang.org/x/net v0.62.0
 	modernc.org/sqlite v1.46.1
 )
 
@@ -35,8 +35,8 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
-	golang.org/x/sys v0.43.0 // indirect
-	golang.org/x/text v0.37.0 // indirect
+	golang.org/x/sys v0.49.0 // indirect
+	golang.org/x/text v0.43.0 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

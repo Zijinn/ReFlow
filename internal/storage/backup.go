@@ -58,6 +58,10 @@ var restoreSkippedTables = map[string]struct{}{
 	"job_attempts":  {},
 	"sync_accounts": {},
 	"sync_mappings": {},
+	// AI profiles carry an endpoint, an approval flag, and an encrypted API
+	// key. A restored backup must not be able to point the default profile at
+	// a new host or re-approve content transmission; the user re-creates it.
+	"ai_profiles": {},
 }
 
 func ExportBackup(ctx context.Context, db *sql.DB) (BackupDocument, error) {
@@ -195,10 +199,16 @@ func RestoreBackup(ctx context.Context, db *sql.DB, document BackupDocument) err
 		"UPDATE processed_mutations SET device_id = NULL WHERE device_id IS NOT NULL",
 		"UPDATE ai_chat_messages SET job_id = NULL WHERE job_id IS NOT NULL",
 		"UPDATE ai_usage SET job_id = NULL WHERE job_id IS NOT NULL",
+		"UPDATE ai_results SET ai_profile_id = NULL WHERE ai_profile_id IS NOT NULL",
+		"UPDATE ai_chat_sessions SET ai_profile_id = NULL WHERE ai_profile_id IS NOT NULL",
+		"UPDATE ai_usage SET ai_profile_id = NULL WHERE ai_profile_id IS NOT NULL",
 	} {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {
 			return fmt.Errorf("clean restored references: %w", err)
 		}
+	}
+	if err := sanitizeRestoredPreferences(ctx, tx); err != nil {
+		return err
 	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM entries_fts"); err != nil {
 		return fmt.Errorf("clear search index: %w", err)
@@ -300,6 +310,42 @@ func validateBackupForRestore(ctx context.Context, tx *sql.Tx, document BackupDo
 	}
 	if !containsProfiles {
 		return errors.New("backup does not contain a profile")
+	}
+	return nil
+}
+
+func sanitizeRestoredPreferences(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx,
+		"SELECT profile_id, value_json FROM preferences WHERE key = ?", PreferenceRetentionDays)
+	if err != nil {
+		return fmt.Errorf("read restored preferences: %w", err)
+	}
+	type update struct{ profileID string }
+	updates := make([]update, 0)
+	for rows.Next() {
+		var profileID, raw string
+		if err := rows.Scan(&profileID, &raw); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan restored preference: %w", err)
+		}
+		var days int
+		if err := json.Unmarshal([]byte(raw), &days); err != nil || days < 0 || days > 3650 {
+			updates = append(updates, update{profileID: profileID})
+		}
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close restored preferences: %w", err)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("read restored preferences: %w", err)
+	}
+	for _, item := range updates {
+		if _, err := tx.ExecContext(ctx, `
+			UPDATE preferences SET value_json = '0', updated_at = ?
+			WHERE profile_id = ? AND key = ?`,
+			formatTime(time.Now().UTC()), item.profileID, PreferenceRetentionDays); err != nil {
+			return fmt.Errorf("clamp restored retention preference: %w", err)
+		}
 	}
 	return nil
 }

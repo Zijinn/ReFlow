@@ -238,6 +238,47 @@ func TestManagerMaintenanceIsExclusive(t *testing.T) {
 	manager.ExitMaintenance()
 }
 
+func TestManagerRecoversHandlerPanic(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	db, err := storage.Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	manager := NewManager(db, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), 1)
+	manager.Register("test.panic", func(context.Context, domain.Job, ProgressFunc) error {
+		panic("boom")
+	})
+	afterPanic := make(chan struct{})
+	manager.Register("test.after-panic", func(context.Context, domain.Job, ProgressFunc) error {
+		close(afterPanic)
+		return nil
+	})
+	if err := manager.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	panicked, err := manager.Enqueue(ctx, "test.panic", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, 3*time.Second, func() bool {
+		var state, code string
+		err := db.QueryRowContext(ctx,
+			"SELECT state, COALESCE(error_code, '') FROM jobs WHERE id = ?", panicked.ID).Scan(&state, &code)
+		return err == nil && state == "failed" && code == "panic"
+	}, "panicking job was not failed with panic code")
+	if _, err := manager.Enqueue(ctx, "test.after-panic", nil); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-afterPanic:
+	case <-time.After(3 * time.Second):
+		t.Fatal("manager stopped processing jobs after a handler panic")
+	}
+}
+
 func eventually(t *testing.T, timeout time.Duration, condition func() bool, message string) {
 	t.Helper()
 	deadline := time.Now().Add(timeout)

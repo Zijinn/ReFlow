@@ -337,6 +337,55 @@ type ruleActions struct {
 	AddTagIDs []string `json:"add_tag_ids"`
 }
 
+const ruleCandidateBatch = 500
+
+type ruleCandidate struct{ id, title, author string }
+
+func ruleCandidates(ctx context.Context, db *sql.DB, feedID string, entryIDs []string) ([]ruleCandidate, error) {
+	const baseQuery = "SELECT id, title, COALESCE(author, '') FROM entries WHERE feed_id = ?"
+	if entryIDs == nil {
+		rows, err := db.QueryContext(ctx, baseQuery, feedID)
+		if err != nil {
+			return nil, err
+		}
+		return scanRuleCandidates(rows)
+	}
+	candidates := make([]ruleCandidate, 0, len(entryIDs))
+	for start := 0; start < len(entryIDs); start += ruleCandidateBatch {
+		end := min(start+ruleCandidateBatch, len(entryIDs))
+		placeholders := make([]string, end-start)
+		args := make([]any, 0, 1+end-start)
+		args = append(args, feedID)
+		for index, id := range entryIDs[start:end] {
+			placeholders[index] = "?"
+			args = append(args, id)
+		}
+		rows, err := db.QueryContext(ctx, baseQuery+" AND id IN ("+strings.Join(placeholders, ",")+")", args...)
+		if err != nil {
+			return nil, err
+		}
+		page, err := scanRuleCandidates(rows)
+		if err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, page...)
+	}
+	return candidates, nil
+}
+
+func scanRuleCandidates(rows *sql.Rows) ([]ruleCandidate, error) {
+	defer rows.Close()
+	candidates := make([]ruleCandidate, 0)
+	for rows.Next() {
+		var item ruleCandidate
+		if err := rows.Scan(&item.id, &item.title, &item.author); err != nil {
+			return nil, err
+		}
+		candidates = append(candidates, item)
+	}
+	return candidates, rows.Err()
+}
+
 // ApplyRulesToFeed evaluates enabled rules against the feed's entries. When
 // entryIDs is non-nil only those entries are considered; an empty non-nil
 // slice short-circuits, so refresh cycles without new entries cost nothing.
@@ -348,31 +397,8 @@ func ApplyRulesToFeed(ctx context.Context, db *sql.DB, profileID, feedID string,
 	if entryIDs != nil && len(entryIDs) == 0 {
 		return nil
 	}
-	query := "SELECT id, title, COALESCE(author, '') FROM entries WHERE feed_id = ?"
-	args := []any{feedID}
-	if entryIDs != nil {
-		placeholders := make([]string, len(entryIDs))
-		for index, id := range entryIDs {
-			placeholders[index] = "?"
-			args = append(args, id)
-		}
-		query += " AND id IN (" + strings.Join(placeholders, ",") + ")"
-	}
-	rows, err := db.QueryContext(ctx, query, args...)
+	candidates, err := ruleCandidates(ctx, db, feedID, entryIDs)
 	if err != nil {
-		return err
-	}
-	type candidate struct{ id, title, author string }
-	candidates := make([]candidate, 0)
-	for rows.Next() {
-		var item candidate
-		if err := rows.Scan(&item.id, &item.title, &item.author); err != nil {
-			rows.Close()
-			return err
-		}
-		candidates = append(candidates, item)
-	}
-	if err := rows.Close(); err != nil {
 		return err
 	}
 	tx, err := db.BeginTx(ctx, nil)

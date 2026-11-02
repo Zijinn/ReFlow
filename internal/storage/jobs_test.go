@@ -57,6 +57,43 @@ func TestJobLifecycleAndRecovery(t *testing.T) {
 	}
 }
 
+func TestPruneJobsDeletesOnlyTerminalJobs(t *testing.T) {
+	ctx := context.Background()
+	db, err := Open(ctx, filepath.Join(t.TempDir(), "reflow.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	old := time.Now().UTC().Add(-48 * time.Hour)
+	finished, err := CreateJob(ctx, db, "test.finished", nil, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.ExecContext(ctx, `
+		UPDATE jobs SET state = 'succeeded', started_at = ?, finished_at = ?, updated_at = ?
+		WHERE id = ?`, formatTime(old), formatTime(old), formatTime(old), finished.ID); err != nil {
+		t.Fatal(err)
+	}
+	queued, err := CreateJob(ctx, db, "test.queued", nil, time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	pruned, err := PruneJobs(ctx, db, time.Now().UTC().Add(-24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pruned != 1 {
+		t.Fatalf("pruned %d jobs, want 1", pruned)
+	}
+	if _, err := GetJob(ctx, db, finished.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("finished job still present: %v", err)
+	}
+	if _, err := GetJob(ctx, db, queued.ID); err != nil {
+		t.Fatalf("queued job was removed: %v", err)
+	}
+}
+
 func TestConcurrentUniqueJobEnqueue(t *testing.T) {
 	tests := []struct {
 		name    string

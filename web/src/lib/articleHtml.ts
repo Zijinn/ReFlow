@@ -22,6 +22,13 @@ export const articleSanitizeConfig: Config = {
   FORBID_ATTR: ["style", "action", "formaction", "srcdoc"],
 }
 
+DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+  if (node.nodeName === "A" && node.getAttribute("href")) {
+    node.setAttribute("target", "_blank")
+    node.setAttribute("rel", "noopener noreferrer")
+  }
+})
+
 export function sanitizeArticleHTML(html: string): string {
   return DOMPurify.sanitize(html, articleSanitizeConfig)
 }

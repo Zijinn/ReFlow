@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -25,6 +26,7 @@ type Handler func(ctx context.Context, job domain.Job, progress ProgressFunc) er
 var (
 	ErrJobAlreadyQueued = storage.ErrJobAlreadyQueued
 	ErrMaintenance      = errors.New("job manager is in maintenance mode")
+	ErrJobPanicked      = errors.New("job handler panicked")
 )
 
 type execution struct {
@@ -272,6 +274,11 @@ func (m *Manager) runCleanup(ctx context.Context) {
 	} else if pruned > 0 {
 		m.logger.InfoContext(ctx, "pruned processed mutations", "rows", pruned)
 	}
+	if pruned, err := storage.PruneJobs(ctx, m.db, cutoff); err != nil {
+		m.logger.WarnContext(ctx, "prune finished jobs", "error", err)
+	} else if pruned > 0 {
+		m.logger.InfoContext(ctx, "pruned finished jobs", "rows", pruned)
+	}
 	retentionDays, err := storage.RetentionDays(ctx, m.db, domain.DefaultProfileID)
 	if err != nil {
 		m.logger.WarnContext(ctx, "read retention preference", "error", err)
@@ -459,7 +466,7 @@ func (m *Manager) execute(ctx context.Context, current domain.Job) {
 		}
 		m.publish("job.progress", map[string]any{"id": current.ID, "current": completed, "total": total})
 	}
-	if err := handler(jobCtx, current, progress); err != nil {
+	if err := m.runHandler(jobCtx, current, handler, progress); err != nil {
 		if stored, getErr := storage.GetJob(context.Background(), m.db, current.ID); getErr == nil && stored.State == "cancelled" {
 			if attemptID != "" {
 				_ = storage.FinishJobAttempt(context.Background(), m.db, attemptID, "cancelled", "cancelled", "Cancelled by user")
@@ -480,6 +487,19 @@ func (m *Manager) execute(ctx context.Context, current domain.Job) {
 	if completed, err := storage.GetJob(ctx, m.db, current.ID); err == nil {
 		m.publish("job.succeeded", completed)
 	}
+}
+
+// runHandler isolates a handler panic to its job. Without this a single nil
+// dereference in feed parsing, sync, AI, or OPML takes down the whole process
+// and turns the next startup recovery into a crash loop.
+func (m *Manager) runHandler(ctx context.Context, current domain.Job, handler Handler, progress ProgressFunc) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			m.logger.ErrorContext(ctx, "job handler panic", "job_id", current.ID, "kind", current.Kind, "panic", recovered, "stack", string(debug.Stack()))
+			err = fmt.Errorf("%w: %v", ErrJobPanicked, recovered)
+		}
+	}()
+	return handler(ctx, current, progress)
 }
 
 func (m *Manager) fail(_ context.Context, current domain.Job, attemptID, code, message string) {
@@ -534,6 +554,9 @@ func (m *Manager) scheduleDueSyncAccounts(ctx context.Context) {
 func jobErrorCode(err error) string {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return "cancelled"
+	}
+	if errors.Is(err, ErrJobPanicked) {
+		return "panic"
 	}
 	var fetchError *feedcore.FetchError
 	if errors.As(err, &fetchError) {

@@ -277,6 +277,18 @@ func DeleteSubscription(ctx context.Context, db *sql.DB, profileID, feedID strin
 			feedID); err != nil {
 			return fmt.Errorf("delete feed search rows: %w", err)
 		}
+		// sync_mappings is not a foreign-key child of entries. Leaving a
+		// mapping to a deleted entry makes the next remote state update fail
+		// with ErrNotFound and blocks that account's cursor forever.
+		if _, err := tx.ExecContext(ctx, `
+			DELETE FROM sync_mappings WHERE local_kind = 'entry'
+				AND local_id IN (SELECT id FROM entries WHERE feed_id = ?)`, feedID); err != nil {
+			return fmt.Errorf("delete feed sync mappings: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			"DELETE FROM sync_mappings WHERE local_kind = 'feed' AND local_id = ?", feedID); err != nil {
+			return fmt.Errorf("delete feed sync mapping: %w", err)
+		}
 	}
 	if _, err := tx.ExecContext(ctx, `
 		DELETE FROM feeds WHERE id = ? AND NOT EXISTS (

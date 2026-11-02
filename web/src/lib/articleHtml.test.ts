@@ -9,6 +9,12 @@ describe("sanitizeArticleHTML", () => {
     expect(cleaned).toContain("<math>")
   })
 
+  it("opens article links in a new tab without an opener", () => {
+    const cleaned = sanitizeArticleHTML('<a href="https://example.com">source</a>')
+    expect(cleaned).toContain('target="_blank"')
+    expect(cleaned).toContain('rel="noopener noreferrer"')
+  })
+
   it("removes forms, controls and inline layout overlays", () => {
     const cleaned = sanitizeArticleHTML(
       '<p>OK</p><form action="https://evil.example"><input name="password"><button type="submit">Login</button></form><div style="position:fixed;inset:0;z-index:9999">overlay</div>',

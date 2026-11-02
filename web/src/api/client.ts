@@ -69,12 +69,18 @@ export class APIError extends Error {
   }
 }
 
+// Device auth travels in the HttpOnly `reflow_device` cookie. Remove the old
+// readable copy so an XSS cannot lift a long-lived bearer token from localStorage.
+try {
+  if (typeof localStorage !== "undefined") localStorage.removeItem("reflow-device-token")
+} catch {
+  // Storage can be blocked for opaque origins; the cookie still authenticates.
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   headers.set("Accept", "application/json")
   if (init.body && typeof init.body === "string") headers.set("Content-Type", "application/json")
-  const token = localStorage.getItem("reflow-device-token")
-  if (token) headers.set("Authorization", `Bearer ${token}`)
   const response = await fetch(path, { ...init, headers, credentials: "same-origin" })
   if (!response.ok) {
     let problem: Problem | undefined
@@ -102,7 +108,6 @@ export async function pairDevice(input: {
     method: "POST",
     body: JSON.stringify(input),
   })
-  localStorage.setItem("reflow-device-token", response.token)
   return response.device
 }
 
@@ -864,8 +869,6 @@ function libraryScopeFilters(scope: LibraryScope): Record<string, string> {
 
 export async function importOPML(file: File): Promise<Job> {
   const headers = new Headers({ "Content-Type": "application/xml; charset=utf-8" })
-  const token = localStorage.getItem("reflow-device-token")
-  if (token) headers.set("Authorization", `Bearer ${token}`)
   const body = await file.text()
   const response = await fetch("/api/v1/imports/opml", {
     method: "POST",
@@ -887,8 +890,6 @@ export async function restoreBackup(file: File): Promise<void> {
     throw new APIError(413, "Backup file is larger than 256 MB")
   }
   const headers = new Headers({ "Content-Type": "application/json" })
-  const token = localStorage.getItem("reflow-device-token")
-  if (token) headers.set("Authorization", `Bearer ${token}`)
   const body = await file.text()
   const response = await fetch("/api/v1/restore", {
     method: "POST",
@@ -904,8 +905,6 @@ export async function restoreBackup(file: File): Promise<void> {
 
 export async function downloadFile(path: string, filename: string): Promise<void> {
   const headers = new Headers()
-  const token = localStorage.getItem("reflow-device-token")
-  if (token) headers.set("Authorization", `Bearer ${token}`)
   const response = await fetch(path, { headers, credentials: "same-origin" })
   if (!response.ok) {
     const problem = (await response.json().catch(() => undefined)) as Problem | undefined

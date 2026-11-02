@@ -618,18 +618,32 @@ func (s *Server) cancelJob(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, item)
 }
 
+const maxSSEClients = 64
+
 func (s *Server) streamEvents(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		writeProblem(w, r, http.StatusInternalServerError, "stream_unsupported", "Streaming unavailable", "The HTTP server does not support streaming.")
 		return
 	}
+	if s.sseClients.Add(1) > maxSSEClients {
+		s.sseClients.Add(-1)
+		writeProblem(w, r, http.StatusServiceUnavailable, "too_many_streams", "Too many streams", "Close another ReFlow client and reconnect.")
+		return
+	}
+	defer s.sseClients.Add(-1)
 	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache, no-transform")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 	events, unsubscribe := s.events.Subscribe()
+	if raw := strings.TrimSpace(r.Header.Get("Last-Event-ID")); raw != "" {
+		if lastID, err := strconv.ParseUint(raw, 10, 64); err == nil {
+			unsubscribe()
+			events, unsubscribe = s.events.SubscribeSince(lastID)
+		}
+	}
 	defer unsubscribe()
 	_, _ = io.WriteString(w, "event: connected\ndata: {\"status\":\"ready\"}\n\n")
 	flusher.Flush()

@@ -38,7 +38,7 @@ func (p URLPolicy) Validate(ctx context.Context, target *url.URL) error {
 		return err
 	}
 	for _, address := range addresses {
-		if !p.AllowPrivate && isBlockedAddress(address) {
+		if p.blocked(address) {
 			return fmt.Errorf("%w: %s", ErrBlockedAddress, address.String())
 		}
 	}
@@ -61,7 +61,7 @@ func (p URLPolicy) DialContext(ctx context.Context, network, address string) (ne
 	dialer := net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}
 	var failures []error
 	for _, candidate := range addresses {
-		if !p.AllowPrivate && isBlockedAddress(candidate) {
+		if p.blocked(candidate) {
 			failures = append(failures, fmt.Errorf("%w: %s", ErrBlockedAddress, candidate.String()))
 			continue
 		}
@@ -100,11 +100,34 @@ func (p URLPolicy) lookup(ctx context.Context, host string) ([]netip.Addr, error
 	return result, nil
 }
 
+func (p URLPolicy) blocked(address netip.Addr) bool {
+	if !p.AllowPrivate {
+		return isBlockedAddress(address)
+	}
+	return isBlockedEvenWithPrivateAccess(address)
+}
+
 func isBlockedAddress(address netip.Addr) bool {
 	if !address.IsValid() || address.IsUnspecified() || address.IsLoopback() || address.IsPrivate() ||
 		address.IsLinkLocalUnicast() || address.IsLinkLocalMulticast() || address.IsMulticast() {
 		return true
 	}
+	return containsBlockedPrefix(address)
+}
+
+// isBlockedEvenWithPrivateAccess permits RFC1918/ULA and loopback endpoints for
+// self-hosted services such as Ollama, but keeps link-local and metadata
+// addresses unreachable. Allowing every private address family would turn the
+// private-network toggle into a metadata-service SSRF primitive.
+func isBlockedEvenWithPrivateAccess(address netip.Addr) bool {
+	if !address.IsValid() || address.IsUnspecified() ||
+		address.IsLinkLocalUnicast() || address.IsLinkLocalMulticast() || address.IsMulticast() {
+		return true
+	}
+	return containsBlockedPrefix(address)
+}
+
+func containsBlockedPrefix(address netip.Addr) bool {
 	for _, prefix := range blockedPrefixes {
 		if prefix.Contains(address) {
 			return true
@@ -131,4 +154,7 @@ var blockedPrefixes = []netip.Prefix{
 	netip.MustParsePrefix("2002::/16"),
 	netip.MustParsePrefix("64:ff9b::/96"),
 	netip.MustParsePrefix("64:ff9b:1::/48"),
+	// AWS IPv6 instance metadata; a ULA address, so IsPrivate alone cannot
+	// distinguish it from a legitimate LAN endpoint.
+	netip.MustParsePrefix("fd00:ec2::254/128"),
 }

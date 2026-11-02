@@ -135,10 +135,14 @@ func ClaimNextJob(ctx context.Context, db *sql.DB) (*domain.Job, error) {
 
 func RecoverRunningJobs(ctx context.Context, db *sql.DB) error {
 	now := time.Now().UTC()
+	// Backdate by one second: RFC3339Nano strings compare lexicographically,
+	// and two time.Now calls around startup can otherwise produce a scheduled
+	// stamp that sorts just after the claim query's clock.
+	due := now.Add(-time.Second)
 	_, err := db.ExecContext(ctx, `
 		UPDATE jobs SET state = 'queued', started_at = NULL,
 			error_code = 'interrupted', error_message = 'Recovered after process restart',
-			scheduled_at = ?, updated_at = ? WHERE state = 'running'`, formatTime(now), formatTime(now))
+			scheduled_at = ?, updated_at = ? WHERE state = 'running'`, formatTime(due), formatTime(now))
 	if err != nil {
 		return fmt.Errorf("recover running jobs: %w", err)
 	}
@@ -220,6 +224,40 @@ func FailJob(ctx context.Context, db *sql.DB, jobID, code, message string) error
 		return ErrNotFound
 	}
 	return nil
+}
+
+// PruneJobs removes terminal jobs and their attempts older than the cutoff.
+// Without it the jobs table grows forever from feed refresh and AI history.
+func PruneJobs(ctx context.Context, db *sql.DB, olderThan time.Time) (int64, error) {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin job prune: %w", err)
+	}
+	defer tx.Rollback()
+	cutoff := formatTime(olderThan)
+	if _, err := tx.ExecContext(ctx, `
+		DELETE FROM job_attempts WHERE job_id IN (
+			SELECT id FROM jobs
+			WHERE state IN ('succeeded', 'failed', 'cancelled')
+				AND finished_at IS NOT NULL AND finished_at < ?
+		)`, cutoff); err != nil {
+		return 0, fmt.Errorf("prune job attempts: %w", err)
+	}
+	result, err := tx.ExecContext(ctx, `
+		DELETE FROM jobs
+		WHERE state IN ('succeeded', 'failed', 'cancelled')
+			AND finished_at IS NOT NULL AND finished_at < ?`, cutoff)
+	if err != nil {
+		return 0, fmt.Errorf("prune jobs: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit job prune: %w", err)
+	}
+	return affected, nil
 }
 
 func HasPendingFeedRefresh(ctx context.Context, db *sql.DB, feedID string) (bool, error) {

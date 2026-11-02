@@ -31,7 +31,7 @@ func TestValidateAllowsLoopback(t *testing.T) {
 	}
 }
 
-func TestValidateAllowsLANAddressInLANMode(t *testing.T) {
+func TestValidateRejectsLANAddressWithoutTLSOrExplicitOptIn(t *testing.T) {
 	cfg := Config{
 		Address:       "0.0.0.0:7381",
 		DataDir:       t.TempDir(),
@@ -40,8 +40,39 @@ func TestValidateAllowsLANAddressInLANMode(t *testing.T) {
 		LogLevel:      "info",
 		LANMode:       true,
 	}
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected plaintext LAN mode to be rejected")
+	}
+}
+
+func TestValidateAllowsLANAddressWithExplicitInsecureOptIn(t *testing.T) {
+	cfg := Config{
+		Address:          "0.0.0.0:7381",
+		DataDir:          t.TempDir(),
+		DBPath:           t.TempDir() + "/reflow.db",
+		MasterKeyPath:    t.TempDir() + "/master.key",
+		LogLevel:         "info",
+		LANMode:          true,
+		AllowInsecureLAN: true,
+	}
 	if err := cfg.Validate(); err != nil {
-		t.Fatalf("expected LAN config to be valid: %v", err)
+		t.Fatalf("expected explicitly insecure LAN config to be valid: %v", err)
+	}
+}
+
+func TestValidateAllowsLANAddressWithTLS(t *testing.T) {
+	cfg := Config{
+		Address:       "0.0.0.0:7381",
+		DataDir:       t.TempDir(),
+		DBPath:        t.TempDir() + "/reflow.db",
+		MasterKeyPath: t.TempDir() + "/master.key",
+		LogLevel:      "info",
+		LANMode:       true,
+		TLSCertPath:   t.TempDir() + "/server.crt",
+		TLSKeyPath:    t.TempDir() + "/server.key",
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("expected TLS LAN config to be valid: %v", err)
 	}
 }
 

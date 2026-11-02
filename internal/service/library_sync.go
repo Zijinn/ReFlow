@@ -94,7 +94,7 @@ func (s *SyncService) runLibrarySync(
 
 	switch action {
 	case "push":
-		if err := s.writeRemoteSnapshot(ctx, record, credentials, local, remoteExists, remoteETag); err != nil {
+		if err := s.writeRemoteSnapshot(ctx, record, credentials, local, remoteExists, remoteETag, mode == "push"); err != nil {
 			return SyncResult{}, err
 		}
 		remoteHash = localHash
@@ -112,6 +112,21 @@ func (s *SyncService) runLibrarySync(
 				return SyncResult{}, fmt.Errorf("pause background jobs for library restore: %w", err)
 			}
 			defer s.maintenance.ExitMaintenance()
+		}
+		// Re-read after the write gate is active. A read/star/task write that
+		// landed between the initial export and EnterMaintenance would otherwise
+		// be silently deleted by the restored copy.
+		current, err := storage.ExportLibrarySnapshot(ctx, s.db)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		currentHash, err := storage.LibrarySnapshotFingerprint(current)
+		if err != nil {
+			return SyncResult{}, err
+		}
+		if currentHash != localHash {
+			return SyncResult{Action: "conflict", LocalFingerprint: currentHash, RemoteFingerprint: remoteHash},
+				&syncadapter.Error{Code: "conflict", Err: errors.New("local library changed while reading the remote snapshot; run sync again")}
 		}
 		if err := storage.RestoreLibrarySnapshot(ctx, s.db, s.feeds.SanitizeSnapshot(remote)); err != nil {
 			return SyncResult{}, err
@@ -231,7 +246,7 @@ func (s *SyncService) readRemoteSnapshot(ctx context.Context, record storage.Syn
 // the copy on the server. Without the precondition two devices syncing at once
 // would silently overwrite each other and the next auto run would see a snapshot
 // that belongs to neither device's cursor.
-func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials, document storage.BackupDocument, remoteExists bool, etag string) error {
+func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.SyncAccountRecord, credentials syncadapter.Credentials, document storage.BackupDocument, remoteExists bool, etag string, allowUnconditional bool) error {
 	body, err := json.Marshal(document)
 	if err != nil {
 		return fmt.Errorf("encode ReFlow snapshot: %w", err)
@@ -265,6 +280,12 @@ func (s *SyncService) writeRemoteSnapshot(ctx context.Context, record storage.Sy
 			return fmt.Errorf("replace iCloud snapshot: %w", err)
 		}
 		return nil
+	}
+	if remoteExists && etag == "" && !allowUnconditional {
+		// A weak or missing validator cannot guard a conditional PUT. Refusing
+		// automatic overwrite is safer than letting two devices race and then
+		// pulling the wrong snapshot on the next run.
+		return &syncadapter.Error{Code: "validator_missing", Err: errors.New("the WebDAV server did not provide a strong ETag; use an explicit push to overwrite it")}
 	}
 	preconditions := http.Header{}
 	if etag != "" {

@@ -99,8 +99,6 @@ async function replayStateMutation(
       "Content-Type": "application/json",
       Accept: "application/json",
     })
-    const token = localStorage.getItem("reflow-device-token")
-    if (token) headers.set("Authorization", `Bearer ${token}`)
     response = await fetch(`/api/v1/entries/${encodeURIComponent(record.entryID)}/state`, {
       method: "PATCH",
       headers,
@@ -135,6 +133,14 @@ export async function clearOfflineStorage(): Promise<void> {
   }
   if (typeof caches !== "undefined") {
     await caches.delete("reflow-entry-api")
+  }
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem("reflow-device-token")
+      localStorage.removeItem("reflow-daily-digest")
+    }
+  } catch {
+    // Ignore blocked storage; the server-side device token is already revoked.
   }
 }
 

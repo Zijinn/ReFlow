@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Zijinn/ReFlow/internal/domain"
@@ -41,6 +42,8 @@ type Server struct {
 	jobs               *job.Manager
 	events             *event.Hub
 	security           SecurityConfig
+	desktopCSP         bool
+	sseClients         atomic.Int64
 	handler            http.Handler
 	pairs              *pairingLimiter
 	didaProject        string
@@ -124,8 +127,15 @@ func NewWithFetcher(db *sql.DB, logger *slog.Logger, webDir string, fetcher *fee
 	mux.HandleFunc("GET /api/v1/{$}", s.apiRoot)
 	mux.HandleFunc("/api/", s.notFound)
 	mux.HandleFunc("/", s.web)
-	s.handler = s.requestID(s.cors(s.authenticate(s.recoverPanic(s.securityHeaders(s.requestLog(mux))))))
+	s.handler = s.requestID(s.securityHeaders(s.cors(s.authenticate(s.rejectWritesDuringRestore(s.recoverPanic(s.requestLog(mux)))))))
 	return s
+}
+
+// SetDesktopCSP selects the WKWebView policy for the desktop adapter. This is
+// process configuration, not request input: a request header must never be able
+// to relax CSP for an arbitrary client.
+func (s *Server) SetDesktopCSP(enabled bool) {
+	s.desktopCSP = enabled
 }
 
 func (s *Server) Start(ctx context.Context) error {
@@ -383,15 +393,41 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		if r.TLS != nil {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		// WKWebView loads the embedded frontend through the wails:// scheme. A
 		// browser-oriented 'self' CSP blocks those module resources before they
-		// reach this server, so desktop requests get a CSP that names the Wails
-		// scheme instead of no CSP at all. Both policies keep forms and framing
-		// closed; article content is additionally sanitised client-side.
-		if r.Header.Get("X-Wails-Window-ID") == "" {
+		// reach this server, so the desktop process gets a CSP that names the
+		// Wails scheme. The choice comes from process configuration, never from
+		// a request header.
+		if !s.desktopCSP {
 			w.Header().Set("Content-Security-Policy", "default-src 'self'; img-src 'self' data: https:; media-src 'self' https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 		} else {
 			w.Header().Set("Content-Security-Policy", "default-src 'self' wails://* http://wails.localhost; img-src 'self' data: https: wails://*; media-src 'self' https: wails://*; style-src 'self' 'unsafe-inline' wails://*; script-src 'self' 'unsafe-inline' 'unsafe-eval' wails://*; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* wails://*; frame-src https:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// rejectWritesDuringRestore closes the gap between exporting a snapshot and
+// replacing the tables. Without it, a read/star/task write accepted during the
+// restore window is silently deleted by the restored copy.
+func (s *Server) rejectWritesDuringRestore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.jobs != nil && s.jobs.InMaintenance() {
+			switch r.Method {
+			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+				if strings.HasPrefix(r.URL.Path, "/api/") {
+					w.Header().Set("Retry-After", "5")
+					writeProblem(w, r, http.StatusServiceUnavailable, "restore_in_progress",
+						"Restore in progress", "The library is being restored; retry after it finishes.")
+					return
+				}
+			}
 		}
 		next.ServeHTTP(w, r)
 	})

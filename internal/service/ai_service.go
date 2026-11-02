@@ -155,6 +155,9 @@ func (s *AIService) CreateProfile(ctx context.Context, input AIProfileInput) (do
 	if err != nil {
 		return domain.AIProfile{}, err
 	}
+	if err := validateRemoteTransport(endpoint, input.AllowPrivateNetwork); err != nil {
+		return domain.AIProfile{}, err
+	}
 	if s.box == nil {
 		return domain.AIProfile{}, errors.New("credential encryption is not configured")
 	}
@@ -199,6 +202,13 @@ func (s *AIService) UpdateProfile(ctx context.Context, profileID string, input A
 	}
 	_, name, endpoint, model, settingsJSON, err := validateAIProfile(record.Profile.Provider, name, endpoint, model, settings)
 	if err != nil {
+		return domain.AIProfile{}, err
+	}
+	allowPrivate := record.Profile.AllowPrivateNetwork
+	if input.AllowPrivateNetwork != nil {
+		allowPrivate = *input.AllowPrivateNetwork
+	}
+	if err := validateRemoteTransport(endpoint, allowPrivate); err != nil {
 		return domain.AIProfile{}, err
 	}
 	patch := storage.AIProfilePatch{
@@ -297,7 +307,7 @@ func (s *AIService) RunOperation(ctx context.Context, jobID string, payload AIOp
 	}
 	response, err := provider.Complete(ctx, aiprovider.Request{Model: record.Profile.Model, Messages: messages, Temperature: settings.Temperature})
 	if err != nil {
-		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), err.Error())
+		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), aiprovider.PublicMessage(err))
 		return domain.AIResult{}, err
 	}
 	if payload.Operation == "academic_tags" {
@@ -593,7 +603,7 @@ func (s *AIService) RunChat(ctx context.Context, jobID string, payload AIChatPay
 	}
 	response, err := provider.Complete(ctx, aiprovider.Request{Model: record.Profile.Model, Messages: messages, Temperature: settings.Temperature})
 	if err != nil {
-		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), err.Error())
+		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), aiprovider.PublicMessage(err))
 		return domain.AIChatSession{}, err
 	}
 	usage := domain.AIUsage{InputTokens: response.Usage.InputTokens, OutputTokens: response.Usage.OutputTokens, TotalTokens: response.Usage.TotalTokens}
@@ -655,7 +665,7 @@ func (s *AIService) RunResearch(ctx context.Context, jobID string, payload AIRes
 	}
 	response, err := provider.Complete(ctx, aiprovider.Request{Model: record.Profile.Model, Messages: messages, Temperature: settings.Temperature})
 	if err != nil {
-		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), err.Error())
+		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), aiprovider.PublicMessage(err))
 		return domain.AIChatSession{}, err
 	}
 	usage := domain.AIUsage{InputTokens: response.Usage.InputTokens, OutputTokens: response.Usage.OutputTokens, TotalTokens: response.Usage.TotalTokens}
@@ -744,7 +754,7 @@ func (s *AIService) FillMetadata(ctx context.Context, profileID, raw string) (AI
 	defer cancel()
 	response, err := provider.Complete(ctx, aiprovider.Request{Model: record.Profile.Model, Messages: metadataFillMessages(raw), Temperature: settings.Temperature})
 	if err != nil {
-		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), err.Error())
+		_ = storage.MarkAIProfileFailure(context.Background(), s.db, record.Profile.ID, aiprovider.ErrorCode(err), aiprovider.PublicMessage(err))
 		return AIMetadataFill{}, err
 	}
 	filled, err := parseMetadataFill(response.Content)
@@ -854,6 +864,9 @@ func (s *AIService) resolveProfile(ctx context.Context, profileID string) (stora
 }
 
 func (s *AIService) provider(record storage.AIProfileRecord) (aiprovider.Provider, error) {
+	if err := validateRemoteTransport(record.Profile.Endpoint, record.Profile.AllowPrivateNetwork); err != nil {
+		return nil, err
+	}
 	apiKey, err := s.decryptAPIKey(record)
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package aiprovider
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,16 @@ import (
 	"path/filepath"
 	"testing"
 )
+
+func TestPublicMessageDoesNotExposeProviderBody(t *testing.T) {
+	message := PublicMessage(&Error{
+		Code: "http_error", StatusCode: http.StatusBadGateway,
+		Err: errors.New("internal prompt and metadata-service body"),
+	})
+	if message != "The AI provider returned HTTP 502." {
+		t.Fatalf("unexpected public message: %q", message)
+	}
+}
 
 func TestOpenAICompatibleContract(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

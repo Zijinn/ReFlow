@@ -176,6 +176,9 @@ func RestoreLibrarySnapshot(ctx context.Context, db *sql.DB, document BackupDocu
 	`); err != nil {
 		return fmt.Errorf("clean local snapshot references: %w", err)
 	}
+	if err := sanitizeRestoredPreferences(ctx, tx); err != nil {
+		return err
+	}
 	if _, err := tx.ExecContext(ctx, "DELETE FROM entries_fts"); err != nil {
 		return fmt.Errorf("clear search index: %w", err)
 	}

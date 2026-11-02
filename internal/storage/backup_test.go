@@ -1,8 +1,8 @@
 package storage
 
 import (
-	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io/fs"
 	"path/filepath"
@@ -269,7 +269,7 @@ func TestBackupExcludesRuntimeAndSecurityTablesAndSkipsThemOnRestore(t *testing.
 	}
 }
 
-func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
+func TestBackupRestoreExcludesCredentials(t *testing.T) {
 	ctx := context.Background()
 	keyPath := filepath.Join(t.TempDir(), "master.key")
 	box, err := secretbox.LoadOrCreate(keyPath)
@@ -315,22 +315,41 @@ func TestBackupRestorePreservesEncryptedCredentialsWithMasterKey(t *testing.T) {
 	if err := RestoreBackup(ctx, target, document); err != nil {
 		t.Fatal(err)
 	}
-	aiRecord, err := GetAIProfileRecord(ctx, target, domain.DefaultProfileID, "backup-ai-profile")
-	if err != nil {
-		t.Fatal(err)
-	}
-	decryptedAI, err := box.Open(aiRecord.EncryptedAPIKey, []byte("reflow:ai-profile:backup-ai-profile"))
-	if err != nil || !bytes.Equal(decryptedAI, []byte("ai-secret")) {
-		t.Fatalf("AI credential did not recover with the original key: %q %v", decryptedAI, err)
+	if _, err := GetAIProfileRecord(ctx, target, domain.DefaultProfileID, "backup-ai-profile"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("AI profile credentials must not be restored from a portable backup: %v", err)
 	}
 	if _, err := GetSyncAccountRecord(ctx, target, domain.DefaultProfileID, "backup-sync-account"); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("sync account must not be restored from a portable backup: %v", err)
 	}
-	otherBox, err := secretbox.LoadOrCreate(filepath.Join(t.TempDir(), "other.key"))
+}
+
+func TestRestoreBackupClampsRetentionPreference(t *testing.T) {
+	ctx := context.Background()
+	source, err := Open(ctx, filepath.Join(t.TempDir(), "source.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := otherBox.Open(aiRecord.EncryptedAPIKey, []byte("reflow:ai-profile:backup-ai-profile")); err == nil {
-		t.Fatal("encrypted backup credential unexpectedly opened with a different master key")
+	defer source.Close()
+	if err := SetPreference(ctx, source, domain.DefaultProfileID, PreferenceRetentionDays, json.RawMessage(`99999`)); err != nil {
+		t.Fatal(err)
+	}
+	document, err := ExportBackup(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	target, err := Open(ctx, filepath.Join(t.TempDir(), "target.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer target.Close()
+	if err := RestoreBackup(ctx, target, document); err != nil {
+		t.Fatal(err)
+	}
+	days, err := RetentionDays(ctx, target, domain.DefaultProfileID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if days != 0 {
+		t.Fatalf("restored retention %d days, want 0", days)
 	}
 }

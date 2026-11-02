@@ -14,9 +14,17 @@ import (
 	"github.com/Zijinn/ReFlow/internal/storage"
 )
 
+const (
+	pairingWindow      = 10 * time.Minute
+	pairingPerPeer     = 10
+	pairingGlobalLimit = 100
+)
+
 type pairingLimiter struct {
-	mu       sync.Mutex
-	attempts map[string]pairingAttempt
+	mu          sync.Mutex
+	attempts    map[string]pairingAttempt
+	global      pairingAttempt
+	lastCleanup time.Time
 }
 
 type pairingAttempt struct {
@@ -32,22 +40,48 @@ func (l *pairingLimiter) allow(key string) bool {
 	now := time.Now()
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	for candidate, attempt := range l.attempts {
-		if now.After(attempt.reset) {
-			delete(l.attempts, candidate)
+	if l.lastCleanup.IsZero() || now.Sub(l.lastCleanup) >= time.Minute {
+		for candidate, attempt := range l.attempts {
+			if now.After(attempt.reset) {
+				delete(l.attempts, candidate)
+			}
 		}
+		l.lastCleanup = now
 	}
+	if l.global.reset.IsZero() || now.After(l.global.reset) {
+		l.global = pairingAttempt{reset: now.Add(pairingWindow)}
+	}
+	if l.global.count >= pairingGlobalLimit {
+		return false
+	}
+	key = pairingPeerKey(key)
 	attempt, ok := l.attempts[key]
 	if !ok || now.After(attempt.reset) {
-		l.attempts[key] = pairingAttempt{count: 1, reset: now.Add(10 * time.Minute)}
+		l.attempts[key] = pairingAttempt{count: 1, reset: now.Add(pairingWindow)}
+		l.global.count++
 		return true
 	}
-	if attempt.count >= 10 {
+	if attempt.count >= pairingPerPeer {
 		return false
 	}
 	attempt.count++
 	l.attempts[key] = attempt
+	l.global.count++
 	return true
+}
+
+// pairingPeerKey aggregates IPv6 privacy addresses into a /64 so one host
+// rotating its suffix cannot grow the limiter map without bound.
+func pairingPeerKey(key string) string {
+	address, err := netip.ParseAddr(strings.Trim(key, "[]"))
+	if err != nil {
+		return key
+	}
+	address = address.Unmap()
+	if address.Is6() {
+		return netip.PrefixFrom(address, 64).Masked().String()
+	}
+	return address.String()
 }
 
 type SecurityConfig struct {

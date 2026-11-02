@@ -73,6 +73,33 @@ func Retryable(err error) bool {
 	return errors.As(err, &providerError) && providerError.Retryable
 }
 
+// PublicMessage returns a stable explanation without the provider response body.
+// The body may contain internal prompts, request IDs, or data from a private
+// endpoint reached through the private-network opt-in.
+func PublicMessage(err error) string {
+	var providerError *Error
+	if !errors.As(err, &providerError) {
+		return "AI request failed"
+	}
+	switch providerError.Code {
+	case "authentication_error":
+		return "The AI provider rejected the API key."
+	case "rate_limited":
+		return "The AI provider rate limit was reached."
+	case "network_error":
+		return "The AI provider could not be reached."
+	case "invalid_response":
+		return "The AI provider returned an invalid response."
+	case "http_error":
+		if providerError.StatusCode > 0 {
+			return fmt.Sprintf("The AI provider returned HTTP %d.", providerError.StatusCode)
+		}
+		return "The AI provider returned an error."
+	default:
+		return "AI request failed"
+	}
+}
+
 func New(provider, endpoint, model, apiKey string, client *http.Client) (Provider, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")

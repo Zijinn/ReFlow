@@ -1,4 +1,36 @@
 import "@testing-library/jest-dom/vitest"
+import { beforeEach } from "vitest"
+
+// Node 26 exposes an inert experimental global `localStorage`, while jsdom may
+// not expose its own Storage on the global. Zustand's persist middleware reads
+// the global and silently falls back to no storage when it is undefined, which
+// made every persisted store fail before a test could render. Install a stable
+// Storage for the test environment and clear it between tests.
+const testStorage = new Map<string, string>()
+const storage: Storage = {
+  get length() {
+    return testStorage.size
+  },
+  clear: () => testStorage.clear(),
+  getItem: (key) => testStorage.get(key) ?? null,
+  key: (index) => Array.from(testStorage.keys())[index] ?? null,
+  removeItem: (key) => {
+    testStorage.delete(key)
+  },
+  setItem: (key, value) => {
+    testStorage.set(key, String(value))
+  },
+}
+Object.defineProperty(globalThis, "localStorage", { configurable: true, value: storage })
+if (typeof window !== "undefined") {
+  try {
+    Object.defineProperty(window, "localStorage", { configurable: true, value: storage })
+  } catch {
+    // A non-configurable jsdom property is fine; the global above is what
+    // zustand and the API client read.
+  }
+}
+beforeEach(() => storage.clear())
 
 // jsdom performs no layout, so every element measures 0x0. @tanstack/react-virtual
 // sizes its scroll viewport from `offsetWidth`/`offsetHeight` (virtual-core's

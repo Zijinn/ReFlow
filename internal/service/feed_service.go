@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"sort"
 	"strings"
 
 	readability "codeberg.org/readeck/go-readability/v2"
@@ -28,12 +29,20 @@ type AddFeedInput struct {
 func (s *FeedService) SanitizeSnapshot(document storage.BackupDocument) storage.BackupDocument {
 	for tableIndex := range document.Tables {
 		table := &document.Tables[tableIndex]
-		if table.Name != "entry_contents" {
-			continue
-		}
 		indexOf := make(map[string]int, len(table.Columns))
 		for index, column := range table.Columns {
 			indexOf[column] = index
+		}
+		if table.Name == "feeds" {
+			sanitizeSnapshotURLs(table.Rows, indexOf, "url", "canonical_url", "site_url", "icon_url")
+			continue
+		}
+		if table.Name == "entries" {
+			sanitizeSnapshotURLs(table.Rows, indexOf, "canonical_url", "lead_image_url", "audio_url", "video_url")
+			continue
+		}
+		if table.Name != "entry_contents" {
+			continue
 		}
 		sanitizeColumn := func(row []storage.BackupValue, htmlColumn, textColumn string) {
 			htmlIndex, ok := indexOf[htmlColumn]
@@ -56,6 +65,27 @@ func (s *FeedService) SanitizeSnapshot(document storage.BackupDocument) storage.
 		}
 	}
 	return document
+}
+
+func sanitizeSnapshotURLs(rows [][]storage.BackupValue, indexOf map[string]int, columns ...string) {
+	for _, column := range columns {
+		index, ok := indexOf[column]
+		if !ok {
+			continue
+		}
+		for rowIndex := range rows {
+			if index >= len(rows[rowIndex]) || rows[rowIndex][index].Kind != "text" {
+				continue
+			}
+			value := strings.TrimSpace(rows[rowIndex][index].Text)
+			parsed, err := url.Parse(value)
+			if value == "" || (err == nil && parsed.Host != "" && (parsed.Scheme == "http" || parsed.Scheme == "https")) {
+				rows[rowIndex][index].Text = value
+				continue
+			}
+			rows[rowIndex][index].Text = ""
+		}
+	}
 }
 
 func (s *FeedService) FetchReadability(ctx context.Context, entryID string) error {
@@ -113,6 +143,23 @@ func NewFeedService(db *sql.DB, fetcher *feedcore.Fetcher) *FeedService {
 	}
 }
 
+const maxEntriesPerRefresh = 1000
+
+// limitParsedEntries caps one refresh at the newest items. A 10 MiB feed can
+// hold tens of thousands of tiny items; writing all of them in one transaction
+// holds the SQLite writer lock for minutes and can exceed rule-query parameter
+// limits. The cap keeps refresh latency bounded for hostile or archival feeds.
+func limitParsedEntries(parsed domain.ParsedFeed) domain.ParsedFeed {
+	if len(parsed.Entries) <= maxEntriesPerRefresh {
+		return parsed
+	}
+	sort.SliceStable(parsed.Entries, func(i, j int) bool {
+		return parsed.Entries[i].PublishedAt.After(parsed.Entries[j].PublishedAt)
+	})
+	parsed.Entries = parsed.Entries[:maxEntriesPerRefresh]
+	return parsed
+}
+
 func (s *FeedService) SetRSSHubBase(base string) {
 	if strings.TrimSpace(base) != "" {
 		s.rssHubBase = strings.TrimRight(strings.TrimSpace(base), "/")
@@ -132,6 +179,7 @@ func (s *FeedService) AddFeed(ctx context.Context, input AddFeedInput) (domain.F
 	if err != nil {
 		return domain.Feed{}, err
 	}
+	parsed = limitParsedEntries(parsed)
 	canonicalURL, err := feedcore.NormalizeURL(fetched.URL)
 	if err != nil {
 		return domain.Feed{}, err
@@ -183,6 +231,7 @@ func (s *FeedService) RefreshFeed(ctx context.Context, feedID string) (int, erro
 		_ = storage.MarkFeedFailure(ctx, s.db, feedID, "parse_error", err.Error())
 		return 0, err
 	}
+	parsed = limitParsedEntries(parsed)
 	inserted, err := storage.SaveFeedRefresh(ctx, s.db, domain.DefaultProfileID, feedID, parsed, fetched.ETag, fetched.LastModified)
 	if err != nil {
 		return 0, err
